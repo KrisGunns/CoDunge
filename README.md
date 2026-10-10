@@ -29,6 +29,6 @@ Clearing site data resets progress.
 
 ## Controls
 
-Works in portrait and landscape (portrait zooms in and follows your character).
+Works in portrait and landscape. On a portrait screen the host gets a tall room (start at the bottom, door on one of the other sides) that fills the screen width; a player on a landscape screen joining a portrait host just sees it scaled to fit.
 Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (stacked above Attack).
 Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.

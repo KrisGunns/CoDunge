@@ -5,7 +5,18 @@
 // the guest sends inputs and renders snapshots. Single player = host only.
 // =====================================================================
 const $ = id => document.getElementById(id);
-const TILE = 32, COLS = 30, ROWS = 17, W = COLS * TILE, H = ROWS * TILE;
+const TILE = 32;
+// Room size. Landscape rooms are 30x17 tiles; when the host plays in portrait the level is generated rotated: 17x30 (start at the bottom, door at the top).
+let COLS = 30, ROWS = 17, W = COLS * TILE, H = ROWS * TILE;
+function setDims(portrait) {
+  COLS = portrait ? 17 : 30; ROWS = portrait ? 30 : 17; W = COLS * TILE; H = ROWS * TILE;
+  SPAWN_POINT = portrait ? { x: (COLS / 2) * TILE, y: (ROWS - 2.5) * TILE } : { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
+}
+function spawnXY(i) { // where player i starts
+  return portrait_() ? { x: (COLS / 2 + (i === 0 ? -1 : 1)) * TILE, y: (ROWS - 2.5) * TILE }
+                     : { x: 2.5 * TILE, y: (ROWS / 2 + (i === 0 ? -1 : 1)) * TILE };
+}
+const portrait_ = () => ROWS > COLS;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const STEP = 1 / 60;
 const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
@@ -14,7 +25,7 @@ const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
 const VISION = { rat: 160, goblin: 190, troll: 230 }; // px
 const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
 const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
-const SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
+let SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
 const SPAWN_MIN_DIST = 320; // enemies never spawn closer than this to where the players start (> every vision range)
 const rnd = n => Math.floor(Math.random() * n);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -380,7 +391,7 @@ function bfs(grid, sx, sy) {
   }
   return f;
 }
-function genLevel(stage, level) {
+function genLandscape(stage, level) {
   const boss = level === 10;
   let last = null;
   for (let attempt = 0; attempt < 60; attempt++) {
@@ -409,6 +420,20 @@ function genLevel(stage, level) {
     if (f[ir * COLS + ic] >= 0 && cells.length > 20) return last;
   }
   return last;
+}
+
+function genLevel(stage, level, portrait) {
+  setDims(false);
+  const L = genLandscape(stage, level);
+  if (!portrait) return L;
+  const GC = COLS; // rotate a quarter turn: left (start) -> bottom, right -> top
+  const g = [];
+  for (let r = 0; r < GC; r++) g.push(new Array(ROWS).fill(0));
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < GC; c++) g[GC - 1 - c][r] = L.grid[r][c];
+  const d = L.door;
+  const out = { grid: g, door: { c: d.r, r: GC - 1 - d.c, ic: d.ir, ir: GC - 1 - d.ic }, cells: L.cells.map(([c, r]) => [r, GC - 1 - c]) };
+  setDims(true);
+  return out;
 }
 
 // ---------------- game state ----------------
@@ -457,12 +482,12 @@ function leaveGame() {
 }
 
 function loadLevel(g, first) {
-  const L = genLevel(g.stage, g.level);
+  const L = genLevel(g.stage, g.level, innerHeight > innerWidth);
   g.grid = L.grid; g.door = { c: L.door.c, r: L.door.r, ic: L.door.ic, ir: L.door.ir, open: false };
   g.enemies = []; g.proj = []; g.pickups = []; g.fields = {}; g.fieldT = 0;
   g.players.forEach((p, i) => {
     if (p.gone) return;
-    p.x = 2.5 * TILE; p.y = (ROWS / 2 + (i === 0 ? -1 : 1) - 0.5 + 0.5) * TILE; p.atkCd = 0;
+    const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0;
     if (!first) {
       if (!p.alive) { p.alive = true; p.hp = Math.ceil(p.maxhp * 0.5); }
       else p.hp = Math.min(p.maxhp, p.hp + Math.ceil(p.maxhp * 0.15));
@@ -808,6 +833,7 @@ function snapshot(g) {
 function applyLevel(g, m) {
   g.stage = m.stage; g.level = m.level;
   g.grid = m.grid.map(r => [...r].map(Number));
+  setDims(g.grid.length > g.grid[0].length);
   g.door = { c: m.door.c, r: m.door.r, ic: m.door.ic, ir: m.door.ir, open: false };
   g.enemies = []; g.proj = []; g.pickups = []; g.fx = [];
   g.players = m.players.map(p => Object.assign({ r: 10, face: 0, spCd: 0, hurt: 0, tx: p.x, ty: p.y }, p));
@@ -1189,7 +1215,7 @@ function bottomReserve() { // portrait: CSS px at the bottom occupied by the but
 function layout(g) {
   const iw = innerWidth, ih = innerHeight;
   if (ih > iw) {
-    const s = iw / PORTRAIT_VIEW_W;
+    const s = iw / (W <= PORTRAIT_VIEW_W + 40 ? W : PORTRAIT_VIEW_W); // a portrait room fits the width exactly; a wide one is zoomed
     const vh = Math.max(120, Math.min(H * s, ih - bottomReserve()));
     const vw = iw / s, vhw = vh / s;
     const me = g && g.players[g.pid];
