@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Coop Quest</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<button id="btnQuit" class="hidden">✕</button>
+<div id="controls" class="hidden">
+  <button id="btnSp" class="act sp"><i id="spCd"></i><span id="spTxt">★</span></button>
+  <button id="btnAtk" class="act atk">⚔</button>
+</div>
+
+<div id="screens">
+  <!-- Name -->
+  <section id="scrName" class="screen hidden">
+    <h1>Coop Quest</h1>
+    <p class="sub">Enter your game name</p>
+    <input id="nameInput" maxlength="12" placeholder="Your name" autocomplete="off">
+    <button id="btnNameOk" class="big">Continue</button>
+  </section>
+
+  <!-- Main menu -->
+  <section id="scrMenu" class="screen hidden">
+    <h1>Coop Quest</h1>
+    <p class="sub">Playing as <b id="menuName" class="link"></b> · 🟡 <b id="menuCp">0</b> · Best <b id="menuBest">1-1</b></p>
+    <button id="btnStart" class="big">Start Game</button>
+    <button id="btnChar" class="big alt">Characters</button>
+  </section>
+
+  <!-- Mode -->
+  <section id="scrMode" class="screen hidden">
+    <h2>Start Game</h2>
+    <button id="btnSingle" class="big">Single Player</button>
+    <button id="btnMulti" class="big">Multiplayer</button>
+    <button class="back" data-go="scrMenu">Back</button>
+  </section>
+
+  <!-- Multiplayer -->
+  <section id="scrMulti" class="screen hidden">
+    <h2>Multiplayer</h2>
+    <button id="btnFind" class="big">Find Game</button>
+    <button id="btnCreate" class="big">Create Game Room</button>
+    <div class="row">
+      <input id="codeInput" maxlength="5" placeholder="ROOM CODE" autocomplete="off" autocapitalize="characters">
+      <button id="btnJoin">Join</button>
+    </div>
+    <p id="multiStatus" class="status"></p>
+    <button class="back" data-go="scrMode">Back</button>
+  </section>
+
+  <!-- Lobby -->
+  <section id="scrLobby" class="screen hidden">
+    <h2 id="lobbyTitle">Lobby</h2>
+    <div id="lobbyCodeBox">
+      <p class="sub">Room code — give it to your friend</p>
+      <div id="lobbyCode">-----</div>
+    </div>
+    <ul id="lobbyPlayers"></ul>
+    <p id="lobbyStatus" class="status"></p>
+    <button id="btnLobbyStart" class="big hidden">Start</button>
+    <button id="btnLobbyLeave" class="back">Leave</button>
+  </section>
+
+  <!-- Characters -->
+  <section id="scrChar" class="screen wide hidden">
+    <h2>Characters</h2>
+    <p class="sub">Character Points: 🟡 <b id="cpCount">0</b> &nbsp;·&nbsp; 1 point = +1 ATK and +5 HP</p>
+    <div id="charCards"></div>
+    <button class="back" data-go="scrMenu">Back</button>
+  </section>
+
+  <!-- Game over -->
+  <section id="scrOver" class="screen hidden">
+    <h2>Game Over</h2>
+    <p class="sub" id="overStage"></p>
+    <p class="sub" id="overCp"></p>
+    <button id="btnOverMenu" class="big">Back to Menu</button>
+  </section>
+</div>
+
+<div id="toast"></div>
+<div id="rotate">Rotate your device to landscape</div>
+<!-- PeerJS (WebRTC) for multiplayer; the second tag only loads if the first CDN is unreachable -->
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script>window.Peer || document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')</script>
+<script src="game.js"></script>
+</body>
+</html>
