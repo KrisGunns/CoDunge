@@ -29,5 +29,5 @@ Clearing site data resets progress.
 
 ## Controls
 
-Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (above-left of Attack).
+Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (stacked above Attack).
 Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.

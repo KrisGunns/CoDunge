@@ -9,6 +9,13 @@ const TILE = 32, COLS = 30, ROWS = 17, W = COLS * TILE, H = ROWS * TILE;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const STEP = 1 / 60;
 const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
+// Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
+// or very close behind them. Otherwise they wander near their home spot.
+const VISION = { rat: 160, goblin: 190, troll: 230 }; // px
+const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
+const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
+const SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
+const SPAWN_MIN_DIST = 320; // enemies never spawn closer than this to where the players start (> every vision range)
 const rnd = n => Math.floor(Math.random() * n);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -470,18 +477,22 @@ function spawnEnemies(g, L) {
     for (let i = 0; i < n; i++) list.push(Math.random() < pg ? 'goblin' : 'rat');
   }
   const placed = [];
+  const far = ([c, r]) => Math.hypot((c + 0.5) * TILE - SPAWN_POINT.x, (r + 0.5) * TILE - SPAWN_POINT.y);
+  let pool = L.cells.filter(cell => far(cell) >= SPAWN_MIN_DIST);
+  if (pool.length < list.length * 2) pool = L.cells.slice().sort((a, b) => far(b) - far(a)).slice(0, Math.max(list.length * 3, 40));
   for (const type of list) {
     const def = ENEMIES[type];
     let pos = null;
     for (let t = 0; t < 80 && !pos; t++) {
-      const [c, r] = L.cells[rnd(L.cells.length)];
+      const [c, r] = pool[rnd(pool.length)];
       const x = (c + 0.5) * TILE, y = (r + 0.5) * TILE;
       if (placed.every(q => Math.hypot(q.x - x, q.y - y) > 40)) pos = { x, y };
     }
-    if (!pos) { const [c, r] = L.cells[rnd(L.cells.length)]; pos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE }; }
+    if (!pos) { const [c, r] = pool[rnd(pool.length)]; pos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE }; }
     placed.push(pos);
     g.enemies.push({ id: g.nid++, type, x: pos.x, y: pos.y, r: def.r, hp: Math.ceil(def.hp * m), maxhp: Math.ceil(def.hp * m),
-      atk: def.atk * m, speed: def.speed * (0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.PI, dead: false });
+      atk: def.atk * m, speed: def.speed * (0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
+      alert: 0, home: { x: pos.x, y: pos.y }, wp: null, wt: 0, pause: Math.random() * 2 });
   }
 }
 function noteProgress(g) {
@@ -539,6 +550,7 @@ function hitEnemy(g, e, dmg) {
   if (e.dead) return;
   const d = Math.max(1, Math.round(dmg));
   e.hp -= d; e.hurt = 0.12;
+  if (e.hp > 0) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = Math.max(e.alert, 6); } // getting shot wakes it up
   addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 8, s: String(d), c: '#ffffff' });
   if (e.hp <= 0) {
     e.dead = true;
@@ -607,6 +619,46 @@ function hurtPlayer(g, p, dmg) {
   if (p.hp <= 0) { p.hp = 0; p.alive = false; addFx(g, { type: 'poof', x: p.x, y: p.y }); addFx(g, { type: 'txt', x: p.x, y: p.y - 30, s: 'DOWN!', c: '#ff8a80' }); }
 }
 
+function alertAllies(g, e, t) { // nearby enemies get woken up too
+  for (const o of g.enemies) if (o !== e && !o.dead && o.alert <= 0 && Math.hypot(o.x - e.x, o.y - e.y) < 110) o.alert = t;
+}
+function playerInSight(g, e) {
+  let best = null, bd = 1e9;
+  const vr = VISION[e.type];
+  for (const p of g.players) {
+    if (!p.alive || p.gone) continue;
+    const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
+    if (d > vr || d >= bd) continue;
+    if (d > NOTICE && Math.abs(angDiff(Math.atan2(dy, dx), e.face)) > FOV / 2) continue; // outside the vision cone
+    if (!clearLine(g, e.x, e.y, p.x, p.y, 2)) continue;                                  // a wall blocks the view
+    best = p; bd = d;
+  }
+  return best;
+}
+function wander(g, e, dt) { // idle: short random strolls around the home spot, with pauses and looking around
+  const wsp = e.speed * 0.45;
+  if (e.wp) {
+    const dx = e.wp.x - e.x, dy = e.wp.y - e.y, d = Math.hypot(dx, dy);
+    e.wt -= dt;
+    if (d < 4 || e.wt <= 0) { e.wp = null; e.pause = 0.8 + Math.random() * 2.2; return; }
+    e.face = Math.atan2(dy, dx);
+    const sp = wsp * dt, ox = e.x, oy = e.y;
+    moveEnt(g, e, dx / d * sp, dy / d * sp);
+    if (Math.hypot(e.x - ox, e.y - oy) < sp * 0.3) { e.wp = null; e.pause = 0.5; } // bumped into something
+    return;
+  }
+  e.pause -= dt;
+  if (e.pause > 0) { if (Math.random() < dt * 0.6) e.face += (Math.random() - 0.5) * 1.8; return; } // glance around
+  for (let i = 0; i < 8; i++) {
+    const a = Math.random() * Math.PI * 2, r = 30 + Math.random() * 60;
+    const x = e.x + Math.cos(a) * r, y = e.y + Math.sin(a) * r;
+    if (Math.hypot(x - e.home.x, y - e.home.y) > 140) continue;
+    if (hitsWall(g, x, y, e.r + 2) || !clearLine(g, e.x, e.y, x, y, e.r + 1)) continue;
+    e.wp = { x, y }; e.wt = r / wsp + 1; return;
+  }
+  e.pause = 0.7; e.face += (Math.random() - 0.5) * 2.4;
+}
+
 function step(g, dt) {
   g.time += dt;
   if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.2) g.banner = null; }
@@ -634,8 +686,12 @@ function step(g, dt) {
   for (const e of g.enemies) {
     if (e.dead) continue;
     e.hurt = Math.max(0, e.hurt - dt); e.cd -= dt;
-    const tgt = nearestPlayer(g, e.x, e.y);
-    if (!tgt) continue;
+    const seen = playerInSight(g, e);
+    if (seen) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = 4; } // spotted: hostile, and keeps hunting a few seconds after losing sight
+    else e.alert = Math.max(0, e.alert - dt);
+    if (e.alert <= 0) { wander(g, e, dt); continue; }
+    const tgt = seen || nearestPlayer(g, e.x, e.y);
+    if (!tgt) { e.alert = 0; continue; }
     const d = Math.hypot(tgt.x - e.x, tgt.y - e.y);
     e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x);
     if (d > e.r + tgt.r + 4) {
@@ -728,7 +784,7 @@ function snapshot(g) {
   const s = {
     k: 's', d: g.door.open ? 1 : 0,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100]),
-    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100]),
+    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
     c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y)]),
     f: g.fxq,
@@ -755,7 +811,7 @@ function applySnap(g, s) {
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
     if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]].r };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7];
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8];
     return e;
   });
   const oldJ = new Map(g.proj.map(j => [j.id, j]));
@@ -952,6 +1008,10 @@ function drawEnemy(c, e) {
   const bw = e.type === 'troll' ? 44 : e.r * 2 + 6, by = e.y - (e.type === 'troll' ? 30 : e.r + 8);
   c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
   c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
+  if (e.al !== undefined ? e.al : e.alert > 0) { // "!" = this enemy has noticed a player
+    c.font = 'bold 15px system-ui,sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; c.fillStyle = '#ff5252';
+    c.strokeText('!', e.x, by - 3); c.fillText('!', e.x, by - 3);
+  }
 }
 
 function drawWorld(g) {
@@ -1092,11 +1152,24 @@ function drawJoystick() {
   ctx.beginPath(); ctx.arc(joy.ox, joy.oy, JR, 0, 7); ctx.fill(); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(joy.ox + dx, joy.oy + dy, 26, 0, 7); ctx.fill();
 }
+function controlsReserve() { // CSS px on the right edge occupied by the attack/special buttons
+  if (!game || game.over) return 0;
+  let left = Infinity;
+  for (const b of [btnAtk, btnSp]) {
+    const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null;
+    if (r && r.width) left = Math.min(left, r.left);
+  }
+  return isFinite(left) ? Math.max(0, innerWidth - left + 8) : 110;
+}
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f16'; ctx.fillRect(0, 0, cv.width, cv.height);
   const g = game; if (!g || !g.grid) return;
-  const s = Math.min(cv.width / W, cv.height / H), ox = (cv.width - W * s) / 2, oy = (cv.height - H * s) / 2;
-  ctx.setTransform(s, 0, 0, s, ox, oy);
+  // fit the room into the space left of the buttons, centred there, so the buttons never cover the playable area
+  const iw = innerWidth, ih = innerHeight, R = controlsReserve();
+  const sc = Math.max(0.1, Math.min((iw - R) / W, ih / H));
+  const ox = Math.min((iw - W * sc) / 2, iw - R - W * sc), oy = (ih - H * sc) / 2;
+  const s = sc * dpr;
+  ctx.setTransform(s, 0, 0, s, Math.max(0, ox) * dpr, oy * dpr);
   ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
   drawWorld(g); drawHUD(g);
   ctx.restore();
