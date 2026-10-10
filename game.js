@@ -1149,18 +1149,17 @@ function drawFx(g) {
     ctx.restore();
   }
 }
-function drawHUD(g, hw, hh) { // hw/hh: size of the area the HUD is laid out in
-  ctx.textAlign = 'center';
-  ctx.font = 'bold 22px system-ui,sans-serif'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.fillStyle = '#fff';
-  const title = `Stage ${g.stage}-${g.level}`;
-  ctx.strokeText(title, hw / 2, 28); ctx.fillText(title, hw / 2, 28);
+function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is laid out in
   const troll = g.enemies.find(e => e.type === 'troll');
-  ctx.font = '13px system-ui,sans-serif';
-  let sub, col = '#cfd8ff';
-  if (g.door.open) { sub = 'The door is open!'; col = '#80deea'; }
-  else if (troll) { sub = 'BOSS FIGHT — defeat the Troll!'; col = '#ff8a80'; }
-  else sub = `Defeat all enemies to open the door (${g.enemies.length} left)`;
-  ctx.fillStyle = col; ctx.strokeText(sub, hw / 2, 46); ctx.fillText(sub, hw / 2, 46);
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
+  if (!portrait) { // landscape: stage title + objective centred at the top of the room (portrait draws them in the bottom-left corner instead)
+    ctx.textAlign = 'center'; ctx.font = 'bold 22px system-ui,sans-serif'; ctx.fillStyle = '#fff';
+    const title = `Stage ${g.stage}-${g.level}`;
+    ctx.strokeText(title, hw / 2, 28); ctx.fillText(title, hw / 2, 28);
+    ctx.font = '13px system-ui,sans-serif';
+    const [sub, col] = objective(g, troll);
+    ctx.fillStyle = col; ctx.strokeText(sub, hw / 2, 46); ctx.fillText(sub, hw / 2, 46);
+  }
   // player bars
   ctx.textAlign = 'left';
   g.players.forEach((p, i) => {
@@ -1171,7 +1170,7 @@ function drawHUD(g, hw, hh) { // hw/hh: size of the area the HUD is laid out in
     ctx.fillStyle = p.alive ? '#43a047' : '#616161'; ctx.fillRect(12, y + 14, 150 * clamp(p.hp / p.maxhp, 0, 1), 9);
     ctx.fillStyle = '#fff'; ctx.font = '10px system-ui,sans-serif'; ctx.fillText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxhp}`, 166, y + 22);
   });
-  if (troll) {
+  if (troll && !portrait) {
     const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x, 54, bw, 10);
     ctx.fillStyle = '#c62828'; ctx.fillRect(x, 54, bw * clamp(troll.hp / troll.maxhp, 0, 1), 10);
@@ -1182,6 +1181,32 @@ function drawHUD(g, hw, hh) { // hw/hh: size of the area the HUD is laid out in
     ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#ffd54f';
     ctx.strokeText(b.text, hw / 2, hh / 2 - 20); ctx.fillText(b.text, hw / 2, hh / 2 - 20); ctx.restore();
   }
+}
+function objective(g, troll) {
+  if (g.door.open) return ['The door is open!', '#80deea'];
+  if (troll) return ['BOSS FIGHT — defeat the Troll!', '#ff8a80'];
+  return [`Defeat all enemies to open the door (${g.enemies.length} left)`, '#cfd8ff'];
+}
+// Portrait: stage + objective live in the dark strip below the room, bottom-left, opposite the attack/special buttons.
+function drawInfoPanel(g, top, ih) {
+  const troll = g.enemies.find(e => e.type === 'troll');
+  const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return isFinite(l) ? l : innerWidth * 0.7; })();
+  const x = 14, maxW = Math.max(120, right - x - 12);
+  ctx.save(); ctx.textAlign = 'left'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
+  const [sub, col] = objective(g, troll);
+  // wrap the objective to the free width (never overlaps the buttons)
+  const words = sub.split(' '), lines = []; let cur = '';
+  ctx.font = '15px system-ui,sans-serif';
+  for (const w of words) { const t = cur ? cur + ' ' + w : w; if (ctx.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; }
+  lines.push(cur);
+  const th = 26 + lines.length * 20 + (troll ? 18 : 0);
+  let y = top + Math.max(18, (ih - top - th) / 2) + 22;
+  ctx.font = 'bold 24px system-ui,sans-serif'; ctx.fillStyle = '#fff';
+  const title = `Stage ${g.stage}-${g.level}`; ctx.strokeText(title, x, y); ctx.fillText(title, x, y);
+  ctx.font = '15px system-ui,sans-serif'; ctx.fillStyle = col;
+  for (const ln of lines) { y += 20; ctx.strokeText(ln, x, y); ctx.fillText(ln, x, y); }
+  if (troll) { y += 10; ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(x, y, maxW, 10); ctx.fillStyle = '#c62828'; ctx.fillRect(x, y, maxW * clamp(troll.hp / troll.maxhp, 0, 1), 10); }
+  ctx.restore();
 }
 function drawJoystick() {
   if (!joy.active) return;
@@ -1244,10 +1269,11 @@ function render() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.beginPath(); ctx.rect(L.clip.x, L.clip.y, L.clip.w, L.clip.h); ctx.clip();
   ctx.setTransform(L.s * dpr, 0, 0, L.s * dpr, tx * dpr, ty * dpr);
   drawWorld(g);
-  if (L.portrait) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawHUD(g, L.clip.w, L.clip.h); } // HUD stays put, normal text size
+  if (L.portrait) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawHUD(g, L.clip.w, L.clip.h, true); } // HUD stays put, normal text size
   else drawHUD(g, W, H);
   ctx.restore();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  if (L.portrait && !g.over) drawInfoPanel(g, L.clip.h, innerHeight);
   drawJoystick();
 }
 
