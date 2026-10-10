@@ -98,7 +98,7 @@ const PJ_OPTS = { debug: 1, config: { iceServers: [
   { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
   { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-] } };
+].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } }; // your own TURN relay goes in turn-config.js
 // Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
 const FIND_SLOTS = 3;
@@ -222,7 +222,7 @@ function connectRoom(p, code, tk, auto) {
   lobby = { code, players: [], hostId: 0, auto, searching: false };
   $('multiStatus').textContent = 'Connecting to the host…';
   attachConn(conn, tk);
-  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. Your networks may block it; try again, or put one of you on Wi-Fi.'); }, 20000);
+  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links and no relay server worked. Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
 }
 function joinRoom(code) {
   if (!needPeer()) return;
