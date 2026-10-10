@@ -1,4 +1,4 @@
-# Coop Quest
+# CoDunge
 
 Co-op top-down dungeon crawler (Warrior / Mage / Healer). Single player or 2-player online.
 Pure static site (HTML5 Canvas + vanilla JS) — runs on GitHub Pages, no server of your own.
@@ -24,10 +24,11 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 
 ## Saving
 
-Name, Character Points, upgrades, selected character and best level are stored in each player's browser (localStorage).
+Name, Character Points (each point = +1 ATK or +5 HP, your choice), upgrades, selected character and best level are stored in each player's browser (localStorage).
 Clearing site data resets progress.
 
 ## Controls
 
+Works in portrait and landscape (portrait zooms in and follows your character).
 Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (stacked above Attack).
 Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.

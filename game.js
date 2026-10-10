@@ -1,7 +1,7 @@
 'use strict';
 (() => {
 // =====================================================================
-// Coop Quest — client. The room host's browser runs the simulation;
+// CoDunge — client. The room host's browser runs the simulation;
 // the guest sends inputs and renders snapshots. Single player = host only.
 // =====================================================================
 const $ = id => document.getElementById(id);
@@ -35,20 +35,33 @@ const ENEMIES = {
 
 // ---------------- profile / save ----------------
 const SAVE_KEY = 'coopquest.v1';
-const defaultProfile = () => ({ name: '', cp: 0, sel: 'warrior', up: { warrior: 0, mage: 0, healer: 0 }, best: { stage: 1, level: 1 } });
+const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
+const defaultProfile = () => ({ name: '', cp: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 } });
 function loadProfile() {
   try {
     const p = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (p && typeof p === 'object') {
       const d = defaultProfile();
-      return Object.assign(d, p, { up: Object.assign(d.up, p.up || {}), best: Object.assign(d.best, p.best || {}) });
+      const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
+      out.cp = Math.max(0, out.cp | 0);
+      // Each point is now spent on ATK *or* HP. Old saves stored one number per character (a point gave both):
+      // refund those points so the player can re-spend them, and save right away so the refund happens only once.
+      let migrated = false; const up = emptyUp();
+      for (const c of Object.keys(CHARS)) {
+        const v = p.up && p.up[c];
+        if (typeof v === 'number') { out.cp += Math.max(0, v | 0); migrated = true; }
+        else if (v && typeof v === 'object') up[c] = { atk: Math.max(0, v.atk | 0), hp: Math.max(0, v.hp | 0) };
+      }
+      out.up = up;
+      if (migrated) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(out)); } catch (e) {} }
+      return out;
     }
   } catch (e) {}
   return defaultProfile();
 }
 let profile = loadProfile();
 function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} }
-function statsFor(c) { const up = profile.up[c] | 0; return { atk: CHARS[c].atk + up, hp: CHARS[c].hp + 5 * up }; }
+function statsFor(c) { const u = profile.up[c] || { atk: 0, hp: 0 }; return { atk: CHARS[c].atk + (u.atk | 0), hp: CHARS[c].hp + 5 * (u.hp | 0) }; } // 1 point = +1 ATK or +5 HP
 
 // ---------------- screens / toast ----------------
 const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrMulti', 'scrLobby', 'scrChar', 'scrOver'];
@@ -924,7 +937,7 @@ function update(dt) {
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now; frameDt = dt;
   update(dt);
   render();
 }
@@ -1110,18 +1123,18 @@ function drawFx(g) {
     ctx.restore();
   }
 }
-function drawHUD(g) {
+function drawHUD(g, hw, hh) { // hw/hh: size of the area the HUD is laid out in
   ctx.textAlign = 'center';
   ctx.font = 'bold 22px system-ui,sans-serif'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)'; ctx.fillStyle = '#fff';
   const title = `Stage ${g.stage}-${g.level}`;
-  ctx.strokeText(title, W / 2, 28); ctx.fillText(title, W / 2, 28);
+  ctx.strokeText(title, hw / 2, 28); ctx.fillText(title, hw / 2, 28);
   const troll = g.enemies.find(e => e.type === 'troll');
   ctx.font = '13px system-ui,sans-serif';
   let sub, col = '#cfd8ff';
   if (g.door.open) { sub = 'The door is open!'; col = '#80deea'; }
   else if (troll) { sub = 'BOSS FIGHT — defeat the Troll!'; col = '#ff8a80'; }
   else sub = `Defeat all enemies to open the door (${g.enemies.length} left)`;
-  ctx.fillStyle = col; ctx.strokeText(sub, W / 2, 46); ctx.fillText(sub, W / 2, 46);
+  ctx.fillStyle = col; ctx.strokeText(sub, hw / 2, 46); ctx.fillText(sub, hw / 2, 46);
   // player bars
   ctx.textAlign = 'left';
   g.players.forEach((p, i) => {
@@ -1133,15 +1146,15 @@ function drawHUD(g) {
     ctx.fillStyle = '#fff'; ctx.font = '10px system-ui,sans-serif'; ctx.fillText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxhp}`, 166, y + 22);
   });
   if (troll) {
-    const bw = 300, x = W / 2 - bw / 2;
+    const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x, 54, bw, 10);
     ctx.fillStyle = '#c62828'; ctx.fillRect(x, 54, bw * clamp(troll.hp / troll.maxhp, 0, 1), 10);
   }
   if (g.banner) {
     const b = g.banner, a = b.t < 0.3 ? b.t / 0.3 : b.t > 1.7 ? Math.max(0, (2.2 - b.t) / 0.5) : 1;
-    ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.font = 'bold 44px system-ui,sans-serif';
+    ctx.save(); ctx.globalAlpha = a; ctx.textAlign = 'center'; ctx.font = `bold ${Math.min(44, Math.floor(hw / 9))}px system-ui,sans-serif`;
     ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#ffd54f';
-    ctx.strokeText(b.text, W / 2, H / 2 - 20); ctx.fillText(b.text, W / 2, H / 2 - 20); ctx.restore();
+    ctx.strokeText(b.text, hw / 2, hh / 2 - 20); ctx.fillText(b.text, hw / 2, hh / 2 - 20); ctx.restore();
   }
 }
 function drawJoystick() {
@@ -1152,7 +1165,8 @@ function drawJoystick() {
   ctx.beginPath(); ctx.arc(joy.ox, joy.oy, JR, 0, 7); ctx.fill(); ctx.stroke();
   ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.arc(joy.ox + dx, joy.oy + dy, 26, 0, 7); ctx.fill();
 }
-function controlsReserve() { // CSS px on the right edge occupied by the attack/special buttons
+const PORTRAIT_VIEW_W = 520; // world px visible across the screen width in portrait; the camera follows the player
+function controlsReserve() { // landscape: CSS px on the right edge occupied by the attack/special buttons
   if (!game || game.over) return 0;
   let left = Infinity;
   for (const b of [btnAtk, btnSp]) {
@@ -1161,17 +1175,51 @@ function controlsReserve() { // CSS px on the right edge occupied by the attack/
   }
   return isFinite(left) ? Math.max(0, innerWidth - left + 8) : 110;
 }
+function bottomReserve() { // portrait: CSS px at the bottom occupied by the buttons (the room is drawn above them)
+  if (!game || game.over) return 0;
+  let top = Infinity;
+  for (const b of [btnAtk, btnSp]) {
+    const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null;
+    if (r && r.height) top = Math.min(top, r.top);
+  }
+  return isFinite(top) ? Math.max(0, innerHeight - top + 8) : 170;
+}
+// Where the room goes on screen. world -> CSS px is x*s+tx. Landscape shows the whole room left of the buttons;
+// portrait zooms in across the screen width (room above the buttons) and follows the local player.
+function layout(g) {
+  const iw = innerWidth, ih = innerHeight;
+  if (ih > iw) {
+    const s = iw / PORTRAIT_VIEW_W;
+    const vh = Math.max(120, Math.min(H * s, ih - bottomReserve()));
+    const vw = iw / s, vhw = vh / s;
+    const me = g && g.players[g.pid];
+    const px = me ? me.x : W / 2, py = me ? me.y : H / 2;
+    const camX = vw >= W ? (W - vw) / 2 : clamp(px - vw / 2, 0, W - vw);
+    const camY = vhw >= H ? (H - vhw) / 2 : clamp(py - vhw / 2, 0, H - vhw);
+    return { portrait: true, s, camX, camY, tx: -camX * s, ty: -camY * s, clip: { x: 0, y: 0, w: iw, h: vh } };
+  }
+  const R = controlsReserve();
+  const s = Math.max(0.1, Math.min((iw - R) / W, ih / H));
+  const ox = Math.max(0, Math.min((iw - W * s) / 2, iw - R - W * s)), oy = (ih - H * s) / 2;
+  return { portrait: false, s, tx: ox, ty: oy, clip: { x: ox, y: oy, w: W * s, h: H * s } };
+}
+let frameDt = 1 / 60;
 function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0d0f16'; ctx.fillRect(0, 0, cv.width, cv.height);
   const g = game; if (!g || !g.grid) return;
-  // fit the room into the space left of the buttons, centred there, so the buttons never cover the playable area
-  const iw = innerWidth, ih = innerHeight, R = controlsReserve();
-  const sc = Math.max(0.1, Math.min((iw - R) / W, ih / H));
-  const ox = Math.min((iw - W * sc) / 2, iw - R - W * sc), oy = (ih - H * sc) / 2;
-  const s = sc * dpr;
-  ctx.setTransform(s, 0, 0, s, Math.max(0, ox) * dpr, oy * dpr);
-  ctx.save(); ctx.beginPath(); ctx.rect(0, 0, W, H); ctx.clip();
-  drawWorld(g); drawHUD(g);
+  const L = layout(g);
+  let tx = L.tx, ty = L.ty;
+  if (L.portrait) { // glide the camera after the player instead of snapping
+    if (!g.cam) g.cam = { x: L.camX, y: L.camY };
+    else { const k = 1 - Math.exp(-frameDt * 12); g.cam.x += (L.camX - g.cam.x) * k; g.cam.y += (L.camY - g.cam.y) * k; }
+    tx = -g.cam.x * L.s; ty = -g.cam.y * L.s;
+  }
+  ctx.save();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.beginPath(); ctx.rect(L.clip.x, L.clip.y, L.clip.w, L.clip.h); ctx.clip();
+  ctx.setTransform(L.s * dpr, 0, 0, L.s * dpr, tx * dpr, ty * dpr);
+  drawWorld(g);
+  if (L.portrait) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawHUD(g, L.clip.w, L.clip.h); } // HUD stays put, normal text size
+  else drawHUD(g, W, H);
   ctx.restore();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   drawJoystick();
@@ -1187,12 +1235,13 @@ function renderChars() {
   $('cpCount').textContent = profile.cp;
   const box = $('charCards'); box.innerHTML = '';
   for (const key of Object.keys(CHARS)) {
-    const def = CHARS[key], up = profile.up[key] | 0, st = statsFor(key);
+    const def = CHARS[key], u = profile.up[key], st = statsFor(key);
     const card = document.createElement('div'); card.className = 'card' + (profile.sel === key ? ' sel' : '');
-    card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${def.name}${up ? ` <small>(+${up})</small>` : ''}</h3>
-      <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div>
-      <div class="btns"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button>
-      <button data-act="up" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+1 (🟡1)</button></div>`;
+    card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${def.name}</h3>
+      <div class="stats">ATK <b>${st.atk}</b>${u.atk ? ` <small>(+${u.atk})</small>` : ''} · HP <b>${st.hp}</b>${u.hp ? ` <small>(+${5 * u.hp})</small>` : ''}</div><div class="desc">${def.desc}</div>
+      <div class="btns"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
+      <div class="btns"><button data-act="up-atk" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🟡 1</small></button>
+      <button data-act="up-hp" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+5 HP<br><small>🟡 1</small></button></div>`;
     box.appendChild(card);
     const c2 = card.querySelector('canvas').getContext('2d');
     c2.fillStyle = '#232838'; c2.fillRect(0, 0, 120, 120);
@@ -1203,7 +1252,7 @@ $('charCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const c = b.dataset.c;
   if (b.dataset.act === 'sel') profile.sel = c;
-  else if (b.dataset.act === 'up' && profile.cp >= 1) { profile.cp--; profile.up[c] = (profile.up[c] | 0) + 1; }
+  else if ((b.dataset.act === 'up-atk' || b.dataset.act === 'up-hp') && profile.cp >= 1) { profile.cp--; profile.up[c][b.dataset.act === 'up-atk' ? 'atk' : 'hp']++; }
   saveProfile(); renderChars();
 });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
@@ -1241,7 +1290,7 @@ $('btnJoin').addEventListener('click', () => {
 $('btnLobbyStart').addEventListener('click', hostStart);
 $('btnShare').addEventListener('click', async () => {
   const url = location.origin + location.pathname + '?room=' + lobby.code;
-  try { if (navigator.share) { await navigator.share({ title: 'Coop Quest', text: `Join my Coop Quest room (${lobby.code})`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { if (navigator.share) { await navigator.share({ title: 'CoDunge', text: `Join my CoDunge room (${lobby.code})`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
   try { await navigator.clipboard.writeText(url); toast('Invite link copied!'); } catch (e) { toast(url); }
 });
 $('btnLobbyLeave').addEventListener('click', () => { closeNet(); $('multiStatus').textContent = ''; show('scrMulti'); });

@@ -38,7 +38,8 @@ input:focus{border-color:#ffd54f}
 .card .stats{font-size:15px;color:#cfd8ff}
 .card .desc{font-size:13px;color:#9fa8da;min-height:52px}
 .card .btns{display:flex;gap:6px;width:100%}
-.card .btns button{flex:1;padding:8px 6px;font-size:14px}
+.card .btns button{flex:1;padding:8px 6px;font-size:14px;line-height:1.2}
+.card .btns button small{opacity:.85;font-size:12px}
 
 /* in-game controls */
 #controls{position:fixed;inset:0;pointer-events:none;z-index:5}
@@ -58,5 +59,3 @@ input:focus{border-color:#ffd54f}
   opacity:0;transition:opacity .25s;pointer-events:none;font-size:15px;white-space:nowrap}
 #toast.show{opacity:1}
 
-#rotate{display:none;position:fixed;inset:0;z-index:30;background:#0d0f16;color:#ffd54f;align-items:center;justify-content:center;font-size:22px;text-align:center;padding:20px}
-@media (orientation:portrait){ body.playing #rotate{display:flex} }
