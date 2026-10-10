@@ -60,7 +60,16 @@ function toast(msg) {
 // "waiting slot" ids: the first player registers a slot and waits; the next player finds it,
 // the waiter opens a fresh room and tells the newcomer its code.
 const PJ_PREFIX = 'coopquest-v1-';
-const PJ_OPTS = {}; // e.g. { config: { iceServers: [ ...your STUN/TURN... ] } }
+// STUN finds a direct path; the TURN relay is a best-effort fallback for networks that block direct WebRTC
+// (it is a free shared service and may be slow or rate-limited; swap in your own TURN server if you have one).
+const PJ_OPTS = { debug: 1, config: { iceServers: [
+  { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+] } };
+// Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
+const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
 const FIND_SLOTS = 3;
 const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0 };
 let lobby = { code: '', players: [], hostId: 0, auto: false, searching: false };
@@ -68,8 +77,30 @@ let cdTimer = 0;
 const safe = fn => { try { return fn(); } catch (e) { return undefined; } };
 const mkCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 5; i++) c += A[rnd(A.length)]; return c; };
 
+let wakeLock = null;
+async function keepAwake() {
+  try { if ('wakeLock' in navigator && !wakeLock) { wakeLock = await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release', () => { wakeLock = null; }); } } catch (e) {}
+}
+function keepBrokerLink(p, tk) { // re-attach a peer to the matchmaking service after it dropped (e.g. tab was backgrounded)
+  const tryRe = n => {
+    if (tk !== net.token || net.pj !== p || p.destroyed || !p.disconnected) return;
+    safe(() => p.reconnect());
+    if (n < 12) setTimeout(() => tryRe(n + 1), 2000);
+  };
+  tryRe(0);
+}
+function reviveNet() { // called when the page returns to the foreground / network comes back
+  const p = net.pj;
+  if (!p || game) return;
+  if (p.destroyed && net.revive && !net.conn) net.revive();
+  else if (p.disconnected && !p.destroyed) keepBrokerLink(p, net.token);
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { reviveNet(); if (net.pj || game) keepAwake(); } });
+window.addEventListener('online', reviveNet);
+
 function closeNet() {
   net.token++; // invalidates every pending callback from the previous session
+  net.revive = null; if (wakeLock) { safe(() => wakeLock.release()); wakeLock = null; }
   clearInterval(cdTimer); cdTimer = 0; clearTimeout(net.findTimer);
   const c = net.conn, p = net.pj, extra = net.extra;
   net.conn = null; net.pj = null; net.peer = null; net.extra = [];
@@ -78,7 +109,7 @@ function closeNet() {
 function relay(d) { const c = net.conn; if (c && c.open) safe(() => c.send(d)); }
 function peerMsg(err) {
   const t = err && err.type;
-  if (t === 'peer-unavailable') return 'Room not found. Check the code.';
+  if (t === 'peer-unavailable') return 'Room not found. Check the code, and ask the host to keep the game open in the foreground.';
   if (t === 'network' || t === 'server-error' || t === 'socket-error' || t === 'socket-closed') return 'Could not reach the PeerJS matchmaking service. Check your connection.';
   if (t === 'browser-incompatible') return 'This browser does not support WebRTC.';
   return 'Connection problem' + (t ? ` (${t})` : '') + '.';
@@ -125,35 +156,54 @@ function hostAccept(p, c, tk) {
 }
 function createRoom() {
   if (!needPeer()) return;
-  closeNet(); const tk = net.token; net.isHost = true; net.id = 0;
+  closeNet(); keepAwake(); const tk = net.token; net.isHost = true; net.id = 0;
   $('multiStatus').textContent = 'Creating room…';
-  const attempt = n => {
-    const code = mkCode(), p = new Peer(PJ_PREFIX + code, PJ_OPTS);
-    net.pj = p;
-    p.on('open', () => { if (tk !== net.token || net.pj !== p) return; lobby = { code, players: [], hostId: 0, auto: false, searching: false }; refreshLobby(); });
+  let code = mkCode(), tries = 0, announced = false;
+  const start = () => {
+    if (tk !== net.token) return;
+    const p = new Peer(PJ_PREFIX + code, PJ_OPTS); net.pj = p;
+    let dead = false;
+    const current = () => tk === net.token && net.pj === p;
+    p.on('open', () => { if (!current()) return; announced = true; tries = 0; lobby = { code, players: [], hostId: 0, auto: false, searching: false }; refreshLobby(); });
     p.on('connection', c => hostAccept(p, c, tk));
+    p.on('disconnected', () => { if (current()) keepBrokerLink(p, tk); });
     p.on('error', err => {
-      if (tk !== net.token || net.pj !== p) return;
-      if (err.type === 'unavailable-id' && n < 4) { safe(() => p.destroy()); attempt(n + 1); } else netFail(peerMsg(err));
+      if (!current()) return;
+      if (!FATAL.has(err.type)) { if (p.disconnected) keepBrokerLink(p, tk); return; } // keep the room alive through blips
+      dead = true; safe(() => p.destroy());
+      if (err.type === 'unavailable-id') {
+        if (announced && tries < 8) { tries++; setTimeout(start, 2000); }      // our own stale registration: wait for it to expire
+        else if (!announced && tries < 4) { tries++; code = mkCode(); start(); } // someone else's code: pick another
+        else netFail(peerMsg(err));
+      } else netFail(peerMsg(err));
     });
-    p.on('disconnected', () => { if (tk === net.token && net.pj === p) safe(() => p.reconnect()); });
+    p.on('close', () => { // peer destroyed by the browser/broker: bring the same room code back
+      if (dead || !current() || net.conn || game || !announced) return;
+      if (tries < 8) { tries++; setTimeout(() => { if (tk === net.token && !net.conn && !game) start(); }, 1500); }
+    });
   };
-  attempt(0);
+  net.revive = () => { tries = 0; start(); };
+  start();
 }
 function connectRoom(p, code, tk, auto) {
   const conn = p.connect(PJ_PREFIX + code, { reliable: true, serialization: 'json' });
   net.isHost = false; net.id = 1;
   lobby = { code, players: [], hostId: 0, auto, searching: false };
+  $('multiStatus').textContent = 'Connecting to the host…';
   attachConn(conn, tk);
-  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open) netFail('Could not connect to that room.'); }, 12000);
+  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. Your networks may block it; try again, or put one of you on Wi-Fi.'); }, 20000);
 }
 function joinRoom(code) {
   if (!needPeer()) return;
-  closeNet(); const tk = net.token;
-  $('multiStatus').textContent = 'Joining…';
+  closeNet(); keepAwake(); const tk = net.token;
+  $('multiStatus').textContent = 'Contacting the matchmaking service…';
   const p = new Peer(PJ_OPTS); net.pj = p;
   p.on('open', () => { if (tk === net.token && net.pj === p) connectRoom(p, code, tk, false); });
-  p.on('error', err => { if (tk === net.token && net.pj === p) netFail(peerMsg(err)); });
+  p.on('error', err => {
+    if (tk !== net.token || net.pj !== p) return;
+    if (net.conn && net.conn.open) return; // already linked: ignore stray errors
+    netFail(peerMsg(err));
+  });
 }
 
 // ----- Find Game -----
@@ -201,6 +251,7 @@ function makeMatchRoom(tk, sp, c, n) {
   rp.on('connection', x => hostAccept(rp, x, tk));
   rp.on('error', err => {
     if (tk !== net.token || net.pj !== rp) return;
+    if (!FATAL.has(err.type)) return;
     if (err.type === 'unavailable-id' && n < 3) { safe(() => rp.destroy()); makeMatchRoom(tk, sp, c, n + 1); } else netFail(peerMsg(err));
   });
 }
@@ -1090,7 +1141,15 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
 function submitName() {
   const n = $('nameInput').value.trim().slice(0, 12);
   if (!n) { $('nameInput').focus(); return; }
-  profile.name = n; saveProfile(); updateMenu(); show('scrMenu');
+  profile.name = n; saveProfile(); updateMenu(); afterName();
+}
+let pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
+function afterName() { // an invite link (?room=CODE) jumps straight into joining
+  if (pendingRoom.length === 5) {
+    const c = pendingRoom; pendingRoom = '';
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    $('codeInput').value = c; show('scrMulti'); joinRoom(c);
+  } else show('scrMenu');
 }
 $('btnNameOk').addEventListener('click', submitName);
 $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
@@ -1107,6 +1166,11 @@ $('btnJoin').addEventListener('click', () => {
   $('multiStatus').textContent = ''; joinRoom(code);
 });
 $('btnLobbyStart').addEventListener('click', hostStart);
+$('btnShare').addEventListener('click', async () => {
+  const url = location.origin + location.pathname + '?room=' + lobby.code;
+  try { if (navigator.share) { await navigator.share({ title: 'Coop Quest', text: `Join my Coop Quest room (${lobby.code})`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Invite link copied!'); } catch (e) { toast(url); }
+});
 $('btnLobbyLeave').addEventListener('click', () => { closeNet(); $('multiStatus').textContent = ''; show('scrMulti'); });
 window.addEventListener('beforeunload', closeNet);
 $('btnOverMenu').addEventListener('click', leaveGame);
@@ -1114,6 +1178,6 @@ $('btnQuit').addEventListener('click', () => { if (confirm('Quit this run?')) le
 
 // ---------------- boot ----------------
 resize();
-if (profile.name) { updateMenu(); show('scrMenu'); } else show('scrName');
+if (profile.name) { updateMenu(); afterName(); } else show('scrName');
 requestAnimationFrame(frame);
 })();
