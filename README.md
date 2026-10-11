@@ -27,6 +27,14 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 Character Points found by either player in a multiplayer run are credited to both players. Name, Character Points (each point = +1 ATK or +5 HP, your choice), upgrades, selected character and best level are stored in each player's browser (localStorage).
 Clearing site data resets progress.
 
+## Gold, pets and shop
+
+* Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 10 / Goblin 20 / Skeleton Archer 20 / Voidling 30 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
+* **Pets** (1000 gold each in the **Shop**): Wolf, Panther (Attackers) and Turtle (Defender). One pet follows you into battle; abilities fire only when an enemy is in sight.
+* The Shop's Equipment tab is a placeholder until the equipment list is approved.
+* Starting stage: solo = one stage below your best; co-op = the lower of the two players' best stages.
+* The menu shows the game version; the lobby warns when the two players run different versions (usually a stale cached copy).
+
 ## Controls
 
 Works in portrait and landscape. On a portrait screen the host gets a tall room (start at the bottom, door on one of the other sides) that fills the screen width; a player on a landscape screen joining a portrait host just sees it scaled to fit.
@@ -36,6 +44,8 @@ Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.
 
 ## Enemies
 
-* Rat, Goblin — melee. **Skeleton Archer** (from stage 2-1 on) — shoots arrows from range and backs away if you get close.
-* Level 10 boss, the **Troll**: after 2 s of charging (a red circle shows the area) it smashes everything in a wide radius for 3× its ATK, every 10 s.
+* Rat, Goblin — melee. **Skeleton Archer** (from stage 2-1) — arrows from range, backs away if you get close. **Voidling** (from stage 3-1) — a red laser with very long range that ignores walls.
+* Level 10 is a boss room (everyone in it is hostile the moment you enter). Bosses alternate: **Troll** (stages 1, 3, 5…) and **Skeleton King** (stages 2, 4, 6…); new bosses are appended to `BOSS_ORDER` in `game.js`.
+* **Troll**: after 1 s of charging (a red circle shows the area) it smashes everything in a wide radius for 3× its ATK, every 10 s.
+* **Skeleton King**: mace cleave in front of him; Skill 1 summons 3 skeleton archers (30 s cooldown); Skill 2 charges for 1 s then dashes at you for 3× ATK.
 * Healer's ray only reaches allies within range; with nobody in range it heals only the healer. There is no free healing between levels.

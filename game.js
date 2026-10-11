@@ -22,11 +22,11 @@ const STEP = 1 / 60;
 const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
-const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220 }; // px
+const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, skeleton_king: 240 }; // px
 const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
 const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
 let SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
-const SPAWN_MIN_DIST = 320; // enemies never spawn closer than this to where the players start (> every vision range)
+const SPAWN_MIN_DIST = 375; // enemies never spawn closer than this to where the players start (> every vision range)
 const rnd = n => Math.floor(Math.random() * n);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
@@ -38,29 +38,60 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
+const GAME_VERSION = '2026.10.11-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
-  rat: { atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8 },
-  goblin: { atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0 },
-  troll: { atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true },
-  skeleton: { atk: 5, hp: 40, speed: 60, r: 10, cd: 1.6, ranged: true }, // only from stage 2 on
+  rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 10 },
+  goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 20 },
+  skeleton: { name: 'Skeleton Archer', atk: 5, hp: 20, speed: 60, r: 10, cd: 1.6, ranged: true, gold: 20 }, // from stage 2
+  voidling: { name: 'Voidling', atk: 10, hp: 30, speed: 65, r: 10, cd: 3, laser: true, gold: 30 },          // from stage 3
+  troll: { name: 'Troll', atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true, gold: 0 },
+  skeleton_king: { name: 'Skeleton King', atk: 15, hp: 150, speed: 58, r: 15, cd: 1.6, boss: true, gold: 0, reach: 70 },
 };
-// Troll Smash: stops and charges for 2 s (red circle shows the area), then hits everyone inside for 3x ATK. 10 s cooldown.
-const SMASH = { cd: 10, charge: 2, mult: 3, r: 120 }; // r is bigger than the warrior's spin (85)
+// Boss order: stage 1 Troll, stage 2 Skeleton King, stage 3 Troll, ... New bosses go at the END of this list.
+const BOSS_ORDER = ['troll', 'skeleton_king'];
+const bossFor = stage => BOSS_ORDER[(stage - 1) % BOSS_ORDER.length];
+// Gold per kill = base gold x (1 + GOLD_PER_STAGE x (stage - 1)), rounded. Bosses and summoned minions pay nothing.
+const GOLD_PER_STAGE = 0.15;
+const goldFor = (type, stage) => Math.round(Math.round(ENEMIES[type].gold * (1 + GOLD_PER_STAGE * (stage - 1)) * 1e6) / 1e6);
+// Troll Smash: stops and charges for 1 s (red circle shows the area), then hits everyone inside for 3x ATK. 10 s cooldown.
+const SMASH = { cd: 10, charge: 1, mult: 3, r: 120 }; // r is bigger than the warrior's spin (85)
+// Skeleton King: big mace cleave in front of him; summons archers; charges forward for a x3 cleave.
+const KING = {
+  cleave: { r: 95, arc: 1.1, windup: 0.4, cd: 1.6 },          // radius px, half-angle rad
+  summon: { cd: 30, n: 3, first: 3, cap: 6 },                 // skill 1: 3 archers every 30 s (max 6 alive)
+  dash: { charge: 1, mult: 3, cd: 12, first: 6, speed: 520, range: 420 }, // skill 2: charge cleave
+};
+const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
 const HEAL_RANGE = 200;   // the healer's ray only reaches allies this close
 const REVIVE_RANGE = 64;  // how close you must stand to a downed ally to revive them
 const ARROW = { speed: 240, life: 1.3, range: 250, keep: 110, hold: 210 };
+// ---- pets ----
+const PET_SIGHT = 230;    // a pet only fights once it sees an enemy within this distance
+const PETS = {
+  wolf: { name: 'Wolf', kind: 'Attacker', atk: 5, hp: 55, speed: 185, r: 9, cd: 0.8, price: 1000, speedTxt: 'Faster than the character',
+    ability: 'Howl: enemies nearby run away in fear and cannot attack for 2 seconds. (15 s cooldown)' },
+  panther: { name: 'Panther', kind: 'Attacker', atk: 6, hp: 60, speed: 215, r: 9, cd: 0.7, price: 1000, speedTxt: 'Faster than the Wolf',
+    ability: 'Triple Slash: slashes the area in front of it 3 times rapidly. (15 s cooldown)' },
+  turtle: { name: 'Turtle', kind: 'Defender', atk: 2, hp: 90, speed: 45, r: 11, cd: 1.2, price: 1000, speedTxt: 'Slower than the Troll',
+    ability: 'Shell Barrier: shields you and itself for 75% of its current HP for 5 seconds; any barrier left over heals for 20% of what remains. (25 s cooldown)' },
+};
+const WOLF = { r: 190, fear: 2, cd: 15 };
+const PANTHER = { hits: 3, gap: 0.14, mult: 1.5, r: 72, arc: 1.2, cd: 15 };
+const TURTLE = { mult: 0.75, dur: 5, heal: 0.2, cd: 25, r: 240 };
 
 // ---------------- profile / save ----------------
 const SAVE_KEY = 'coopquest.v1';
 const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
-const defaultProfile = () => ({ name: '', cp: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 } });
+const defaultProfile = () => ({ name: '', cp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '' });
 function loadProfile() {
   try {
     const p = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (p && typeof p === 'object') {
       const d = defaultProfile();
       const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
-      out.cp = Math.max(0, out.cp | 0);
+      out.cp = Math.max(0, out.cp | 0); out.gold = Math.max(0, out.gold | 0);
+      out.pets = (Array.isArray(out.pets) ? out.pets : []).filter((k, n, a) => PETS[k] && a.indexOf(k) === n);
+      if (!out.pets.includes(out.pet)) out.pet = '';
       // Each point is now spent on ATK *or* HP. Old saves stored one number per character (a point gave both):
       // refund those points so the player can re-spend them, and save right away so the refund happens only once.
       let migrated = false; const up = emptyUp();
@@ -81,7 +112,7 @@ function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(pro
 function statsFor(c) { const u = profile.up[c] || { atk: 0, hp: 0 }; return { atk: CHARS[c].atk + (u.atk | 0), hp: CHARS[c].hp + 5 * (u.hp | 0) }; } // 1 point = +1 ATK or +5 HP
 
 // ---------------- screens / toast ----------------
-const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrMulti', 'scrLobby', 'scrChar', 'scrOver'];
+const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrOver'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
@@ -159,7 +190,7 @@ function needPeer() {
   $('multiStatus').textContent = 'Multiplayer library failed to load. Check your connection and reload.';
   return false;
 }
-function myProfileMsg() { const s = statsFor(profile.sel); return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp }; }
+function myProfileMsg() { const s = statsFor(profile.sel); return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, best: profile.best.stage, ver: GAME_VERSION }; }
 
 function attachConn(conn, tk) {
   net.conn = conn;
@@ -369,6 +400,7 @@ function renderLobby() {
   else if (n < 2) st = lobby.auto ? 'Waiting for the other player…' : 'Waiting for your friend to join…';
   else if (lobby.auto) st = 'Match found! Starting soon…';
   else st = net.isHost ? 'Ready — press Start!' : 'Waiting for the host to start…';
+  if (n === 2 && net.peer && net.peer.ver && net.peer.ver !== GAME_VERSION) st += `\n⚠ Different game versions (you: ${GAME_VERSION}, partner: ${net.peer.ver}). Refresh the page (clear cache) on the older one.`;
   if (!cdTimer) $('lobbyStatus').textContent = st;
   $('btnLobbyStart').classList.toggle('hidden', !(net.isHost && !lobby.auto && n === 2));
   $('btnLobbyStart').disabled = !net.peer;
@@ -380,7 +412,8 @@ function onRelay(d) {
     case 'prof': {
       const p = d.p || {};
       if (!CHARS[p.char]) return;
-      net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999) };
+      net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
+        pet: PETS[p.pet] ? p.pet : '', best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
       if (!game) refreshLobby();
       break;
     }
@@ -391,7 +424,7 @@ function onRelay(d) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
       i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true; if (d.rev) i.rev = true;
     } break;
-    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; creditCp(game); game.over = true; showOver(game); } break;
+    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; if (d.gold > game.teamGold) game.teamGold = d.gold; creditCp(game); game.over = true; showOver(game); } break;
   }
 }
 
@@ -462,16 +495,22 @@ const ctl = { sp: false, rev: false };
 
 function makePlayer(d, id) {
   return { id, name: d.name, char: d.char, atk: d.atk, maxhp: d.hp, hp: d.hp, x: 0, y: 0, r: 10, face: 0, alive: true,
-    atkCd: 0, spCd: 0, cp: 0, speed: CHARS[d.char].speed, hurt: 0, gone: false };
+    atkCd: 0, spCd: 0, cp: 0, speed: CHARS[d.char].speed, hurt: 0, gone: false, pet: PETS[d.pet] ? d.pet : '', shield: 0, shieldT: 0, still: 0 };
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
-    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, banner: null };
+    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, pets: [], bossRoom: false, banner: null };
+}
+// Where a new run begins. Solo: one stage below your best (never below 1). Co-op: the lowest best stage of the two players.
+function startStage(multi, otherBest) {
+  const mine = Math.max(1, profile.best.stage | 0);
+  return multi ? Math.max(1, Math.min(mine, otherBest | 0 || mine)) : Math.max(1, mine - 1);
 }
 function startSingle() {
   const s = statsFor(profile.sel);
   const g = newGameBase(true, 0, false);
-  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp }, 0)];
+  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet }, 0)];
+  g.stage = startStage(false); // solo: one stage below your best
   game = g; enterGameUI(); loadLevel(g, true);
 }
 function hostStart() {
@@ -479,7 +518,8 @@ function hostStart() {
   relay({ k: 'start', pid: 1 });
   const s = statsFor(profile.sel);
   const g = newGameBase(true, 0, true);
-  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp }, 0), makePlayer(net.peer, 1)];
+  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet }, 0), makePlayer(net.peer, 1)];
+  g.stage = startStage(true, net.peer.best); // co-op: the lower of the two players' best stages
   game = g; enterGameUI(); loadLevel(g, true);
 }
 function startGuest(pid) {
@@ -504,16 +544,18 @@ function leaveGame() {
 function loadLevel(g, first) {
   const L = genLevel(g.stage, g.level, innerHeight > innerWidth);
   g.grid = L.grid; g.door = { c: L.door.c, r: L.door.r, ic: L.door.ic, ir: L.door.ir, open: false };
-  g.enemies = []; g.proj = []; g.pickups = []; g.fields = {}; g.fieldT = 0;
+  g.enemies = []; g.proj = []; g.pickups = []; g.fields = {}; g.fieldT = 0; g.pets = [];
+  g.bossRoom = g.level === 10;
   g.players.forEach((p, i) => {
     if (p.gone) return;
-    const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0;
+    const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0; p.shield = 0; p.shieldT = 0; p.still = 0;
     if (!first) {
       if (!p.alive) { p.alive = true; p.hp = Math.ceil(p.maxhp * 0.5); }
     }
     const inp = g.inputs[p.id]; if (inp) inp.sp = false;
   });
   spawnEnemies(g, L);
+  g.players.forEach(p => { if (!p.gone && p.pet) g.pets.push(makePet(g, p)); }); // each player's pet comes along, at full health
   g.banner = { text: g.level === 10 ? `Stage ${g.stage}-${g.level} — BOSS` : `Stage ${g.stage}-${g.level}`, t: 0 };
   noteProgress(g);
   if (g.multi) {
@@ -522,26 +564,37 @@ function loadLevel(g, first) {
       players: g.players.map(p => ({ id: p.id, name: p.name, char: p.char, atk: p.atk, maxhp: p.maxhp, hp: p.hp, alive: p.alive, gone: p.gone, cp: p.cp, x: p.x, y: p.y })) });
   }
 }
+function makeEnemy(g, type, x, y, summoned) {
+  const def = ENEMIES[type], m = 1 + 0.2 * (g.stage - 1), hp = Math.ceil(def.hp * m - 1e-9);
+  return { id: g.nid++, type, x, y, r: def.r, hp, maxhp: hp, atk: def.atk * m,
+    speed: def.speed * (def.boss ? 1 : 0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
+    alert: 0, home: { x, y }, wp: null, wt: 0, pause: Math.random() * 2,
+    sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : 0,
+    ch: 0, cht: 0, sk: '', fear: 0, dashT: 0, summoned: !!summoned };
+}
 function spawnEnemies(g, L) {
-  const m = 1 + 0.2 * (g.stage - 1);
   const list = [];
   if (g.level === 10) {
-    list.push('troll');
-    for (let i = 0; i < Math.min(6, 1 + g.stage); i++) list.push('rat');
+    const boss = bossFor(g.stage); list.push(boss);
+    if (boss === 'troll') {
+      for (let i = 0; i < Math.min(6, 1 + g.stage); i++) list.push('rat');
+      if (g.stage >= 2) for (let i = 0; i < Math.min(3, g.stage - 1); i++) list.push('skeleton');
+    } else for (let i = 0; i < 2; i++) list.push('rat');
+    if (g.stage >= 3) for (let i = 0; i < Math.min(2, g.stage - 2); i++) list.push('voidling');
   } else {
     const n = Math.min(20, 2 + g.level + (g.stage - 1) * 2);
     const pg = Math.min(0.75, 0.05 + g.level * 0.07 + (g.stage - 1) * 0.05);
-    const pSk = g.stage >= 2 ? Math.min(0.35, 0.12 + g.level * 0.02 + (g.stage - 2) * 0.03) : 0; // skeleton archers appear from stage 2-1
-    for (let i = 0; i < n; i++) list.push(Math.random() < pSk ? 'skeleton' : Math.random() < pg ? 'goblin' : 'rat');
+    const pSk = g.stage >= 2 ? Math.min(0.35, 0.12 + g.level * 0.02 + (g.stage - 2) * 0.03) : 0;   // skeleton archers appear from stage 2-1
+    const pVd = g.stage >= 3 ? Math.min(0.2, 0.06 + g.level * 0.01 + (g.stage - 3) * 0.02) : 0;     // voidlings from stage 3-1
+    for (let i = 0; i < n; i++) { const r = Math.random(); list.push(r < pVd ? 'voidling' : r < pVd + pSk ? 'skeleton' : Math.random() < pg ? 'goblin' : 'rat'); }
     if (g.stage >= 2 && !list.includes('skeleton')) list[list.length - 1] = 'skeleton';
+    if (g.stage >= 3 && !list.includes('voidling')) list[Math.max(0, list.length - 2)] = 'voidling';
   }
-  if (g.level === 10 && g.stage >= 2) for (let i = 0; i < Math.min(3, g.stage - 1); i++) list.push('skeleton');
   const placed = [];
   const far = ([c, r]) => Math.hypot((c + 0.5) * TILE - SPAWN_POINT.x, (r + 0.5) * TILE - SPAWN_POINT.y);
   let pool = L.cells.filter(cell => far(cell) >= SPAWN_MIN_DIST);
   if (pool.length < list.length * 2) pool = L.cells.slice().sort((a, b) => far(b) - far(a)).slice(0, Math.max(list.length * 3, 40));
   for (const type of list) {
-    const def = ENEMIES[type];
     let pos = null;
     for (let t = 0; t < 80 && !pos; t++) {
       const [c, r] = pool[rnd(pool.length)];
@@ -550,9 +603,7 @@ function spawnEnemies(g, L) {
     }
     if (!pos) { const [c, r] = pool[rnd(pool.length)]; pos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE }; }
     placed.push(pos);
-    g.enemies.push({ id: g.nid++, type, x: pos.x, y: pos.y, r: def.r, hp: Math.ceil(def.hp * m - 1e-9), maxhp: Math.ceil(def.hp * m - 1e-9),
-      atk: def.atk * m, speed: def.speed * (0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
-      alert: 0, home: { x: pos.x, y: pos.y }, wp: null, wt: 0, pause: Math.random() * 2, sm: type === 'troll' ? 4 : 0, ch: 0 });
+    g.enemies.push(makeEnemy(g, type, pos.x, pos.y, false));
   }
 }
 function noteProgress(g) {
@@ -583,7 +634,7 @@ function clearLine(g, x1, y1, x2, y2, r) {
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------------- effects ----------------
-const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5 };
+const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7 };
 function pushFx(g, f) { g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
 function addFx(g, f) { pushFx(g, f); if (g.multi && g.isHost) g.fxq.push(f); }
 
@@ -615,7 +666,13 @@ function hitEnemy(g, e, dmg) {
   if (e.hp <= 0) {
     e.dead = true;
     addFx(g, { type: 'poof', x: e.x, y: e.y });
-    if (!ENEMIES[e.type].boss && Math.random() < DROP_CHANCE) g.pickups.push({ id: g.nid++, x: e.x, y: e.y });
+    const def = ENEMIES[e.type];
+    if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
+      const gd = goldFor(e.type, g.stage);
+      if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd + '🪙', c: '#ffd54f' }); }
+      if (!def.boss && Math.random() < DROP_CHANCE) g.pickups.push({ id: g.nid++, x: e.x, y: e.y });
+    }
+    if (def.boss) for (const o of g.enemies) if (o.summoned && !o.dead) { o.dead = true; addFx(g, { type: 'poof', x: o.x, y: o.y }); } // the King's minions fall with him
   }
 }
 function heal(g, t, v) {
@@ -673,6 +730,39 @@ function doSpecial(g, p) {
   } else heal(g, p, amt); // no ally within range (or playing solo): the whole heal goes to the healer
   return true;
 }
+function smash(g, e) {
+  const dmg = Math.max(1, Math.round(SMASH.mult * e.atk));
+  for (const t of targetsOf(g)) if (Math.hypot(t.x - e.x, t.y - e.y) <= SMASH.r + t.r) hurtT(g, t, dmg);
+  addFx(g, { type: 'smash', x: e.x, y: e.y, r: SMASH.r });
+}
+function cleave(g, e) { // Skeleton King's mace: a wide cone in front of him
+  const dmg = Math.max(1, Math.round(e.atk));
+  for (const t of targetsOf(g)) {
+    const dx = t.x - e.x, dy = t.y - e.y;
+    if (Math.hypot(dx, dy) <= KING.cleave.r + t.r && Math.abs(angDiff(Math.atan2(dy, dx), e.face)) <= KING.cleave.arc) hurtT(g, t, dmg);
+  }
+  addFx(g, { type: 'cleave', x: e.x, y: e.y, a: e.face, r: KING.cleave.r, arc: KING.cleave.arc });
+}
+function summonArchers(g, e) {
+  let made = 0;
+  for (let i = 0; i < 12 && made < KING.summon.n; i++) {
+    const a = (made + Math.random() * 0.6) * (Math.PI * 2 / KING.summon.n) + Math.random() * 0.4, d = 40 + Math.random() * 30;
+    const x = e.x + Math.cos(a) * d, y = e.y + Math.sin(a) * d;
+    if (hitsWall(g, x, y, 10) || !clearLine(g, e.x, e.y, x, y, 8)) continue;
+    const m = makeEnemy(g, 'skeleton', x, y, true); m.alert = 6; g.enemies.push(m); made++;
+    addFx(g, { type: 'poof', x, y });
+  }
+  addFx(g, { type: 'summon', x: e.x, y: e.y });
+  addFx(g, { type: 'txt', x: e.x, y: e.y - 34, s: 'ARISE!', c: '#b39ddb' });
+}
+function fireLaser(g, e) { // instant red beam that ignores walls
+  const a = e.face, vx = Math.cos(a) * LASER.range, vy = Math.sin(a) * LASER.range, dmg = Math.max(1, Math.round(e.atk));
+  for (const t of targetsOf(g)) {
+    const wx = t.x - e.x, wy = t.y - e.y, u = clamp((wx * vx + wy * vy) / (vx * vx + vy * vy), 0, 1);
+    if (Math.hypot(t.x - (e.x + vx * u), t.y - (e.y + vy * u)) <= t.r + LASER.width / 2) hurtT(g, t, dmg);
+  }
+  addFx(g, { type: 'laser', x1: e.x, y1: e.y, x2: e.x + vx, y2: e.y + vy });
+}
 function tryRevive(g, p) { // bring back the nearest downed ally standing within REVIVE_RANGE
   let best = null, bd = REVIVE_RANGE;
   for (const a of g.players) {
@@ -686,15 +776,25 @@ function tryRevive(g, p) { // bring back the nearest downed ally standing within
   addFx(g, { type: 'txt', x: best.x, y: best.y - 30, s: 'REVIVED!', c: '#69f0ae' });
   return true;
 }
-function smash(g, e) {
-  const dmg = Math.max(1, Math.round(SMASH.mult * e.atk));
-  for (const p of g.players) if (p.alive && !p.gone && Math.hypot(p.x - e.x, p.y - e.y) <= SMASH.r + p.r) hurtPlayer(g, p, dmg);
-  addFx(g, { type: 'smash', x: e.x, y: e.y, r: SMASH.r });
+// damage to a player or a pet; a barrier absorbs first
+function hurtT(g, t, dmg) {
+  if (t.shield > 0) {
+    const ab = Math.min(t.shield, dmg); t.shield -= ab; dmg -= ab;
+    if (dmg <= 0) { addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '🛡' + Math.round(ab), c: '#80d8ff' }); return; }
+  }
+  t.hp -= dmg; t.hurt = 0.15;
+  addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '-' + dmg, c: '#ff5252' });
+  if (t.hp <= 0) {
+    t.hp = 0; t.alive = false; t.shield = 0; t.shieldT = 0;
+    addFx(g, { type: 'poof', x: t.x, y: t.y });
+    addFx(g, { type: 'txt', x: t.x, y: t.y - 30, s: t.isPet ? 'KO!' : 'DOWN!', c: '#ff8a80' });
+  }
 }
-function hurtPlayer(g, p, dmg) {
-  p.hp -= dmg; p.hurt = 0.15;
-  addFx(g, { type: 'txt', x: p.x, y: p.y - 18, s: '-' + dmg, c: '#ff5252' });
-  if (p.hp <= 0) { p.hp = 0; p.alive = false; addFx(g, { type: 'poof', x: p.x, y: p.y }); addFx(g, { type: 'txt', x: p.x, y: p.y - 30, s: 'DOWN!', c: '#ff8a80' }); }
+function hurtPlayer(g, p, dmg) { hurtT(g, p, dmg); }
+function tickShield(g, t, dt) { // barrier timer; what is left when it expires heals 20% of the remainder
+  if (!(t.shield > 0)) return;
+  t.shieldT -= dt;
+  if (t.shieldT <= 0) { const rem = t.shield; t.shield = 0; t.shieldT = 0; if (t.alive && rem > 0) heal(g, t, TURTLE.heal * rem); }
 }
 
 function alertAllies(g, e, t) { // nearby enemies get woken up too
@@ -737,6 +837,153 @@ function wander(g, e, dt) { // idle: short random strolls around the home spot, 
   e.pause = 0.7; e.face += (Math.random() - 0.5) * 2.4;
 }
 
+// Walk toward a target: straight when the way is clear, otherwise along the path field of player `fk`.
+function stepTo(g, e, tgt, fk, dt, mult) {
+  let tx = tgt.x, ty = tgt.y;
+  if (!clearLine(g, e.x, e.y, tgt.x, tgt.y, e.r + 1)) {
+    const f = g.fields[fk];
+    if (f) {
+      const c = clamp(Math.floor(e.x / TILE), 0, COLS - 1), r = clamp(Math.floor(e.y / TILE), 0, ROWS - 1);
+      let best = f[r * COLS + c], bc = c, br = r;
+      for (const [dc, dr] of DIRS) {
+        const nc = c + dc, nr = r + dr;
+        if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
+        const v = f[nr * COLS + nc];
+        if (v >= 0 && (best < 0 || v < best)) { best = v; bc = nc; br = nr; }
+      }
+      if (bc !== c || br !== r) { tx = (bc + 0.5) * TILE; ty = (br + 0.5) * TILE; }
+    }
+  }
+  const dx = tx - e.x, dy = ty - e.y, dl = Math.hypot(dx, dy) || 1, sp = e.speed * dt * (mult || 1), ox = e.x, oy = e.y;
+  moveEnt(g, e, dx / dl * sp, dy / dl * sp);
+  if (Math.hypot(e.x - ox, e.y - oy) < sp * 0.5) {
+    // snagged on a wall corner: slide along the free axis at full speed
+    if (Math.abs(dx) >= Math.abs(dy)) { moveEnt(g, e, 0, (dy >= 0 ? 1 : -1) * sp); if (e.y === oy) moveEnt(g, e, Math.sign(dx) * sp, 0); }
+    else { moveEnt(g, e, (dx >= 0 ? 1 : -1) * sp, 0); if (e.x === ox) moveEnt(g, e, 0, Math.sign(dy) * sp); }
+  }
+}
+const CHARGE_KINDS = { smash: 1, dash: 2, laser: 3, cleave: 4 };
+function startCharge(e, kind, t) { e.sk = kind; e.ch = e.cht = t; }
+function chargeLock(kind) { return kind === 'laser' ? LASER.lock : kind === 'dash' ? 0.25 : kind === 'cleave' ? 0.12 : Infinity; } // aims until this many seconds are left
+function chargeStep(g, e, dt) {
+  e.ch -= dt;
+  if (e.ch > chargeLock(e.sk)) { const t = nearestTarget(g, e.x, e.y); if (t) e.face = Math.atan2(t.y - e.y, t.x - e.x); } // keeps aiming, so the player can still dodge at the end
+  if (e.ch > 0) return;
+  const k = e.sk; e.ch = 0; e.sk = '';
+  if (k === 'smash') { e.sm = SMASH.cd; smash(g, e); }
+  else if (k === 'cleave') { e.cd = KING.cleave.cd; cleave(g, e); }
+  else if (k === 'laser') { e.cd = ENEMIES[e.type].cd; fireLaser(g, e); }
+  else if (k === 'dash') {
+    const t = nearestTarget(g, e.x, e.y), dist = t ? Math.hypot(t.x - e.x, t.y - e.y) : KING.dash.range;
+    e.dashLeft = clamp(dist + 60, 120, KING.dash.range); e.dashT = 1; e.dashHit = new Set();
+  }
+}
+function dashStep(g, e, dt) {
+  const step = Math.min(KING.dash.speed * dt, e.dashLeft), ox = e.x, oy = e.y;
+  moveEnt(g, e, Math.cos(e.face) * step, Math.sin(e.face) * step);
+  const moved = Math.hypot(e.x - ox, e.y - oy); e.dashLeft -= step;
+  for (const t of targetsOf(g)) {
+    if (e.dashHit.has(t) || Math.hypot(t.x - e.x, t.y - e.y) > e.r + t.r + 10) continue;
+    e.dashHit.add(t); hurtT(g, t, Math.max(1, Math.round(KING.dash.mult * e.atk)));
+    addFx(g, { type: 'smash', x: t.x, y: t.y, r: 34 });
+  }
+  if (moved < step * 0.5 || e.dashLeft <= 0) { e.dashT = 0; e.s2 = KING.dash.cd; e.cd = Math.max(e.cd, 0.8); }
+}
+function fearStep(g, e, dt) {
+  e.fear -= dt; e.ch = 0; e.sk = ''; e.dashT = 0;
+  const f = e.fearFrom || { x: e.x - 1, y: e.y }, a = Math.atan2(e.y - f.y, e.x - f.x), sp = e.speed * 1.2 * dt;
+  e.face = a;
+  const ox = e.x, oy = e.y; moveEnt(g, e, Math.cos(a) * sp, Math.sin(a) * sp);
+  if (Math.hypot(e.x - ox, e.y - oy) < sp * 0.4) { moveEnt(g, e, -Math.sin(a) * sp, Math.cos(a) * sp); if (e.x === ox && e.y === oy) moveEnt(g, e, Math.sin(a) * sp, -Math.cos(a) * sp); } // slide along a wall
+}
+function kingAI(g, e, tgt, seen, d) { // returns true when it used up this frame starting a skill
+  const minions = g.enemies.reduce((n, o) => n + (o.summoned && !o.dead ? 1 : 0), 0);
+  if (e.sm <= 0 && minions <= KING.summon.cap - KING.summon.n) { e.sm = KING.summon.cd; summonArchers(g, e); return true; }
+  if (e.s2 <= 0 && seen && d >= 100 && d <= KING.dash.range && clearLine(g, e.x, e.y, tgt.x, tgt.y, e.r)) { startCharge(e, 'dash', KING.dash.charge); return true; }
+  if (e.cd <= 0 && d <= KING.cleave.r * 0.85 + tgt.r) { startCharge(e, 'cleave', KING.cleave.windup); return true; }
+  return false;
+}
+// ---- pets ----
+function targetsOf(g) { // everything an enemy can hurt: living players and living pets
+  const r = [];
+  for (const p of g.players) if (p.alive && !p.gone) r.push(p);
+  for (const q of g.pets) if (q.alive) r.push(q);
+  return r;
+}
+function nearestTarget(g, x, y) {
+  let best = null, bd = Infinity;
+  for (const t of targetsOf(g)) { const d = Math.hypot(t.x - x, t.y - y); if (d < bd) { bd = d; best = t; } }
+  return best;
+}
+function makePet(g, p) {
+  const d = PETS[p.pet], side = p.id === 0 ? -1 : 1;
+  let x = p.x + side * 22, y = p.y + 18;
+  if (hitsWall(g, x, y, d.r)) { x = p.x; y = p.y; }
+  return { id: 100 + p.id, isPet: true, owner: p.id, type: p.pet, x, y, r: d.r, hp: d.hp, maxhp: d.hp, atk: d.atk, speed: d.speed, alive: true, face: 0,
+    atkCd: 0, abCd: 0, shield: 0, shieldT: 0, slashN: 0, slashT: 0, hurt: 0, combat: false, home: { x, y }, wp: null, wt: 0, pause: 0 };
+}
+function petAbility(g, q, o, foe, fd) {
+  if (q.abCd > 0) return;
+  if (q.type === 'wolf') {
+    const near = g.enemies.filter(e => !e.dead && !(e.fear > 0) && Math.hypot(e.x - q.x, e.y - q.y) <= WOLF.r);
+    if (!near.length) return;
+    for (const e of near) { e.fear = WOLF.fear; e.fearFrom = { x: q.x, y: q.y }; e.ch = 0; e.sk = ''; e.dashT = 0; }
+    addFx(g, { type: 'howl', x: q.x, y: q.y, r: WOLF.r }); q.abCd = WOLF.cd;
+  } else if (q.type === 'panther') {
+    if (fd <= PANTHER.r) { q.slashN = PANTHER.hits; q.slashT = 0; q.abCd = PANTHER.cd; }
+  } else if (q.type === 'turtle') {
+    if (fd > TURTLE.r && Math.hypot(foe.x - o.x, foe.y - o.y) > TURTLE.r) return;
+    const amt = Math.max(1, Math.round(TURTLE.mult * q.hp));
+    for (const t of [q, o]) if (t.alive) { t.shield = amt; t.shieldT = TURTLE.dur; addFx(g, { type: 'barrier', x: t.x, y: t.y }); }
+    q.abCd = TURTLE.cd;
+  }
+}
+function petStep(g, q, dt) {
+  const def = PETS[q.type], o = g.players[q.owner];
+  q.hurt = Math.max(0, q.hurt - dt); q.atkCd -= dt; q.abCd = Math.max(0, q.abCd - dt);
+  tickShield(g, q, dt);
+  if (!o || o.gone) { q.alive = false; return; }
+  if (!q.alive) return;
+  if (q.slashN > 0) { // panther: rapid triple slash
+    q.slashT -= dt;
+    if (q.slashT <= 0) {
+      q.slashT = PANTHER.gap; q.slashN--;
+      for (const e of g.enemies) {
+        if (e.dead) continue;
+        const dx = e.x - q.x, dy = e.y - q.y;
+        if (Math.hypot(dx, dy) <= PANTHER.r + e.r && Math.abs(angDiff(Math.atan2(dy, dx), q.face)) <= PANTHER.arc) hitEnemy(g, e, PANTHER.mult * q.atk);
+      }
+      addFx(g, { type: 'slash', x: q.x, y: q.y, a: q.face });
+    }
+    return;
+  }
+  // a pet only fights once it can see an enemy
+  let foe = null, fd = PET_SIGHT;
+  for (const e of g.enemies) {
+    if (e.dead) continue;
+    const d = Math.hypot(e.x - q.x, e.y - q.y);
+    if (d < fd && clearLine(g, q.x, q.y, e.x, e.y, 2)) { fd = d; foe = e; }
+  }
+  q.combat = !!foe;
+  const od = Math.hypot(o.x - q.x, o.y - q.y);
+  if (foe) {
+    q.face = Math.atan2(foe.y - q.y, foe.x - q.x);
+    petAbility(g, q, o, foe, fd);
+    if (q.slashN > 0) return;
+    const reach = q.r + foe.r + 6;
+    const stayClose = def.kind === 'Defender' && Math.hypot(foe.x - o.x, foe.y - o.y) > 150; // defenders don't wander off from their owner
+    if (!stayClose) {
+      if (fd > reach) stepTo(g, q, foe, q.owner, dt, 1);
+      if (fd <= reach + 2 && q.atkCd <= 0) { q.atkCd = def.cd; hitEnemy(g, foe, q.atk); addFx(g, { type: 'slash', x: q.x, y: q.y, a: q.face }); }
+      return;
+    }
+  }
+  // not fighting: follow the owner, or wander around once the owner has stood still for 5 seconds
+  if (od > 450) { q.x = o.x; q.y = o.y; return; }
+  if (o.still >= 5 && od < 220) { q.home = { x: o.x, y: o.y }; wander(g, q, dt); return; }
+  if (od > 56) stepTo(g, q, o, q.owner, dt, clamp((od - 56) / 70, 0.3, 1));
+}
+
 function step(g, dt) {
   g.time += dt;
   if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.2) g.banner = null; }
@@ -744,12 +991,13 @@ function step(g, dt) {
   for (const p of g.players) {
     if (p.gone) continue;
     p.hurt = Math.max(0, p.hurt - dt);
+    tickShield(g, p, dt);
     if (!p.alive) continue;
     const inp = g.inputs[p.id] || (g.inputs[p.id] = { mx: 0, my: 0, atk: false, sp: false });
     let mx = +inp.mx || 0, my = +inp.my || 0;
     const len = Math.hypot(mx, my);
     if (len > 1) { mx /= len; my /= len; }
-    if (len > 0.08) { moveEnt(g, p, mx * p.speed * dt, my * p.speed * dt); p.face = Math.atan2(my, mx); }
+    if (len > 0.08) { moveEnt(g, p, mx * p.speed * dt, my * p.speed * dt); p.face = Math.atan2(my, mx); p.still = 0; } else p.still += dt;
     p.atkCd -= dt; p.spCd = Math.max(0, p.spCd - dt);
     if (inp.atk && p.atkCd <= 0) { doAttack(g, p); p.atkCd = CHARS[p.char].cd; }
     if (inp.sp) { inp.sp = false; if (p.spCd <= 0 && doSpecial(g, p)) p.spCd = SPECIAL_CD; }
@@ -761,63 +1009,51 @@ function step(g, dt) {
     g.fieldT = 0.25;
     for (const p of g.players) if (p.alive && !p.gone) g.fields[p.id] = bfs(g.grid, clamp(Math.floor(p.x / TILE), 0, COLS - 1), clamp(Math.floor(p.y / TILE), 0, ROWS - 1));
   }
+  // pets
+  for (const q of g.pets) petStep(g, q, dt);
   // enemies
   for (const e of g.enemies) {
     if (e.dead) continue;
+    const def = ENEMIES[e.type];
     e.hurt = Math.max(0, e.hurt - dt); e.cd -= dt;
     if (e.sm > 0) e.sm -= dt;
-    if (e.ch > 0) { // Troll is charging a Smash: it plants its feet until the charge is done
-      e.ch -= dt;
-      if (e.ch <= 0) { e.ch = 0; e.sm = SMASH.cd; smash(g, e); }
-      continue;
-    }
+    if (e.s2 > 0) e.s2 -= dt;
+    if (g.bossRoom) e.alert = Math.max(e.alert, 5);        // everyone in the boss room is hostile from the moment players enter
+    if (e.fear > 0) { fearStep(g, e, dt); continue; }      // howled at: runs away, cannot attack
+    if (e.dashT > 0) { dashStep(g, e, dt); continue; }     // Skeleton King mid-charge
+    if (e.ch > 0) { chargeStep(g, e, dt); continue; }      // winding up a skill: stands still
     const seen = playerInSight(g, e);
     if (seen) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = 4; } // spotted: hostile, and keeps hunting a few seconds after losing sight
     else e.alert = Math.max(0, e.alert - dt);
     if (e.alert <= 0) { wander(g, e, dt); continue; }
-    const tgt = seen || nearestPlayer(g, e.x, e.y);
+    const tgt = nearestTarget(g, e.x, e.y);                // players, or a pet that is closer (so a Defender can tank)
     if (!tgt) { e.alert = 0; continue; }
-    const d = Math.hypot(tgt.x - e.x, tgt.y - e.y);
+    const d = Math.hypot(tgt.x - e.x, tgt.y - e.y), fk = tgt.isPet ? tgt.owner : tgt.id;
     e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x);
-    if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r + 40) { e.ch = SMASH.charge; continue; }
-    const ranged = !!ENEMIES[e.type].ranged;
-    const los = ranged && clearLine(g, e.x, e.y, tgt.x, tgt.y, 3);
-    if (ranged ? (d > ARROW.hold || !los) : d > e.r + tgt.r + 4) {
-      let tx = tgt.x, ty = tgt.y;
-      if (!clearLine(g, e.x, e.y, tgt.x, tgt.y, e.r + 1)) {
-        const f = g.fields[tgt.id];
-        if (f) {
-          const c = clamp(Math.floor(e.x / TILE), 0, COLS - 1), r = clamp(Math.floor(e.y / TILE), 0, ROWS - 1);
-          let best = f[r * COLS + c], bc = c, br = r;
-          for (const [dc, dr] of DIRS) {
-            const nc = c + dc, nr = r + dr;
-            if (nc < 0 || nr < 0 || nc >= COLS || nr >= ROWS) continue;
-            const v = f[nr * COLS + nc];
-            if (v >= 0 && (best < 0 || v < best)) { best = v; bc = nc; br = nr; }
-          }
-          if (bc !== c || br !== r) { tx = (bc + 0.5) * TILE; ty = (br + 0.5) * TILE; }
-        }
-      }
-      const dx = tx - e.x, dy = ty - e.y, dl = Math.hypot(dx, dy) || 1, sp = e.speed * dt, ox = e.x, oy = e.y;
-      moveEnt(g, e, dx / dl * sp, dy / dl * sp);
-      if (Math.hypot(e.x - ox, e.y - oy) < sp * 0.5) {
-        // snagged on a wall corner: slide along the free axis at full speed
-        if (Math.abs(dx) >= Math.abs(dy)) { moveEnt(g, e, 0, (dy >= 0 ? 1 : -1) * sp); if (e.y === oy) moveEnt(g, e, Math.sign(dx) * sp, 0); }
-        else { moveEnt(g, e, (dx >= 0 ? 1 : -1) * sp, 0); if (e.x === ox) moveEnt(g, e, 0, Math.sign(dy) * sp); }
-      }
+    if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r + 40) { startCharge(e, 'smash', SMASH.charge); continue; }
+    if (e.type === 'skeleton_king' && kingAI(g, e, tgt, seen, d)) continue;
+    if (def.laser) { // Voidling: fires a wall-piercing laser from very far away
+      if (e.cd <= 0 && d <= LASER.range) { startCharge(e, 'laser', LASER.charge); continue; }
+      if (d < LASER.keep) moveEnt(g, e, (e.x - tgt.x) / (d || 1) * e.speed * 0.9 * dt, (e.y - tgt.y) / (d || 1) * e.speed * 0.9 * dt);
+      else if (d > LASER.hold) stepTo(g, e, tgt, fk, dt, 1);
+      continue;
     }
+    const ranged = !!def.ranged;
+    const los = ranged && clearLine(g, e.x, e.y, tgt.x, tgt.y, 3);
+    const reach = def.reach || (e.r + tgt.r + 4);
+    if (ranged ? (d > ARROW.hold || !los) : d > reach) stepTo(g, e, tgt, fk, dt, 1);
     if (ranged) {
       if (d < ARROW.keep) { // too close: back away to keep shooting distance
         const bx = (e.x - tgt.x) / (d || 1), by = (e.y - tgt.y) / (d || 1), bs = e.speed * 0.9 * dt;
         moveEnt(g, e, bx * bs, by * bs);
       }
       if (los && d <= ARROW.range && e.cd <= 0) {
-        e.cd = ENEMIES[e.type].cd;
+        e.cd = def.cd;
         const a = Math.atan2(tgt.y - e.y, tgt.x - e.x);
         g.proj.push({ id: g.nid++, x: e.x, y: e.y, vx: Math.cos(a) * ARROW.speed, vy: Math.sin(a) * ARROW.speed,
           dmg: Math.max(1, Math.round(e.atk)), life: ARROW.life, kind: 'arrow', hostile: true, dead: false });
       }
-    } else if (d <= e.r + tgt.r + 8 && e.cd <= 0) { e.cd = ENEMIES[e.type].cd; hurtPlayer(g, tgt, Math.max(1, Math.round(e.atk))); }
+    } else if (e.type !== 'skeleton_king' && d <= e.r + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); }
   }
   // enemy separation
   for (let i = 0; i < g.enemies.length; i++) for (let j = i + 1; j < g.enemies.length; j++) {
@@ -830,8 +1066,8 @@ function step(g, dt) {
   for (const j of g.proj) {
     j.x += j.vx * dt; j.y += j.vy * dt; j.life -= dt;
     if (j.life <= 0 || hitsWall(g, j.x, j.y, 2)) { j.dead = true; continue; }
-    if (j.hostile) { // enemy arrow: hits the first living player it touches
-      for (const p of g.players) if (p.alive && !p.gone && Math.hypot(p.x - j.x, p.y - j.y) < p.r + 4) { hurtPlayer(g, p, j.dmg); j.dead = true; break; }
+    if (j.hostile) { // enemy arrow: hits the first living player or pet it touches
+      for (const t of targetsOf(g)) if (Math.hypot(t.x - j.x, t.y - j.y) < t.r + 4) { hurtT(g, t, j.dmg); j.dead = true; break; }
       continue;
     }
     for (const e of g.enemies) {
@@ -869,21 +1105,22 @@ function checkOver(g) {
   if (g.over || !g.grid) return;
   if (g.players.every(p => !p.alive || p.gone)) {
     g.over = true;
-    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp });
+    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp, gold: g.teamGold });
     showOver(g);
   }
 }
-function creditCp(g, announce) { // points found by either player go to both profiles
+function creditCp(g, announce) { // points and gold found by either player go to both profiles
   if (g.teamCp > g.seenCp) {
     const n = g.teamCp - g.seenCp; profile.cp += n; g.seenCp = g.teamCp; saveProfile();
     if (announce) toast(n > 1 ? `+${n} Character Points!` : '+1 Character Point!');
   }
+  if (g.teamGold > g.seenGold) { profile.gold += g.teamGold - g.seenGold; g.seenGold = g.teamGold; saveProfile(); }
 }
 function showOver(g) {
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').textContent = `Character Points earned: 🟡 ${g.teamCp}` + (g.multi ? ' (shared with your partner)' : '');
+  $('overCp').textContent = `Character Points earned: 🟡 ${g.teamCp}   ·   Gold earned: 🪙 ${g.teamGold}` + (g.multi ? '  (shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   show('scrOver');
 }
@@ -892,9 +1129,10 @@ function showOver(g) {
 const r1 = v => Math.round(v * 10) / 10;
 function snapshot(g) {
   const s = {
-    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp,
-    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100]),
-    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0]),
+    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold,
+    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100, Math.round(p.shield || 0)]),
+    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
+    q: g.pets.map(q => [q.id, q.type, r1(q.x), r1(q.y), q.hp, q.maxhp, Math.round(q.face * 100) / 100, q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), Math.round(q.hurt * 100) / 100, q.combat ? 1 : 0]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
     c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y)]),
     f: g.fxq,
@@ -907,24 +1145,32 @@ function applyLevel(g, m) {
   g.grid = m.grid.map(r => [...r].map(Number));
   setDims(g.grid.length > g.grid[0].length);
   g.door = { c: m.door.c, r: m.door.r, ic: m.door.ic, ir: m.door.ir, open: false };
-  g.enemies = []; g.proj = []; g.pickups = []; g.fx = [];
-  g.players = m.players.map(p => Object.assign({ r: 10, face: 0, spCd: 0, hurt: 0, tx: p.x, ty: p.y }, p));
+  g.enemies = []; g.proj = []; g.pickups = []; g.fx = []; g.pets = [];
+  g.players = m.players.map(p => Object.assign({ r: 10, face: 0, spCd: 0, hurt: 0, shield: 0, tx: p.x, ty: p.y }, p));
   g.banner = { text: m.level === 10 ? `Stage ${m.stage}-${m.level} — BOSS` : `Stage ${m.stage}-${m.level}`, t: 0 };
   noteProgress(g);
 }
 function applySnap(g, s) {
   g.door.open = !!s.d;
   if (s.t > g.teamCp) g.teamCp = s.t;
+  if (s.gd > g.teamGold) g.teamGold = s.gd;
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
-    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8];
+    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0;
   });
   const oldE = new Map(g.enemies.map(e => [e.id, e]));
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
-    if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]].r };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0;
+    if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]] ? ENEMIES[a[1]].r : 10 };
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12];
     return e;
+  });
+  const oldQ = new Map(g.pets.map(q => [q.id, q]));
+  g.pets = (s.q || []).map(a => {
+    let q = oldQ.get(a[0]);
+    if (!q) q = { id: a[0], type: a[1], x: a[2], y: a[3], isPet: true, r: PETS[a[1]] ? PETS[a[1]].r : 9 };
+    q.tx = a[2]; q.ty = a[3]; q.hp = a[4]; q.maxhp = a[5]; q.face = a[6]; q.alive = !!a[7]; q.owner = a[8]; q.shield = a[9] || 0; q.hurt = a[10] || 0; q.combat = !!a[11];
+    return q;
   });
   const oldJ = new Map(g.proj.map(j => [j.id, j]));
   g.proj = s.j.map(a => {
@@ -943,7 +1189,7 @@ function smooth(g, dt) {
     if (Math.abs(o.tx - o.x) + Math.abs(o.ty - o.y) > 100) { o.x = o.tx; o.y = o.ty; }
     else { o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
   };
-  g.players.forEach(f); g.enemies.forEach(f); g.proj.forEach(f);
+  g.players.forEach(f); g.enemies.forEach(f); g.proj.forEach(f); g.pets.forEach(f);
 }
 
 // ---------------- input ----------------
@@ -1093,6 +1339,38 @@ function drawChar(c, type, x, y, a, sc, hurt) {
   if (hurt) { c.fillStyle = 'rgba(255,255,255,.65)'; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); }
   c.restore();
 }
+const CHARGE_NAMES = ['', 'smash', 'dash', 'laser', 'cleave'];
+const chargeTotal = k => k === 'smash' ? SMASH.charge : k === 'dash' ? KING.dash.charge : k === 'laser' ? LASER.charge : k === 'cleave' ? KING.cleave.windup : 1;
+function drawPet(c, q) {
+  c.save(); c.translate(q.x, q.y);
+  if (!q.alive) c.globalAlpha = 0.3;
+  c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 3, q.r + 3, q.r - 1, 0, 0, 7); c.fill();
+  c.rotate(q.face || 0);
+  if (q.type === 'wolf') {
+    c.strokeStyle = '#9e9e9e'; c.lineWidth = 3; c.beginPath(); c.moveTo(-8, 0); c.quadraticCurveTo(-15, -4, -17, 3); c.stroke();                 // tail
+    c.fillStyle = '#b0bec5'; c.strokeStyle = '#607d8b'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(0, 0, 11, 7, 0, 0, 7); c.fill(); c.stroke(); // body
+    c.beginPath(); c.arc(9, 0, 6, 0, 7); c.fill(); c.stroke();                                                                                      // head
+    c.fillStyle = '#78909c'; c.beginPath(); c.moveTo(7, -4); c.lineTo(5, -10); c.lineTo(10, -6); c.fill(); c.beginPath(); c.moveTo(7, 4); c.lineTo(5, 10); c.lineTo(10, 6); c.fill();
+    c.fillStyle = '#263238'; c.beginPath(); c.arc(14, 0, 1.8, 0, 7); c.fill();
+    c.fillStyle = '#ffeb3b'; c.beginPath(); c.arc(10, -2.2, 1.1, 0, 7); c.fill(); c.beginPath(); c.arc(10, 2.2, 1.1, 0, 7); c.fill();
+  } else if (q.type === 'panther') {
+    c.strokeStyle = '#212121'; c.lineWidth = 3; c.beginPath(); c.moveTo(-9, 0); c.quadraticCurveTo(-17, 6, -20, -2); c.stroke();
+    c.fillStyle = '#37474f'; c.strokeStyle = '#102027'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(0, 0, 12, 6.5, 0, 0, 7); c.fill(); c.stroke();
+    c.beginPath(); c.arc(10, 0, 5.5, 0, 7); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(8, -4); c.lineTo(7, -9); c.lineTo(11, -5); c.fill(); c.beginPath(); c.moveTo(8, 4); c.lineTo(7, 9); c.lineTo(11, 5); c.fill();
+    c.fillStyle = '#ffd600'; c.beginPath(); c.arc(11.5, -2, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(11.5, 2, 1.4, 0, 7); c.fill();
+  } else { // turtle
+    c.fillStyle = '#81c784'; c.beginPath(); c.arc(12, 0, 4.5, 0, 7); c.fill();                                                  // head
+    c.fillStyle = '#2e7d32'; c.strokeStyle = '#1b5e20'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 11, 0, 7); c.fill(); c.stroke(); // shell
+    c.strokeStyle = '#66bb6a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-8, 0); c.lineTo(8, 0); c.moveTo(0, -8); c.lineTo(0, 8); c.moveTo(-5, -5); c.lineTo(5, 5); c.moveTo(5, -5); c.lineTo(-5, 5); c.stroke();
+    c.fillStyle = '#81c784'; c.beginPath(); c.arc(-4, -11, 3, 0, 7); c.fill(); c.beginPath(); c.arc(-4, 11, 3, 0, 7); c.fill();
+    c.fillStyle = '#000'; c.beginPath(); c.arc(14, -1.5, 0.9, 0, 7); c.fill(); c.beginPath(); c.arc(14, 1.5, 0.9, 0, 7); c.fill();
+  }
+  if (q.hurt > 0 && q.alive) { c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(0, 0, q.r + 3, 0, 7); c.fill(); }
+  c.restore();
+  if (q.shield > 0) { c.strokeStyle = 'rgba(128,216,255,.9)'; c.lineWidth = 2.5; c.beginPath(); c.arc(q.x, q.y, q.r + 7, 0, 7); c.stroke(); }
+  if (q.alive && q.hp < q.maxhp) { c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(q.x - 11, q.y - q.r - 9, 22, 3); c.fillStyle = '#66bb6a'; c.fillRect(q.x - 11, q.y - q.r - 9, 22 * clamp(q.hp / q.maxhp, 0, 1), 3); }
+}
 function drawEnemy(c, e) {
   c.save(); c.translate(e.x, e.y); c.rotate(e.face || 0);
   c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 2, e.r + 3, e.r, 0, 0, 7); c.fill();
@@ -1119,6 +1397,26 @@ function drawEnemy(c, e) {
     c.strokeStyle = '#78909c'; c.lineWidth = 1; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(-5, i * 3.4); c.lineTo(3, i * 3.4); c.stroke(); }
     c.fillStyle = '#eceff1'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.arc(3, 0, 6.5, 0, 7); c.fill(); c.stroke(); // skull
     c.fillStyle = '#212121'; c.beginPath(); c.arc(5.5, -2.4, 1.7, 0, 7); c.fill(); c.beginPath(); c.arc(5.5, 2.4, 1.7, 0, 7); c.fill();
+  } else if (e.type === 'voidling') {
+    const t = performance.now() / 1000;
+    c.fillStyle = 'rgba(120,20,160,.28)'; c.beginPath(); c.arc(0, 0, 15 + Math.sin(t * 4 + e.x) * 2, 0, 7); c.fill();
+    c.fillStyle = '#2a0f3d'; c.strokeStyle = '#8e24aa'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 10, 0, 7); c.fill(); c.stroke();
+    c.strokeStyle = 'rgba(206,147,216,.8)'; c.lineWidth = 1.5;
+    for (let i = 0; i < 3; i++) { const a0 = t * 2.5 + i * 2.1; c.beginPath(); c.arc(0, 0, 13, a0, a0 + 1.0); c.stroke(); }
+    c.fillStyle = '#ff1744'; c.beginPath(); c.arc(4, 0, 4.2, 0, 7); c.fill();
+    c.fillStyle = '#fff'; c.beginPath(); c.arc(5.2, -0.8, 1.2, 0, 7); c.fill();
+  } else if (e.type === 'skeleton_king') {
+    c.scale(1.6, 1.6);
+    c.strokeStyle = '#6d4c2f'; c.lineWidth = 3; c.beginPath(); c.moveTo(6, 11); c.lineTo(22, 11); c.stroke();      // mace handle
+    c.fillStyle = '#78909c'; c.strokeStyle = '#37474f'; c.lineWidth = 1.5; c.beginPath(); c.arc(24, 11, 6, 0, 7); c.fill(); c.stroke(); // mace head
+    c.fillStyle = '#b0bec5'; for (let i = 0; i < 6; i++) { const a = i * 1.047; c.beginPath(); c.arc(24 + Math.cos(a) * 6.5, 11 + Math.sin(a) * 6.5, 1.6, 0, 7); c.fill(); }
+    c.fillStyle = '#cfd8dc'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(-1, 0, 8, 11, 0, 0, 7); c.fill(); c.stroke();
+    c.strokeStyle = '#78909c'; c.lineWidth = 1; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(-6, i * 3.6); c.lineTo(4, i * 3.6); c.stroke(); }
+    c.fillStyle = '#eceff1'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.arc(3, 0, 7, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = '#ffca28'; c.strokeStyle = '#b8860b'; c.lineWidth = 1; c.beginPath(); // crown
+    c.moveTo(-3, -6); c.lineTo(-1, -12); c.lineTo(2, -7); c.lineTo(5, -12); c.lineTo(8, -6); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#d50000'; c.beginPath(); c.arc(6, -2.6, 1.8, 0, 7); c.fill(); c.beginPath(); c.arc(6, 2.6, 1.8, 0, 7); c.fill();
+    c.scale(1 / 1.6, 1 / 1.6);
   } else {
     c.scale(1.5, 1.5);
     c.fillStyle = '#7b8f4a'; c.strokeStyle = '#4e5d2c'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); c.stroke();
@@ -1130,15 +1428,16 @@ function drawEnemy(c, e) {
     c.fillStyle = '#d50000'; c.beginPath(); c.arc(8, -3, 1.3, 0, 7); c.fill(); c.beginPath(); c.arc(8, 3, 1.3, 0, 7); c.fill();
     c.scale(1 / 1.5, 1 / 1.5);
   }
-  if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, e.type === 'troll' ? 22 : e.r + 2, 0, 7); c.fill(); }
+  if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, e.r >= 14 ? e.r * 1.55 : e.r + 2, 0, 7); c.fill(); }
   c.restore();
-  const bw = e.type === 'troll' ? 44 : e.r * 2 + 6, by = e.y - (e.type === 'troll' ? 30 : e.r + 8);
+  const big = e.r >= 14, bw = big ? 48 : e.r * 2 + 6, by = e.y - (big ? e.r * 2 + 4 : e.r + 8);
   c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
   c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
   if (e.al !== undefined ? e.al : e.alert > 0) { // "!" = this enemy has noticed a player
     c.font = 'bold 15px system-ui,sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; c.fillStyle = '#ff5252';
     c.strokeText('!', e.x, by - 3); c.fillText('!', e.x, by - 3);
   }
+  if (e.fear > 0 || e.fearing) { c.font = '15px system-ui,sans-serif'; c.textAlign = 'center'; c.fillText('😱', e.x + 14, by - 4); }
 }
 
 function drawWorld(g) {
@@ -1173,16 +1472,35 @@ function drawWorld(g) {
     ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.x, k.y + b, 6, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(k.x - 2, k.y + b - 2, 1.8, 0, 7); ctx.fill();
   }
-  // Troll smash telegraph: the red disc fills up as the charge completes, so players can run out of it
+  // skill telegraphs: whatever is about to hit you is drawn on the floor first, so you can move out of it
   for (const e of g.enemies) if (e.ch > 0) {
-    const k = clamp(1 - e.ch / SMASH.charge, 0, 1);
-    ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.fill();
-    ctx.fillStyle = 'rgba(229,57,53,.30)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r * k, 0, 7); ctx.fill();
-    ctx.strokeStyle = 'rgba(255,82,82,.9)'; ctx.lineWidth = 3; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+    const kind = e.sk || CHARGE_NAMES[e.skc] || '', tot = e.cht || chargeTotal(kind) || 1, k = clamp(1 - e.ch / tot, 0, 1);
+    ctx.save();
+    if (kind === 'smash') {
+      ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(229,57,53,.30)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r * k, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,82,82,.9)'; ctx.lineWidth = 3; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.stroke();
+    } else if (kind === 'cleave') {
+      const a = e.face || 0;
+      ctx.fillStyle = 'rgba(229,57,53,.16)'; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.arc(e.x, e.y, KING.cleave.r, a - KING.cleave.arc, a + KING.cleave.arc); ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.arc(e.x, e.y, KING.cleave.r * k, a - KING.cleave.arc, a + KING.cleave.arc); ctx.closePath(); ctx.fill();
+    } else if (kind === 'dash') {
+      const a = e.face || 0, len = KING.dash.range, w = e.r + 10;
+      ctx.translate(e.x, e.y); ctx.rotate(a);
+      ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.fillRect(0, -w, len, w * 2);
+      ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.fillRect(0, -w, len * k, w * 2);
+      ctx.strokeStyle = 'rgba(255,82,82,.9)'; ctx.lineWidth = 2; ctx.strokeRect(0, -w, len, w * 2);
+    } else if (kind === 'laser') {
+      const a = e.face || 0, len = LASER.range;
+      ctx.strokeStyle = `rgba(255,23,68,${0.25 + 0.55 * k})`; ctx.lineWidth = 1 + 3 * k; ctx.setLineDash(k > 0.7 ? [] : [12, 8]);
+      ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(a) * len, e.y + Math.sin(a) * len); ctx.stroke();
+    }
+    ctx.restore();
   }
   // enemies + players sorted by y
   const ents = [];
   g.enemies.forEach(e => ents.push({ y: e.y, f: () => drawEnemy(ctx, e) }));
+  g.pets.forEach(q => ents.push({ y: q.y, f: () => drawPet(ctx, q) }));
   g.players.forEach(p => {
     if (p.gone) return;
     ents.push({ y: p.y, f: () => {
@@ -1192,6 +1510,7 @@ function drawWorld(g) {
       ctx.globalAlpha = p.alive ? 1 : 0.3;
       drawChar(ctx, p.char, p.x, p.y, p.face, 1, p.hurt > 0 && p.alive);
       ctx.globalAlpha = 1;
+      if (p.shield > 0) { ctx.strokeStyle = 'rgba(128,216,255,.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 9, 0, 7); ctx.stroke(); }
       ctx.font = 'bold 11px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#fff';
       ctx.strokeText(p.name, p.x, p.y - 20); ctx.fillText(p.name, p.x, p.y - 20);
     } });
@@ -1246,6 +1565,19 @@ function drawFx(g) {
       case 'smash':
         ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ff8a65'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + 0.7 * Math.min(1, k * 3)), 0, 7); ctx.fill();
         ctx.globalAlpha = 1 - k * 0.7; ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * Math.min(1, 0.4 + k * 2), 0, 7); ctx.stroke(); break;
+      case 'howl':
+        ctx.globalAlpha = (1 - k) * 0.8; ctx.strokeStyle = '#e1f5fe'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.2 + 0.8 * k), 0, 7); ctx.stroke();
+        ctx.globalAlpha = (1 - k) * 0.25; ctx.fillStyle = '#b3e5fc'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.2 + 0.8 * k), 0, 7); ctx.fill(); break;
+      case 'barrier':
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#80d8ff'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, 12 + k * 14, 0, 7); ctx.stroke(); break;
+      case 'laser':
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ff1744'; ctx.lineWidth = 8 * (1 - k) + 2; ctx.shadowColor = '#ff1744'; ctx.shadowBlur = 14;
+        ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke(); break;
+      case 'cleave':
+        ctx.globalAlpha = (1 - k) * 0.7; ctx.fillStyle = '#ffccbc'; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.arc(f.x, f.y, f.r, f.a - f.arc, f.a + f.arc); ctx.closePath(); ctx.fill(); break;
+      case 'summon':
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#b39ddb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + k * 70, 0, 7); ctx.stroke(); break;
       case 'door':
         ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#80deea'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 40, 0, 7); ctx.stroke(); break;
@@ -1258,7 +1590,7 @@ function drawFx(g) {
   }
 }
 function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is laid out in
-  const troll = g.enemies.find(e => e.type === 'troll');
+  const troll = g.enemies.find(e => ENEMIES[e.type].boss);
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
   if (!portrait) { // landscape: stage title + objective centred at the top of the room (portrait draws them in the bottom-left corner instead)
     ctx.textAlign = 'center'; ctx.font = 'bold 22px system-ui,sans-serif'; ctx.fillStyle = '#fff';
@@ -1281,7 +1613,7 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   { // points collected so far this run (shared by both players)
     const y = 12 + g.players.length * 34 + 8;
     ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
-    const txt = `🟡 Points this run: ${g.teamCp || 0}`; ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+    const txt = `🟡 Points: ${g.teamCp || 0}   🪙 Gold: ${g.teamGold || 0}`; ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
   }
   if (troll && !portrait) {
     const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
@@ -1297,12 +1629,12 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
 }
 function objective(g, troll) {
   if (g.door.open) return ['The door is open!', '#80deea'];
-  if (troll) return ['BOSS FIGHT — defeat the Troll!', '#ff8a80'];
+  if (troll) return [`BOSS FIGHT — defeat the ${ENEMIES[troll.type].name}!`, '#ff8a80'];
   return [`Defeat all enemies to open the door (${g.enemies.length} left)`, '#cfd8ff'];
 }
 // Portrait: stage + objective live in the dark strip below the room, bottom-left, opposite the attack/special buttons.
 function drawInfoPanel(g, top, ih) {
-  const troll = g.enemies.find(e => e.type === 'troll');
+  const troll = g.enemies.find(e => ENEMIES[e.type].boss);
   const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp, btnRev]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return isFinite(l) ? l : innerWidth * 0.7; })();
   const x = 14, maxW = Math.max(120, right - x - 12);
   ctx.save(); ctx.textAlign = 'left'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
@@ -1394,6 +1726,8 @@ function render() {
 function updateMenu() {
   $('menuName').textContent = profile.name;
   $('menuCp').textContent = profile.cp;
+  $('menuGold').textContent = profile.gold;
+  $('menuVer').textContent = 'v' + GAME_VERSION;
   $('menuBest').textContent = `${profile.best.stage}-${profile.best.level}`;
 }
 function renderChars() {
@@ -1420,6 +1754,50 @@ $('charCards').addEventListener('click', e => {
   else if ((b.dataset.act === 'up-atk' || b.dataset.act === 'up-hp') && profile.cp >= 1) { profile.cp--; profile.up[c][b.dataset.act === 'up-atk' ? 'atk' : 'hp']++; }
   saveProfile(); renderChars();
 });
+// ---- pets & shop ----
+const PET_KEYS = Object.keys(PETS);
+function petCard(key, mode) { // mode: 'pets' (select) or 'shop' (buy)
+  const d = PETS[key], owned = profile.pets.includes(key), card = document.createElement('div');
+  card.className = 'card' + (mode === 'pets' && profile.pet === key ? ' sel' : '');
+  let btn;
+  if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price}</button>`;
+  else btn = !owned ? `<button disabled>Not owned — buy in Shop</button>` : profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped (tap to remove)</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
+  card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
+    <div class="stats">ATK <b>${d.atk}</b> · HP <b>${d.hp}</b></div><div class="desc">${d.speedTxt}.<br>${d.ability}</div><div class="btns">${btn}</div>`;
+  const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, 120, 120);
+  c2.save(); c2.translate(60, 62); c2.scale(3.2, 3.2); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
+  return card;
+}
+function renderPets() {
+  $('petGold').textContent = profile.gold;
+  const box = $('petCards'); box.innerHTML = '';
+  PET_KEYS.forEach(k => box.appendChild(petCard(k, 'pets')));
+}
+let shopTab = 'pets';
+function renderShop() {
+  $('shopGold').textContent = profile.gold;
+  $('tabEquip').classList.toggle('on', shopTab === 'equip'); $('tabPets').classList.toggle('on', shopTab === 'pets');
+  const box = $('shopCards'); box.innerHTML = '';
+  if (shopTab === 'pets') PET_KEYS.forEach(k => box.appendChild(petCard(k, 'shop')));
+  else { const d = document.createElement('div'); d.className = 'soon'; d.innerHTML = '🛡 Equipment (Head · Body · Weapon) — buy &amp; sell<br><b>Coming soon</b>'; box.appendChild(d); }
+}
+$('petCards').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const k = b.dataset.p;
+  if (b.dataset.act === 'sel' && profile.pets.includes(k)) profile.pet = k; else if (b.dataset.act === 'unsel') profile.pet = '';
+  saveProfile(); renderPets();
+});
+$('shopCards').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled || b.dataset.act !== 'buy') return;
+  const k = b.dataset.p, d = PETS[k];
+  if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
+  profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
+  saveProfile(); renderShop(); toast(`${d.name} bought!`);
+});
+$('tabEquip').addEventListener('click', () => { shopTab = 'equip'; renderShop(); });
+$('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); });
+$('btnPets').addEventListener('click', () => { renderPets(); show('scrPets'); });
+$('btnShop').addEventListener('click', () => { renderShop(); show('scrShop'); });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
   const to = b.dataset.go;
   if (to === 'scrMenu') updateMenu();
