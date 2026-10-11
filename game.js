@@ -38,7 +38,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.11-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.11-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 10 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 20 },
@@ -63,6 +63,7 @@ const KING = {
 };
 const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
 const HEAL_RANGE = 200;   // the healer's ray only reaches allies this close
+const REVIVE_TIME = 5;   // seconds the reviver must stay put and unhurt
 const REVIVE_RANGE = 64;  // how close you must stand to a downed ally to revive them
 const ARROW = { speed: 240, life: 1.3, range: 250, keep: 110, hold: 210 };
 // ---- pets ----
@@ -548,7 +549,7 @@ function loadLevel(g, first) {
   g.bossRoom = g.level === 10;
   g.players.forEach((p, i) => {
     if (p.gone) return;
-    const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0; p.shield = 0; p.shieldT = 0; p.still = 0;
+    const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0; p.shield = 0; p.shieldT = 0; p.still = 0; p.revTarget = null; p.revT = 0; p.revP = 0;
     if (!first) {
       if (!p.alive) { p.alive = true; p.hp = Math.ceil(p.maxhp * 0.5); }
     }
@@ -763,26 +764,46 @@ function fireLaser(g, e) { // instant red beam that ignores walls
   }
   addFx(g, { type: 'laser', x1: e.x, y1: e.y, x2: e.x + vx, y2: e.y + vy });
 }
-function tryRevive(g, p) { // bring back the nearest downed ally standing within REVIVE_RANGE
+function reviveTarget(g, p) { // nearest downed ally within REVIVE_RANGE
   let best = null, bd = REVIVE_RANGE;
   for (const a of g.players) {
     if (a === p || a.alive || a.gone) continue;
     const d = Math.hypot(a.x - p.x, a.y - p.y);
     if (d <= bd) { bd = d; best = a; }
   }
-  if (!best) return false;
-  best.alive = true; best.hp = Math.max(1, Math.ceil(best.maxhp * 0.5)); best.hurt = 0; best.atkCd = 0;
-  addFx(g, { type: 'heal', x: best.x, y: best.y });
-  addFx(g, { type: 'txt', x: best.x, y: best.y - 30, s: 'REVIVED!', c: '#69f0ae' });
+  return best;
+}
+function cancelRevive(g, p, announce) {
+  if (!p.revTarget) return;
+  p.revTarget.revP = 0; p.revTarget = null; p.revT = 0;
+  if (announce) addFx(g, { type: 'txt', x: p.x, y: p.y - 30, s: 'REVIVE INTERRUPTED', c: '#ff8a80' });
+}
+function tryRevive(g, p) { // starts a REVIVE_TIME channel on the nearest downed ally; taking damage, leaving range or them being revived otherwise cancels it
+  if (p.revTarget) return false;
+  const best = reviveTarget(g, p);
+  if (!best || g.players.some(o => o.revTarget === best)) return false;
+  p.revTarget = best; p.revT = 0; best.revP = 0;
+  addFx(g, { type: 'txt', x: best.x, y: best.y - 30, s: 'REVIVING…', c: '#69f0ae' });
   return true;
 }
-// damage to a player or a pet; a barrier absorbs first
+function reviveTick(g, p, dt) {
+  const a = p.revTarget; if (!a) return;
+  if (a.alive || a.gone || Math.hypot(a.x - p.x, a.y - p.y) > REVIVE_RANGE + 6) { cancelRevive(g, p, !a.alive && !a.gone); return; }
+  p.revT += dt; a.revP = Math.min(1, p.revT / REVIVE_TIME);
+  if (p.revT >= REVIVE_TIME) {
+    cancelRevive(g, p, false);
+    a.alive = true; a.hp = Math.max(1, Math.ceil(a.maxhp * 0.5)); a.hurt = 0; a.atkCd = 0;
+    addFx(g, { type: 'heal', x: a.x, y: a.y });
+    addFx(g, { type: 'txt', x: a.x, y: a.y - 30, s: 'REVIVED!', c: '#69f0ae' });
+  }
+}
 function hurtT(g, t, dmg) {
   if (t.shield > 0) {
     const ab = Math.min(t.shield, dmg); t.shield -= ab; dmg -= ab;
     if (dmg <= 0) { addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '🛡' + Math.round(ab), c: '#80d8ff' }); return; }
   }
   t.hp -= dmg; t.hurt = 0.15;
+  if (t.revTarget) cancelRevive(g, t, true); // getting hurt interrupts a revive in progress
   addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '-' + dmg, c: '#ff5252' });
   if (t.hp <= 0) {
     t.hp = 0; t.alive = false; t.shield = 0; t.shieldT = 0;
@@ -1002,6 +1023,7 @@ function step(g, dt) {
     if (inp.atk && p.atkCd <= 0) { doAttack(g, p); p.atkCd = CHARS[p.char].cd; }
     if (inp.sp) { inp.sp = false; if (p.spCd <= 0 && doSpecial(g, p)) p.spCd = SPECIAL_CD; }
     if (inp.rev) { inp.rev = false; tryRevive(g, p); }
+    reviveTick(g, p, dt);
   }
   // path fields
   g.fieldT -= dt;
@@ -1130,7 +1152,7 @@ const r1 = v => Math.round(v * 10) / 10;
 function snapshot(g) {
   const s = {
     k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold,
-    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100, Math.round(p.shield || 0)]),
+    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100, Math.round(p.shield || 0), Math.round((p.revP || 0) * 100) / 100]),
     e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
     q: g.pets.map(q => [q.id, q.type, r1(q.x), r1(q.y), q.hp, q.maxhp, Math.round(q.face * 100) / 100, q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), Math.round(q.hurt * 100) / 100, q.combat ? 1 : 0]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
@@ -1156,7 +1178,7 @@ function applySnap(g, s) {
   if (s.gd > g.teamGold) g.teamGold = s.gd;
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
-    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0;
+    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0;
   });
   const oldE = new Map(g.enemies.map(e => [e.id, e]));
   g.enemies = s.e.map(a => {
@@ -1511,6 +1533,10 @@ function drawWorld(g) {
       drawChar(ctx, p.char, p.x, p.y, p.face, 1, p.hurt > 0 && p.alive);
       ctx.globalAlpha = 1;
       if (p.shield > 0) { ctx.strokeStyle = 'rgba(128,216,255,.9)'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 9, 0, 7); ctx.stroke(); }
+      if (!p.alive && p.revP > 0) { // revive progress
+        const bw = 36; ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(p.x - bw / 2 - 1, p.y - 38, bw + 2, 7);
+        ctx.fillStyle = '#69f0ae'; ctx.fillRect(p.x - bw / 2, p.y - 37, bw * p.revP, 5);
+      }
       ctx.font = 'bold 11px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#fff';
       ctx.strokeText(p.name, p.x, p.y - 20); ctx.fillText(p.name, p.x, p.y - 20);
     } });
