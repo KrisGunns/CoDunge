@@ -550,7 +550,7 @@ function spawnEnemies(g, L) {
     }
     if (!pos) { const [c, r] = pool[rnd(pool.length)]; pos = { x: (c + 0.5) * TILE, y: (r + 0.5) * TILE }; }
     placed.push(pos);
-    g.enemies.push({ id: g.nid++, type, x: pos.x, y: pos.y, r: def.r, hp: Math.ceil(def.hp * m), maxhp: Math.ceil(def.hp * m),
+    g.enemies.push({ id: g.nid++, type, x: pos.x, y: pos.y, r: def.r, hp: Math.ceil(def.hp * m - 1e-9), maxhp: Math.ceil(def.hp * m - 1e-9),
       atk: def.atk * m, speed: def.speed * (0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
       alert: 0, home: { x: pos.x, y: pos.y }, wp: null, wt: 0, pause: Math.random() * 2, sm: type === 'troll' ? 4 : 0, ch: 0 });
   }
