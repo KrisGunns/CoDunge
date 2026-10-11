@@ -22,7 +22,7 @@ const STEP = 1 / 60;
 const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
-const VISION = { rat: 160, goblin: 190, troll: 230 }; // px
+const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220 }; // px
 const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
 const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
 let SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
@@ -36,13 +36,19 @@ const CHARS = {
   mage: { name: 'Mage', atk: 8, hp: 40, color: '#7e57c2', dark: '#4527a0', cd: 0.7, speed: 150, sym: '⚡',
     desc: 'Chain Lightning: 1.3× ATK, bounces up to 3 times, each hit 20% weaker.' },
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
-    desc: 'Healing Ray: heals ally for 15 + 50% ATK, and yourself for half of that.' },
+    desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
 const ENEMIES = {
   rat: { atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8 },
   goblin: { atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0 },
-  troll: { atk: 10, hp: 100, speed: 55, r: 14, cd: 1.2, boss: true },
+  troll: { atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true },
+  skeleton: { atk: 5, hp: 40, speed: 60, r: 10, cd: 1.6, ranged: true }, // only from stage 2 on
 };
+// Troll Smash: stops and charges for 2 s (red circle shows the area), then hits everyone inside for 3x ATK. 10 s cooldown.
+const SMASH = { cd: 10, charge: 2, mult: 3, r: 120 }; // r is bigger than the warrior's spin (85)
+const HEAL_RANGE = 200;   // the healer's ray only reaches allies this close
+const REVIVE_RANGE = 64;  // how close you must stand to a downed ally to revive them
+const ARROW = { speed: 240, life: 1.3, range: 250, keep: 110, hold: 210 };
 
 // ---------------- profile / save ----------------
 const SAVE_KEY = 'coopquest.v1';
@@ -369,7 +375,7 @@ function onRelay(d) {
     case 's': if (game && !game.isHost && game.grid) applySnap(game, d); break;
     case 'in': if (game && game.isHost) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
-      i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true;
+      i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true; if (d.rev) i.rev = true;
     } break;
     case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; game.over = true; showOver(game); } break;
   }
@@ -438,7 +444,7 @@ function genLevel(stage, level, portrait) {
 
 // ---------------- game state ----------------
 let game = null;
-const ctl = { sp: false };
+const ctl = { sp: false, rev: false };
 
 function makePlayer(d, id) {
   return { id, name: d.name, char: d.char, atk: d.atk, maxhp: d.hp, hp: d.hp, x: 0, y: 0, r: 10, face: 0, alive: true,
@@ -490,7 +496,6 @@ function loadLevel(g, first) {
     const sp = spawnXY(i); p.x = sp.x; p.y = sp.y; p.atkCd = 0;
     if (!first) {
       if (!p.alive) { p.alive = true; p.hp = Math.ceil(p.maxhp * 0.5); }
-      else p.hp = Math.min(p.maxhp, p.hp + Math.ceil(p.maxhp * 0.15));
     }
     const inp = g.inputs[p.id]; if (inp) inp.sp = false;
   });
@@ -512,8 +517,11 @@ function spawnEnemies(g, L) {
   } else {
     const n = Math.min(20, 2 + g.level + (g.stage - 1) * 2);
     const pg = Math.min(0.75, 0.05 + g.level * 0.07 + (g.stage - 1) * 0.05);
-    for (let i = 0; i < n; i++) list.push(Math.random() < pg ? 'goblin' : 'rat');
+    const pSk = g.stage >= 2 ? Math.min(0.35, 0.12 + g.level * 0.02 + (g.stage - 2) * 0.03) : 0; // skeleton archers appear from stage 2-1
+    for (let i = 0; i < n; i++) list.push(Math.random() < pSk ? 'skeleton' : Math.random() < pg ? 'goblin' : 'rat');
+    if (g.stage >= 2 && !list.includes('skeleton')) list[list.length - 1] = 'skeleton';
   }
+  if (g.level === 10 && g.stage >= 2) for (let i = 0; i < Math.min(3, g.stage - 1); i++) list.push('skeleton');
   const placed = [];
   const far = ([c, r]) => Math.hypot((c + 0.5) * TILE - SPAWN_POINT.x, (r + 0.5) * TILE - SPAWN_POINT.y);
   let pool = L.cells.filter(cell => far(cell) >= SPAWN_MIN_DIST);
@@ -530,7 +538,7 @@ function spawnEnemies(g, L) {
     placed.push(pos);
     g.enemies.push({ id: g.nid++, type, x: pos.x, y: pos.y, r: def.r, hp: Math.ceil(def.hp * m), maxhp: Math.ceil(def.hp * m),
       atk: def.atk * m, speed: def.speed * (0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
-      alert: 0, home: { x: pos.x, y: pos.y }, wp: null, wt: 0, pause: Math.random() * 2 });
+      alert: 0, home: { x: pos.x, y: pos.y }, wp: null, wt: 0, pause: Math.random() * 2, sm: type === 'troll' ? 4 : 0, ch: 0 });
   }
 }
 function noteProgress(g) {
@@ -561,7 +569,7 @@ function clearLine(g, x1, y1, x2, y2, r) {
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------------- effects ----------------
-const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6 };
+const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5 };
 function pushFx(g, f) { g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
 function addFx(g, f) { pushFx(g, f); if (g.multi && g.isHost) g.fxq.push(f); }
 
@@ -643,13 +651,31 @@ function doSpecial(g, p) {
   }
   // healer
   const amt = 15 + 0.5 * p.atk;
-  const allies = g.players.filter(a => a !== p && a.alive && !a.gone);
+  const allies = g.players.filter(a => a !== p && a.alive && !a.gone && Math.hypot(a.x - p.x, a.y - p.y) <= HEAL_RANGE);
   if (allies.length) {
     const a = allies.reduce((m, x) => (x.hp / x.maxhp < m.hp / m.maxhp ? x : m));
     heal(g, a, amt); heal(g, p, amt / 2);
     addFx(g, { type: 'ray', x1: p.x, y1: p.y, x2: a.x, y2: a.y });
-  } else heal(g, p, amt); // solo: no ally to share with, so the whole heal goes to self
+  } else heal(g, p, amt); // no ally within range (or playing solo): the whole heal goes to the healer
   return true;
+}
+function tryRevive(g, p) { // bring back the nearest downed ally standing within REVIVE_RANGE
+  let best = null, bd = REVIVE_RANGE;
+  for (const a of g.players) {
+    if (a === p || a.alive || a.gone) continue;
+    const d = Math.hypot(a.x - p.x, a.y - p.y);
+    if (d <= bd) { bd = d; best = a; }
+  }
+  if (!best) return false;
+  best.alive = true; best.hp = Math.max(1, Math.ceil(best.maxhp * 0.5)); best.hurt = 0; best.atkCd = 0;
+  addFx(g, { type: 'heal', x: best.x, y: best.y });
+  addFx(g, { type: 'txt', x: best.x, y: best.y - 30, s: 'REVIVED!', c: '#69f0ae' });
+  return true;
+}
+function smash(g, e) {
+  const dmg = Math.max(1, Math.round(SMASH.mult * e.atk));
+  for (const p of g.players) if (p.alive && !p.gone && Math.hypot(p.x - e.x, p.y - e.y) <= SMASH.r + p.r) hurtPlayer(g, p, dmg);
+  addFx(g, { type: 'smash', x: e.x, y: e.y, r: SMASH.r });
 }
 function hurtPlayer(g, p, dmg) {
   p.hp -= dmg; p.hurt = 0.15;
@@ -713,6 +739,7 @@ function step(g, dt) {
     p.atkCd -= dt; p.spCd = Math.max(0, p.spCd - dt);
     if (inp.atk && p.atkCd <= 0) { doAttack(g, p); p.atkCd = CHARS[p.char].cd; }
     if (inp.sp) { inp.sp = false; if (p.spCd <= 0 && doSpecial(g, p)) p.spCd = SPECIAL_CD; }
+    if (inp.rev) { inp.rev = false; tryRevive(g, p); }
   }
   // path fields
   g.fieldT -= dt;
@@ -724,6 +751,12 @@ function step(g, dt) {
   for (const e of g.enemies) {
     if (e.dead) continue;
     e.hurt = Math.max(0, e.hurt - dt); e.cd -= dt;
+    if (e.sm > 0) e.sm -= dt;
+    if (e.ch > 0) { // Troll is charging a Smash: it plants its feet until the charge is done
+      e.ch -= dt;
+      if (e.ch <= 0) { e.ch = 0; e.sm = SMASH.cd; smash(g, e); }
+      continue;
+    }
     const seen = playerInSight(g, e);
     if (seen) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = 4; } // spotted: hostile, and keeps hunting a few seconds after losing sight
     else e.alert = Math.max(0, e.alert - dt);
@@ -732,7 +765,10 @@ function step(g, dt) {
     if (!tgt) { e.alert = 0; continue; }
     const d = Math.hypot(tgt.x - e.x, tgt.y - e.y);
     e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x);
-    if (d > e.r + tgt.r + 4) {
+    if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r + 40) { e.ch = SMASH.charge; continue; }
+    const ranged = !!ENEMIES[e.type].ranged;
+    const los = ranged && clearLine(g, e.x, e.y, tgt.x, tgt.y, 3);
+    if (ranged ? (d > ARROW.hold || !los) : d > e.r + tgt.r + 4) {
       let tx = tgt.x, ty = tgt.y;
       if (!clearLine(g, e.x, e.y, tgt.x, tgt.y, e.r + 1)) {
         const f = g.fields[tgt.id];
@@ -756,7 +792,18 @@ function step(g, dt) {
         else { moveEnt(g, e, (dx >= 0 ? 1 : -1) * sp, 0); if (e.x === ox) moveEnt(g, e, 0, Math.sign(dy) * sp); }
       }
     }
-    if (d <= e.r + tgt.r + 8 && e.cd <= 0) { e.cd = ENEMIES[e.type].cd; hurtPlayer(g, tgt, Math.max(1, Math.round(e.atk))); }
+    if (ranged) {
+      if (d < ARROW.keep) { // too close: back away to keep shooting distance
+        const bx = (e.x - tgt.x) / (d || 1), by = (e.y - tgt.y) / (d || 1), bs = e.speed * 0.9 * dt;
+        moveEnt(g, e, bx * bs, by * bs);
+      }
+      if (los && d <= ARROW.range && e.cd <= 0) {
+        e.cd = ENEMIES[e.type].cd;
+        const a = Math.atan2(tgt.y - e.y, tgt.x - e.x);
+        g.proj.push({ id: g.nid++, x: e.x, y: e.y, vx: Math.cos(a) * ARROW.speed, vy: Math.sin(a) * ARROW.speed,
+          dmg: Math.max(1, Math.round(e.atk)), life: ARROW.life, kind: 'arrow', hostile: true, dead: false });
+      }
+    } else if (d <= e.r + tgt.r + 8 && e.cd <= 0) { e.cd = ENEMIES[e.type].cd; hurtPlayer(g, tgt, Math.max(1, Math.round(e.atk))); }
   }
   // enemy separation
   for (let i = 0; i < g.enemies.length; i++) for (let j = i + 1; j < g.enemies.length; j++) {
@@ -769,6 +816,10 @@ function step(g, dt) {
   for (const j of g.proj) {
     j.x += j.vx * dt; j.y += j.vy * dt; j.life -= dt;
     if (j.life <= 0 || hitsWall(g, j.x, j.y, 2)) { j.dead = true; continue; }
+    if (j.hostile) { // enemy arrow: hits the first living player it touches
+      for (const p of g.players) if (p.alive && !p.gone && Math.hypot(p.x - j.x, p.y - j.y) < p.r + 4) { hurtPlayer(g, p, j.dmg); j.dead = true; break; }
+      continue;
+    }
     for (const e of g.enemies) {
       if (!e.dead && Math.hypot(e.x - j.x, e.y - j.y) < e.r + 5) { hitEnemy(g, e, j.dmg); j.dead = true; break; }
     }
@@ -822,7 +873,7 @@ function snapshot(g) {
   const s = {
     k: 's', d: g.door.open ? 1 : 0,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100]),
-    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0]),
+    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
     c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y)]),
     f: g.fxq,
@@ -850,7 +901,7 @@ function applySnap(g, s) {
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
     if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]].r };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8];
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0;
     return e;
   });
   const oldJ = new Map(g.proj.map(j => [j.id, j]));
@@ -891,18 +942,21 @@ const endJoy = e => { if (e.pointerId === joy.id) { joy.id = null; joy.active = 
 cv.addEventListener('pointerup', endJoy);
 cv.addEventListener('pointercancel', endJoy);
 
-const btnAtk = $('btnAtk'), btnSp = $('btnSp');
+const btnAtk = $('btnAtk'), btnSp = $('btnSp'), btnRev = $('btnRev');
 let atkPtr = null;
 btnAtk.addEventListener('pointerdown', e => { ui.atk = true; atkPtr = e.pointerId; btnAtk.classList.add('down'); try { btnAtk.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
 const atkUp = e => { if (e.pointerId === atkPtr) { ui.atk = false; atkPtr = null; btnAtk.classList.remove('down'); } };
 ['pointerup', 'pointercancel'].forEach(t => btnAtk.addEventListener(t, atkUp));
 btnSp.addEventListener('pointerdown', e => { ctl.sp = true; btnSp.classList.add('down'); e.preventDefault(); });
 ['pointerup', 'pointercancel', 'pointerleave'].forEach(t => btnSp.addEventListener(t, () => btnSp.classList.remove('down')));
+btnRev.addEventListener('pointerdown', e => { ctl.rev = true; btnRev.classList.add('down'); e.preventDefault(); });
+['pointerup', 'pointercancel', 'pointerleave'].forEach(t => btnRev.addEventListener(t, () => btnRev.classList.remove('down')));
 
 window.addEventListener('keydown', e => {
   if (!game || game.over) return;
-  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyJ', 'KeyK', 'KeyL', 'ShiftLeft'].includes(e.code)) e.preventDefault();
+  if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'KeyJ', 'KeyK', 'KeyL', 'ShiftLeft', 'KeyR', 'KeyE'].includes(e.code)) e.preventDefault();
   if (!e.repeat && ['KeyK', 'KeyL', 'ShiftLeft'].includes(e.code)) ctl.sp = true;
+  if (!e.repeat && ['KeyR', 'KeyE'].includes(e.code)) ctl.rev = true;
   keys.add(e.code);
 });
 window.addEventListener('keyup', e => keys.delete(e.code));
@@ -932,6 +986,7 @@ function update(dt) {
     const i0 = g.inputs[0] || (g.inputs[0] = { mx: 0, my: 0, atk: false, sp: false });
     i0.mx = inp.mx; i0.my = inp.my; i0.atk = inp.atk;
     if (ctl.sp) { i0.sp = true; ctl.sp = false; }
+    if (ctl.rev) { i0.rev = true; ctl.rev = false; }
     if (!g.over && g.grid) {
       g.acc += dt; let n = 0;
       while (g.acc >= STEP && n < 5) { step(g, STEP); g.acc -= STEP; n++; if (!game || g.over) break; }
@@ -944,8 +999,8 @@ function update(dt) {
     g.sendT += dt;
     if (g.sendT >= 0.04) {
       g.sendT = 0;
-      relay({ k: 'in', mx: Math.round(inp.mx * 100) / 100, my: Math.round(inp.my * 100) / 100, atk: inp.atk ? 1 : 0, sp: ctl.sp ? 1 : 0 });
-      ctl.sp = false;
+      relay({ k: 'in', mx: Math.round(inp.mx * 100) / 100, my: Math.round(inp.my * 100) / 100, atk: inp.atk ? 1 : 0, sp: ctl.sp ? 1 : 0, rev: ctl.rev ? 1 : 0 });
+      ctl.sp = false; ctl.rev = false;
     }
   }
   if (!game) return;
@@ -959,6 +1014,9 @@ function update(dt) {
     $('spTxt').textContent = cd > 0 ? Math.ceil(cd) : CHARS[me.char].sym;
     btnSp.classList.toggle('ready', cd <= 0 && me.alive);
   }
+  // Revive button: only while you're standing next to a downed ally
+  const canRev = !!me && me.alive && g.players.some(a => a !== me && !a.alive && !a.gone && Math.hypot(a.x - me.x, a.y - me.y) <= REVIVE_RANGE + 6);
+  btnRev.classList.toggle('hidden', !canRev);
 }
 let last = performance.now();
 function frame(now) {
@@ -1031,6 +1089,14 @@ function drawEnemy(c, e) {
     c.beginPath(); c.moveTo(1, 7); c.lineTo(-4, 19); c.lineTo(6, 9); c.fill();
     c.beginPath(); c.arc(3, 0, 7, 0, 7); c.fill();
     c.fillStyle = '#fdd835'; c.beginPath(); c.arc(7, -2.6, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(7, 2.6, 1.4, 0, 7); c.fill();
+  } else if (e.type === 'skeleton') {
+    c.strokeStyle = '#8d6e63'; c.lineWidth = 2.5; c.beginPath(); c.arc(10, 0, 12, -1.15, 1.15); c.stroke(); // bow
+    c.strokeStyle = '#eee'; c.lineWidth = 1; c.beginPath(); c.moveTo(10 + 12 * Math.cos(-1.15), 12 * Math.sin(-1.15)); c.lineTo(10 + 12 * Math.cos(1.15), 12 * Math.sin(1.15)); c.stroke();
+    c.fillStyle = '#cfd8dc'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5;
+    c.beginPath(); c.ellipse(-1, 0, 7, 10, 0, 0, 7); c.fill(); c.stroke();            // ribcage / shoulders
+    c.strokeStyle = '#78909c'; c.lineWidth = 1; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(-5, i * 3.4); c.lineTo(3, i * 3.4); c.stroke(); }
+    c.fillStyle = '#eceff1'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.arc(3, 0, 6.5, 0, 7); c.fill(); c.stroke(); // skull
+    c.fillStyle = '#212121'; c.beginPath(); c.arc(5.5, -2.4, 1.7, 0, 7); c.fill(); c.beginPath(); c.arc(5.5, 2.4, 1.7, 0, 7); c.fill();
   } else {
     c.scale(1.5, 1.5);
     c.fillStyle = '#7b8f4a'; c.strokeStyle = '#4e5d2c'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); c.stroke();
@@ -1085,12 +1151,22 @@ function drawWorld(g) {
     ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.x, k.y + b, 6, 0, 7); ctx.fill(); ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(k.x - 2, k.y + b - 2, 1.8, 0, 7); ctx.fill();
   }
+  // Troll smash telegraph: the red disc fills up as the charge completes, so players can run out of it
+  for (const e of g.enemies) if (e.ch > 0) {
+    const k = clamp(1 - e.ch / SMASH.charge, 0, 1);
+    ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.fill();
+    ctx.fillStyle = 'rgba(229,57,53,.30)'; ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r * k, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,82,82,.9)'; ctx.lineWidth = 3; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(e.x, e.y, SMASH.r, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+  }
   // enemies + players sorted by y
   const ents = [];
   g.enemies.forEach(e => ents.push({ y: e.y, f: () => drawEnemy(ctx, e) }));
   g.players.forEach(p => {
     if (p.gone) return;
     ents.push({ y: p.y, f: () => {
+      if (p.char === 'healer' && p.alive && p.id === g.pid && (p.spCd || 0) <= 0 && g.players.length > 1) { // show where the healing ray reaches
+        ctx.strokeStyle = 'rgba(105,240,174,.35)'; ctx.lineWidth = 2; ctx.setLineDash([6, 6]); ctx.beginPath(); ctx.arc(p.x, p.y, HEAL_RANGE, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      }
       ctx.globalAlpha = p.alive ? 1 : 0.3;
       drawChar(ctx, p.char, p.x, p.y, p.face, 1, p.hurt > 0 && p.alive);
       ctx.globalAlpha = 1;
@@ -1101,8 +1177,15 @@ function drawWorld(g) {
   ents.sort((a, b) => a.y - b.y).forEach(o => o.f());
   // projectiles
   for (const j of g.proj) {
-    const col = j.kind === 'mage' ? '#4dd0e1' : '#69f0ae';
     const a = j.ang !== undefined ? j.ang : Math.atan2(j.vy, j.vx);
+    if (j.kind === 'arrow') { // enemy arrow
+      ctx.save(); ctx.translate(j.x, j.y); ctx.rotate(a);
+      ctx.strokeStyle = '#d7ccc8'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(7, 0); ctx.stroke();
+      ctx.fillStyle = '#ff7043'; ctx.beginPath(); ctx.moveTo(10, 0); ctx.lineTo(5, -3.5); ctx.lineTo(5, 3.5); ctx.fill();
+      ctx.strokeStyle = '#ef9a9a'; ctx.beginPath(); ctx.moveTo(-9, 0); ctx.lineTo(-12, -3); ctx.moveTo(-9, 0); ctx.lineTo(-12, 3); ctx.stroke();
+      ctx.restore(); continue;
+    }
+    const col = j.kind === 'mage' ? '#4dd0e1' : '#69f0ae';
     ctx.fillStyle = col + '55'; ctx.beginPath(); ctx.arc(j.x - Math.cos(a) * 6, j.y - Math.sin(a) * 6, 6, 0, 7); ctx.fill();
     ctx.fillStyle = col; ctx.beginPath(); ctx.arc(j.x, j.y, 4, 0, 7); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(j.x, j.y, 1.8, 0, 7); ctx.fill();
@@ -1138,6 +1221,9 @@ function drawFx(g) {
       case 'poof':
         ctx.globalAlpha = 1 - k; ctx.fillStyle = '#cfd8dc';
         for (let i = 0; i < 6; i++) { const a = i * 1.05; ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * k * 16, f.y + Math.sin(a) * k * 16, 4 * (1 - k) + 1, 0, 7); ctx.fill(); } break;
+      case 'smash':
+        ctx.globalAlpha = 1 - k; ctx.fillStyle = '#ff8a65'; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + 0.7 * Math.min(1, k * 3)), 0, 7); ctx.fill();
+        ctx.globalAlpha = 1 - k * 0.7; ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(f.x, f.y, f.r * Math.min(1, 0.4 + k * 2), 0, 7); ctx.stroke(); break;
       case 'door':
         ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#80deea'; ctx.lineWidth = 4;
         ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 40, 0, 7); ctx.stroke(); break;
@@ -1190,7 +1276,7 @@ function objective(g, troll) {
 // Portrait: stage + objective live in the dark strip below the room, bottom-left, opposite the attack/special buttons.
 function drawInfoPanel(g, top, ih) {
   const troll = g.enemies.find(e => e.type === 'troll');
-  const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return isFinite(l) ? l : innerWidth * 0.7; })();
+  const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp, btnRev]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return isFinite(l) ? l : innerWidth * 0.7; })();
   const x = 14, maxW = Math.max(120, right - x - 12);
   ctx.save(); ctx.textAlign = 'left'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
   const [sub, col] = objective(g, troll);

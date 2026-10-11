@@ -48,6 +48,8 @@ input:focus{border-color:#ffd54f}
   backdrop-filter:blur(2px)}
 .act.atk{width:74px;height:74px;font-size:30px;right:calc(16px + env(safe-area-inset-right));bottom:calc(14px + env(safe-area-inset-bottom));background:rgba(180,50,50,.55)}
 .act.sp{width:58px;height:58px;font-size:23px;right:calc(24px + env(safe-area-inset-right));bottom:calc(14px + 74px + 12px + env(safe-area-inset-bottom));background:rgba(70,70,170,.55)}
+.act.rev{width:60px;height:60px;font-size:11px;font-weight:800;line-height:1.15;right:calc(16px + 74px + 12px + env(safe-area-inset-right));bottom:calc(14px + 7px + env(safe-area-inset-bottom));background:rgba(40,150,80,.6);border-color:#b9f6ca;box-shadow:0 0 14px #69f0ae}
+.act.rev span{text-shadow:0 1px 3px #000;text-align:center}
 .act.down{filter:brightness(1.5);transform:scale(.94)}
 .act.sp.ready{border-color:#ffd54f;box-shadow:0 0 16px #ffd54f}
 .act.sp i{position:absolute;left:0;right:0;bottom:0;height:0;background:rgba(0,0,0,.6)}

@@ -31,4 +31,11 @@ Clearing site data resets progress.
 
 Works in portrait and landscape. On a portrait screen the host gets a tall room (start at the bottom, door on one of the other sides) that fills the screen width; a player on a landscape screen joining a portrait host just sees it scaled to fit.
 Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (stacked above Attack).
+Revive: a green **Revive** button (left of Attack) appears when you stand next to a downed ally (keyboard: R or E).
 Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.
+
+## Enemies
+
+* Rat, Goblin — melee. **Skeleton Archer** (from stage 2-1 on) — shoots arrows from range and backs away if you get close.
+* Level 10 boss, the **Troll**: after 2 s of charging (a red circle shows the area) it smashes everything in a wide radius for 3× its ATK, every 10 s.
+* Healer's ray only reaches allies within range; with nobody in range it heals only the healer. There is no free healing between levels.
