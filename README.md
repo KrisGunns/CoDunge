@@ -24,7 +24,7 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 
 ## Saving
 
-Name, Character Points (each point = +1 ATK or +5 HP, your choice), upgrades, selected character and best level are stored in each player's browser (localStorage).
+Character Points found by either player in a multiplayer run are credited to both players. Name, Character Points (each point = +1 ATK or +5 HP, your choice), upgrades, selected character and best level are stored in each player's browser (localStorage).
 Clearing site data resets progress.
 
 ## Controls

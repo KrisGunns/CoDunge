@@ -391,7 +391,7 @@ function onRelay(d) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
       i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true; if (d.rev) i.rev = true;
     } break;
-    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; game.over = true; showOver(game); } break;
+    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; creditCp(game); game.over = true; showOver(game); } break;
   }
 }
 
@@ -466,7 +466,7 @@ function makePlayer(d, id) {
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
-    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, banner: null };
+    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, banner: null };
 }
 function startSingle() {
   const s = statsFor(profile.sel);
@@ -842,7 +842,7 @@ function step(g, dt) {
   for (const k of g.pickups) {
     for (const p of g.players) {
       if (p.alive && !p.gone && Math.hypot(p.x - k.x, p.y - k.y) < p.r + 10) {
-        p.cp++; k.dead = true;
+        p.cp++; g.teamCp++; k.dead = true; // every point found is shared: both players are credited
         addFx(g, { type: 'txt', x: k.x, y: k.y - 10, s: '+1 CP', c: '#ffd600' });
         break;
       }
@@ -869,14 +869,21 @@ function checkOver(g) {
   if (g.over || !g.grid) return;
   if (g.players.every(p => !p.alive || p.gone)) {
     g.over = true;
-    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level });
+    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp });
     showOver(g);
+  }
+}
+function creditCp(g, announce) { // points found by either player go to both profiles
+  if (g.teamCp > g.seenCp) {
+    const n = g.teamCp - g.seenCp; profile.cp += n; g.seenCp = g.teamCp; saveProfile();
+    if (announce) toast(n > 1 ? `+${n} Character Points!` : '+1 Character Point!');
   }
 }
 function showOver(g) {
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
-  $('overCp').textContent = `Character Points earned: 🟡 ${me ? me.cp : 0}`;
+  creditCp(g);
+  $('overCp').textContent = `Character Points earned: 🟡 ${g.teamCp}` + (g.multi ? ' (shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   show('scrOver');
 }
@@ -885,7 +892,7 @@ function showOver(g) {
 const r1 = v => Math.round(v * 10) / 10;
 function snapshot(g) {
   const s = {
-    k: 's', d: g.door.open ? 1 : 0,
+    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100]),
     e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
@@ -907,6 +914,7 @@ function applyLevel(g, m) {
 }
 function applySnap(g, s) {
   g.door.open = !!s.d;
+  if (s.t > g.teamCp) g.teamCp = s.t;
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
     p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8];
@@ -1022,7 +1030,7 @@ function update(dt) {
   g.fx = g.fx.filter(f => f.t < f.life);
   const me = g.players[g.pid];
   if (me) {
-    if (me.cp > g.seenCp) { profile.cp += me.cp - g.seenCp; g.seenCp = me.cp; saveProfile(); toast('+1 Character Point!'); }
+    creditCp(g, true);
     const cd = me.spCd || 0;
     $('spCd').style.height = (cd / SPECIAL_CD * 100) + '%';
     $('spTxt').textContent = cd > 0 ? Math.ceil(cd) : CHARS[me.char].sym;
@@ -1270,6 +1278,11 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
     ctx.fillStyle = p.alive ? '#43a047' : '#616161'; ctx.fillRect(12, y + 14, 150 * clamp(p.hp / p.maxhp, 0, 1), 9);
     ctx.fillStyle = '#fff'; ctx.font = '10px system-ui,sans-serif'; ctx.fillText(`${Math.max(0, Math.ceil(p.hp))}/${p.maxhp}`, 166, y + 22);
   });
+  { // points collected so far this run (shared by both players)
+    const y = 12 + g.players.length * 34 + 8;
+    ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
+    const txt = `🟡 Points this run: ${g.teamCp || 0}`; ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+  }
   if (troll && !portrait) {
     const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(x, 54, bw, 10);
