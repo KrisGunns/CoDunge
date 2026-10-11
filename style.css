@@ -32,7 +32,7 @@ input:focus{border-color:#ffd54f}
 #lobbyPlayers{list-style:none;padding:0;margin:0;width:100%;display:flex;flex-direction:column;gap:6px}
 #lobbyPlayers li{background:#1b2140;border-radius:8px;padding:10px;font-size:16px}
 
-#charCards,#petCards,#shopCards{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%}
+#charCards,#petCards,#shopCards.cards{display:flex;gap:12px;flex-wrap:wrap;justify-content:center;width:100%}
 .card{background:#1b2140;border:2px solid #2b3366;border-radius:14px;padding:12px;width:240px;display:flex;flex-direction:column;align-items:center;gap:6px}
 .card.sel{border-color:#ffd54f;box-shadow:0 0 14px rgba(255,213,79,.35)}
 .card canvas{width:120px;height:120px;border-radius:10px;background:#232838}
@@ -70,3 +70,14 @@ input:focus{border-color:#ffd54f}
 .tabs button{flex:1;max-width:200px;background:#2b3366;border-bottom-color:#161b3d}
 .tabs button.on{background:#3949ab;border-bottom-color:#ffd54f}
 .soon{background:#1b2140;border:2px dashed #2b3366;border-radius:14px;padding:30px;color:#9fa8da;font-size:17px;line-height:1.6}
+#overCp{white-space:pre-line;line-height:1.5}
+#shopCards.cards{display:flex}
+.list{display:flex;flex-direction:column;gap:8px;width:100%;max-width:640px}
+.list h3{margin:8px 0 0;font-size:15px;color:#ffd54f;text-align:left}
+.gear{display:flex;align-items:center;gap:10px;background:#1b2140;border:2px solid #2b3366;border-radius:12px;padding:8px 10px;text-align:left}
+.gear.empty{opacity:.55}
+.gear .gi{font-size:26px;width:34px;text-align:center}
+.gear .gt{flex:1;font-size:15px}.gear .gt small{color:#9fa8da;font-size:12px}
+.gear .gb{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+.gear .gb button{padding:7px 10px;font-size:13px}
+.tier{font-size:12px;font-weight:800}

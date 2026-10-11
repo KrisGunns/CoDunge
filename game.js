@@ -19,7 +19,9 @@ function spawnXY(i) { // where player i starts
 const portrait_ = () => ROWS > COLS;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const STEP = 1 / 60;
-const SPECIAL_CD = 15, DROP_CHANCE = 0.03;
+const SPECIAL_CD = 15, DROP_CHANCE = 0.03;      // DROP_CHANCE: Character Point (and, separately, Pet Point) chance per kill
+const POTION = { chance: 0.08, heal: 0.2 };       // potion drop chance per kill; heals 20% of max HP when walked over
+const PET_RESPAWN = 20;                           // seconds until a KO'd pet comes back
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
 const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, skeleton_king: 240 }; // px
@@ -38,12 +40,12 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.11-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.11-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
-  rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 10 },
-  goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 20 },
-  skeleton: { name: 'Skeleton Archer', atk: 5, hp: 20, speed: 60, r: 10, cd: 1.6, ranged: true, gold: 20 }, // from stage 2
-  voidling: { name: 'Voidling', atk: 10, hp: 30, speed: 65, r: 10, cd: 3, laser: true, gold: 30 },          // from stage 3
+  rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
+  goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
+  skeleton: { name: 'Skeleton Archer', atk: 5, hp: 20, speed: 60, r: 10, cd: 1.6, ranged: true, gold: 5 }, // from stage 2
+  voidling: { name: 'Voidling', atk: 10, hp: 30, speed: 65, r: 10, cd: 3, laser: true, gold: 7.5 },          // from stage 3
   troll: { name: 'Troll', atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true, gold: 0 },
   skeleton_king: { name: 'Skeleton King', atk: 15, hp: 150, speed: 58, r: 15, cd: 1.6, boss: true, gold: 0, reach: 70 },
 };
@@ -69,28 +71,53 @@ const ARROW = { speed: 240, life: 1.3, range: 250, keep: 110, hold: 210 };
 // ---- pets ----
 const PET_SIGHT = 230;    // a pet only fights once it sees an enemy within this distance
 const PETS = {
-  wolf: { name: 'Wolf', kind: 'Attacker', atk: 5, hp: 55, speed: 185, r: 9, cd: 0.8, price: 1000, speedTxt: 'Faster than the character',
+  wolf: { name: 'Wolf', kind: 'Attacker', atk: 5, hp: 55, speed: 185, r: 9, cd: 0.8, price: 5000,
     ability: 'Howl: enemies nearby run away in fear and cannot attack for 2 seconds. (15 s cooldown)' },
-  panther: { name: 'Panther', kind: 'Attacker', atk: 6, hp: 60, speed: 215, r: 9, cd: 0.7, price: 1000, speedTxt: 'Faster than the Wolf',
+  panther: { name: 'Panther', kind: 'Attacker', atk: 6, hp: 60, speed: 215, r: 9, cd: 0.7, price: 5000,
     ability: 'Triple Slash: slashes the area in front of it 3 times rapidly. (15 s cooldown)' },
-  turtle: { name: 'Turtle', kind: 'Defender', atk: 2, hp: 90, speed: 45, r: 11, cd: 1.2, price: 1000, speedTxt: 'Slower than the Troll',
+  turtle: { name: 'Turtle', kind: 'Defender', atk: 2, hp: 90, speed: 130, r: 11, cd: 1.2, price: 5000,
     ability: 'Shell Barrier: shields you and itself for 75% of its current HP for 5 seconds; any barrier left over heals for 20% of what remains. (25 s cooldown)' },
 };
 const WOLF = { r: 190, fear: 2, cd: 15 };
 const PANTHER = { hits: 3, gap: 0.14, mult: 1.5, r: 72, arc: 1.2, cd: 15 };
 const TURTLE = { mult: 0.75, dur: 5, heal: 0.2, cd: 25, r: 240 };
+// ---- equipment: 3 slots, 4 rarity tiers; two identical pieces of the same tier merge into one of the next tier ----
+const TIERS = ['Common', 'Rare', 'Epic', 'Legendary'], TIER_COLORS = ['#b0bec5', '#4fc3f7', '#ba68c8', '#ffb300'];
+const SLOTS = { head: 'Head', body: 'Body', weapon: 'Weapon' };
+const EQUIP = {
+  iron_helm:     { name: 'Iron Helm',     slot: 'head',   icon: '⛑️', price: 500,  eff: 'dr',   vals: [0.10, 0.15, 0.20, 0.25] },
+  scout_hood:    { name: "Scout's Hood",  slot: 'head',   icon: '🧢', price: 800,  eff: 'spd',  vals: [0.10, 0.15, 0.20, 0.25] },
+  vampire_crown: { name: 'Vampire Crown', slot: 'head',   icon: '👑', price: 1200, eff: 'vamp', vals: [1, 2, 4, 6] },
+  leather_vest:  { name: 'Leather Vest',  slot: 'body',   icon: '🦺', price: 400,  eff: 'hp',   vals: [15, 25, 40, 60] },
+  chainmail:     { name: 'Chainmail',     slot: 'body',   icon: '🛡️', price: 900,  eff: 'hp',   vals: [30, 50, 80, 120] },
+  dragon_plate:  { name: 'Dragon Plate',  slot: 'body',   icon: '🐉', price: 1800, eff: 'hp',   vals: [60, 100, 150, 220] },
+  iron_blade:    { name: 'Iron Blade',    slot: 'weapon', icon: '🗡️', price: 400,  eff: 'atk',  vals: [2, 3, 5, 7] },
+  runed_staff:   { name: 'Runed Staff',   slot: 'weapon', icon: '🪄', price: 900,  eff: 'atk',  vals: [4, 6, 9, 12] },
+  doom_edge:     { name: 'Doom Edge',     slot: 'weapon', icon: '⚔️', price: 1800, eff: 'atk',  vals: [7, 11, 16, 22] },
+};
+const EQUIP_KEYS = Object.keys(EQUIP);
+const sellPrice = (key, tier) => Math.round(EQUIP[key].price / 2) * (1 << tier); // each tier is two pieces of the one below
+function equipText(key, tier) {
+  const d = EQUIP[key], v = d.vals[tier];
+  return d.eff === 'dr' ? `Take ${Math.round(v * 100)}% less damage` : d.eff === 'spd' ? `Move ${Math.round(v * 100)}% faster` : d.eff === 'vamp' ? `Heal ${v} HP on each kill` : d.eff === 'hp' ? `+${v} HP` : `+${v} ATK`;
+}
 
 // ---------------- profile / save ----------------
 const SAVE_KEY = 'coopquest.v1';
 const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
-const defaultProfile = () => ({ name: '', cp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '' });
+const emptyPetUp = () => ({ wolf: { atk: 0, hp: 0 }, panther: { atk: 0, hp: 0 }, turtle: { atk: 0, hp: 0 } });
+const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null } });
 function loadProfile() {
   try {
     const p = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (p && typeof p === 'object') {
       const d = defaultProfile();
       const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
-      out.cp = Math.max(0, out.cp | 0); out.gold = Math.max(0, out.gold | 0);
+      out.cp = Math.max(0, out.cp | 0); out.gold = Math.max(0, out.gold | 0); out.pp = Math.max(0, out.pp | 0);
+      { const pu = emptyPetUp(); for (const k of Object.keys(pu)) { const v = p.petUp && p.petUp[k]; if (v && typeof v === 'object') pu[k] = { atk: Math.max(0, v.atk | 0), hp: Math.max(0, v.hp | 0) }; } out.petUp = pu; }
+      { const inv = {}; for (const k of EQUIP_KEYS) { const a = p.inv && p.inv[k]; if (Array.isArray(a)) { const row = TIERS.map((_, t) => Math.max(0, a[t] | 0)); if (row.some(n => n)) inv[k] = row; } } out.inv = inv;
+        const eq = { head: null, body: null, weapon: null };
+        for (const sl of Object.keys(eq)) { const v = p.eq && p.eq[sl]; if (v && EQUIP[v.k] && EQUIP[v.k].slot === sl && v.t >= 0 && v.t < TIERS.length) eq[sl] = { k: v.k, t: v.t | 0 }; } out.eq = eq; }
       out.pets = (Array.isArray(out.pets) ? out.pets : []).filter((k, n, a) => PETS[k] && a.indexOf(k) === n);
       if (!out.pets.includes(out.pet)) out.pet = '';
       // Each point is now spent on ATK *or* HP. Old saves stored one number per character (a point gave both):
@@ -110,10 +137,31 @@ function loadProfile() {
 }
 let profile = loadProfile();
 function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} }
-function statsFor(c) { const u = profile.up[c] || { atk: 0, hp: 0 }; return { atk: CHARS[c].atk + (u.atk | 0), hp: CHARS[c].hp + 5 * (u.hp | 0) }; } // 1 point = +1 ATK or +5 HP
+function gearBonus(eq) { // total of what the three equipped pieces give
+  const b = { atk: 0, hp: 0, dr: 0, spd: 0, vamp: 0 };
+  for (const sl of Object.keys(SLOTS)) { const it = eq && eq[sl]; if (it && EQUIP[it.k]) b[EQUIP[it.k].eff] += EQUIP[it.k].vals[it.t]; }
+  return b;
+}
+function statsFor(c) { const u = profile.up[c] || { atk: 0, hp: 0 }, b = gearBonus(profile.eq); return { atk: CHARS[c].atk + (u.atk | 0) + b.atk, hp: CHARS[c].hp + 5 * (u.hp | 0) + b.hp }; } // 1 point = +1 ATK or +5 HP, plus equipment
+function petStatsFor(k) { const u = profile.petUp[k] || { atk: 0, hp: 0 }; return { atk: PETS[k].atk + (u.atk | 0), hp: PETS[k].hp + 5 * (u.hp | 0) }; } // 1 Pet Point = +1 ATK or +5 HP
+// ---- equipment inventory (profile.inv[key] = pieces owned per tier, not counting the equipped ones) ----
+function addGear(key, tier) { const row = profile.inv[key] || (profile.inv[key] = TIERS.map(() => 0)); row[tier]++; }
+function takeGear(key, tier) { const row = profile.inv[key]; if (!row || row[tier] < 1) return false; row[tier]--; if (!row.some(n => n)) delete profile.inv[key]; return true; }
+function equipGear(key, tier) {
+  const sl = EQUIP[key].slot; if (!takeGear(key, tier)) return false;
+  const old = profile.eq[sl]; if (old) addGear(old.k, old.t);
+  profile.eq[sl] = { k: key, t: tier }; saveProfile(); return true;
+}
+function unequipGear(sl) { const old = profile.eq[sl]; if (!old) return; profile.eq[sl] = null; addGear(old.k, old.t); saveProfile(); }
+function mergeGear(key, tier) { // two identical pieces of one tier -> one piece of the next tier
+  const row = profile.inv[key]; if (!row || row[tier] < 2 || tier >= TIERS.length - 1) return false;
+  row[tier] -= 2; row[tier + 1]++; saveProfile(); return true;
+}
+function buyGear(key) { const d = EQUIP[key]; if (!d || profile.gold < d.price) return false; profile.gold -= d.price; addGear(key, 0); saveProfile(); return true; }
+function sellGear(key, tier) { if (!EQUIP[key] || !takeGear(key, tier)) return false; profile.gold += sellPrice(key, tier); saveProfile(); return true; }
 
 // ---------------- screens / toast ----------------
-const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrOver'];
+const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
@@ -191,7 +239,7 @@ function needPeer() {
   $('multiStatus').textContent = 'Multiplayer library failed to load. Check your connection and reload.';
   return false;
 }
-function myProfileMsg() { const s = statsFor(profile.sel); return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, best: profile.best.stage, ver: GAME_VERSION }; }
+function myProfileMsg() { const s = statsFor(profile.sel), g = gearBonus(profile.eq), ps = profile.pet ? petStatsFor(profile.pet) : { atk: 0, hp: 0 }; return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, patk: ps.atk, php: ps.hp, dr: g.dr, spd: g.spd, vamp: g.vamp, best: profile.best.stage, ver: GAME_VERSION }; }
 
 function attachConn(conn, tk) {
   net.conn = conn;
@@ -414,7 +462,7 @@ function onRelay(d) {
       const p = d.p || {};
       if (!CHARS[p.char]) return;
       net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
-        pet: PETS[p.pet] ? p.pet : '', best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
+        pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
       if (!game) refreshLobby();
       break;
     }
@@ -425,7 +473,7 @@ function onRelay(d) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
       i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true; if (d.rev) i.rev = true;
     } break;
-    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; if (d.gold > game.teamGold) game.teamGold = d.gold; creditCp(game); game.over = true; showOver(game); } break;
+    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; if (d.gold > game.teamGold) game.teamGold = d.gold; if (d.pp > game.teamPp) game.teamPp = d.pp; if (Array.isArray(d.lt) && d.lt.length > game.loot.length) game.loot = d.lt.filter(k => EQUIP[k]); creditCp(game); game.over = true; showOver(game); } break;
   }
 }
 
@@ -496,11 +544,12 @@ const ctl = { sp: false, rev: false };
 
 function makePlayer(d, id) {
   return { id, name: d.name, char: d.char, atk: d.atk, maxhp: d.hp, hp: d.hp, x: 0, y: 0, r: 10, face: 0, alive: true,
-    atkCd: 0, spCd: 0, cp: 0, speed: CHARS[d.char].speed, hurt: 0, gone: false, pet: PETS[d.pet] ? d.pet : '', shield: 0, shieldT: 0, still: 0 };
+    atkCd: 0, spCd: 0, cp: 0, speed: CHARS[d.char].speed * (1 + (+d.spd || 0)), hurt: 0, gone: false, pet: PETS[d.pet] ? d.pet : '', shield: 0, shieldT: 0, still: 0,
+    patk: +d.patk || 0, php: +d.php || 0, dr: +d.dr || 0, vamp: +d.vamp || 0 };
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
-    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, pets: [], bossRoom: false, banner: null };
+    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, seenPp: 0, teamPp: 0, loot: [], seenLoot: 0, pets: [], bossRoom: false, banner: null };
 }
 // Where a new run begins. Solo: one stage below your best (never below 1). Co-op: the lowest best stage of the two players.
 function startStage(multi, otherBest) {
@@ -510,7 +559,7 @@ function startStage(multi, otherBest) {
 function startSingle() {
   const s = statsFor(profile.sel);
   const g = newGameBase(true, 0, false);
-  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet }, 0)];
+  g.players = [makePlayer(myProfileMsg(), 0)];
   g.stage = startStage(false); // solo: one stage below your best
   game = g; enterGameUI(); loadLevel(g, true);
 }
@@ -519,7 +568,7 @@ function hostStart() {
   relay({ k: 'start', pid: 1 });
   const s = statsFor(profile.sel);
   const g = newGameBase(true, 0, true);
-  g.players = [makePlayer({ name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet }, 0), makePlayer(net.peer, 1)];
+  g.players = [makePlayer(myProfileMsg(), 0), makePlayer(net.peer, 1)];
   g.stage = startStage(true, net.peer.best); // co-op: the lower of the two players' best stages
   game = g; enterGameUI(); loadLevel(g, true);
 }
@@ -658,20 +707,37 @@ function nearestPlayer(g, x, y) {
   }
   return b;
 }
-function hitEnemy(g, e, dmg) {
+function dropAt(g, x, y, kind) { g.pickups.push({ id: g.nid++, x: x + (Math.random() - 0.5) * 14, y: y + (Math.random() - 0.5) * 14, kind }); }
+function noteFocus(g, src, e) { // an owner attacking something pulls their idle pet onto the same target
+  if (!src || src.isPet) return;
+  for (const q of g.pets) if (q.owner === src.id && q.alive && !q.combat && !(q.focusT > 0)) { q.focus = e; q.focusT = 3; }
+}
+function hitEnemy(g, e, dmg, src) {
   if (e.dead) return;
   const d = Math.max(1, Math.round(dmg));
   e.hp -= d; e.hurt = 0.12;
+  noteFocus(g, src, e);
   if (e.hp > 0) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = Math.max(e.alert, 6); } // getting shot wakes it up
   addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 8, s: String(d), c: '#ffffff' });
   if (e.hp <= 0) {
     e.dead = true;
     addFx(g, { type: 'poof', x: e.x, y: e.y });
     const def = ENEMIES[e.type];
+    if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, src.vamp); // Vampire Crown
     if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
       const gd = goldFor(e.type, g.stage);
       if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd + '🪙', c: '#ffd54f' }); }
-      if (!def.boss && Math.random() < DROP_CHANCE) g.pickups.push({ id: g.nid++, x: e.x, y: e.y });
+      if (def.boss) { // bosses: one point (Character OR Pet, never both) and one random piece of equipment
+        const cp = Math.random() < 0.5;
+        if (cp) g.teamCp++; else g.teamPp++;
+        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 34, s: cp ? '+1 CP' : '+1 PP', c: cp ? '#ffd600' : '#f48fb1' });
+        const key = EQUIP_KEYS[rnd(EQUIP_KEYS.length)]; g.loot.push(key);
+        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 ' + EQUIP[key].name, c: TIER_COLORS[0] });
+      } else {
+        if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'cp');
+        if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'pp');
+        if (Math.random() < POTION.chance) dropAt(g, e.x, e.y, 'pot');
+      }
     }
     if (def.boss) for (const o of g.enemies) if (o.summoned && !o.dead) { o.dead = true; addFx(g, { type: 'poof', x: o.x, y: o.y }); } // the King's minions fall with him
   }
@@ -690,19 +756,19 @@ function doAttack(g, p) {
       if (e.dead) continue;
       const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
       if (d > 58 + e.r) continue;
-      if (d < e.r + p.r + 6 || Math.abs(angDiff(Math.atan2(dy, dx), p.face)) <= 1.25) hitEnemy(g, e, p.atk);
+      if (d < e.r + p.r + 6 || Math.abs(angDiff(Math.atan2(dy, dx), p.face)) <= 1.25) hitEnemy(g, e, p.atk, p);
     }
     addFx(g, { type: 'slash', x: p.x, y: p.y, a: p.face });
   } else {
     const sp = p.char === 'mage' ? 400 : 340;
     // spawn at the caster's center so point-blank enemies (or a wall behind the muzzle) can't swallow the shot
     g.proj.push({ id: g.nid++, x: p.x, y: p.y, vx: Math.cos(p.face) * sp, vy: Math.sin(p.face) * sp,
-      dmg: p.atk, life: 0.9, kind: p.char, dead: false });
+      dmg: p.atk, life: 0.9, kind: p.char, owner: p.id, dead: false });
   }
 }
 function doSpecial(g, p) {
   if (p.char === 'warrior') {
-    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + e.r) hitEnemy(g, e, 1.5 * p.atk);
+    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + e.r) hitEnemy(g, e, 1.5 * p.atk, p);
     addFx(g, { type: 'spin', x: p.x, y: p.y, r: 85 });
     return true;
   }
@@ -712,23 +778,22 @@ function doSpecial(g, p) {
     const hit = new Set([first]);
     let dmg = 1.3 * p.atk, cur = first;
     const pts = [[p.x, p.y], [first.x, first.y]];
-    hitEnemy(g, first, dmg);
+    hitEnemy(g, first, dmg, p);
     for (let b = 0; b < 3; b++) {
       const nx = nearestEnemy(g, cur.x, cur.y, 170, hit);
       if (!nx) break;
-      dmg *= 0.8; hit.add(nx); pts.push([nx.x, nx.y]); hitEnemy(g, nx, dmg); cur = nx;
+      dmg *= 0.8; hit.add(nx); pts.push([nx.x, nx.y]); hitEnemy(g, nx, dmg, p); cur = nx;
     }
     addFx(g, { type: 'chain', pts });
     return true;
   }
-  // healer
+  // healer: everything in range is healed. Allies get the full amount, the healer and any pets get half.
   const amt = 15 + 0.5 * p.atk;
   const allies = g.players.filter(a => a !== p && a.alive && !a.gone && Math.hypot(a.x - p.x, a.y - p.y) <= HEAL_RANGE);
-  if (allies.length) {
-    const a = allies.reduce((m, x) => (x.hp / x.maxhp < m.hp / m.maxhp ? x : m));
-    heal(g, a, amt); heal(g, p, amt / 2);
-    addFx(g, { type: 'ray', x1: p.x, y1: p.y, x2: a.x, y2: a.y });
-  } else heal(g, p, amt); // no ally within range (or playing solo): the whole heal goes to the healer
+  const pets = g.pets.filter(q => q.alive && Math.hypot(q.x - p.x, q.y - p.y) <= HEAL_RANGE);
+  for (const a of allies) { heal(g, a, amt); addFx(g, { type: 'ray', x1: p.x, y1: p.y, x2: a.x, y2: a.y }); }
+  for (const q of pets) { heal(g, q, amt / 2); addFx(g, { type: 'ray', x1: p.x, y1: p.y, x2: q.x, y2: q.y }); }
+  heal(g, p, allies.length ? amt / 2 : amt); // nobody else in range (or playing solo): the whole heal goes to the healer
   return true;
 }
 function smash(g, e) {
@@ -798,6 +863,7 @@ function reviveTick(g, p, dt) {
   }
 }
 function hurtT(g, t, dmg) {
+  if (t.dr > 0) dmg = Math.max(1, Math.round(dmg * (1 - t.dr))); // Iron Helm
   if (t.shield > 0) {
     const ab = Math.min(t.shield, dmg); t.shield -= ab; dmg -= ab;
     if (dmg <= 0) { addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '🛡' + Math.round(ab), c: '#80d8ff' }); return; }
@@ -806,7 +872,7 @@ function hurtT(g, t, dmg) {
   if (t.revTarget) cancelRevive(g, t, true); // getting hurt interrupts a revive in progress
   addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '-' + dmg, c: '#ff5252' });
   if (t.hp <= 0) {
-    t.hp = 0; t.alive = false; t.shield = 0; t.shieldT = 0;
+    t.hp = 0; t.alive = false; t.shield = 0; t.shieldT = 0; if (t.isPet) t.respT = PET_RESPAWN;
     addFx(g, { type: 'poof', x: t.x, y: t.y });
     addFx(g, { type: 'txt', x: t.x, y: t.y - 30, s: t.isPet ? 'KO!' : 'DOWN!', c: '#ff8a80' });
   }
@@ -940,7 +1006,8 @@ function makePet(g, p) {
   const d = PETS[p.pet], side = p.id === 0 ? -1 : 1;
   let x = p.x + side * 22, y = p.y + 18;
   if (hitsWall(g, x, y, d.r)) { x = p.x; y = p.y; }
-  return { id: 100 + p.id, isPet: true, owner: p.id, type: p.pet, x, y, r: d.r, hp: d.hp, maxhp: d.hp, atk: d.atk, speed: d.speed, alive: true, face: 0,
+  const hp = p.php > 0 ? p.php : d.hp, atk = p.patk > 0 ? p.patk : d.atk; // base stats plus the owner's Pet Points
+  return { id: 100 + p.id, isPet: true, owner: p.id, type: p.pet, x, y, r: d.r, hp, maxhp: hp, atk, speed: d.speed, alive: true, face: p.face || 0, respT: 0, focus: null, focusT: 0,
     atkCd: 0, abCd: 0, shield: 0, shieldT: 0, slashN: 0, slashT: 0, hurt: 0, combat: false, home: { x, y }, wp: null, wt: 0, pause: 0 };
 }
 function petAbility(g, q, o, foe, fd) {
@@ -963,8 +1030,17 @@ function petStep(g, q, dt) {
   const def = PETS[q.type], o = g.players[q.owner];
   q.hurt = Math.max(0, q.hurt - dt); q.atkCd -= dt; q.abCd = Math.max(0, q.abCd - dt);
   tickShield(g, q, dt);
-  if (!o || o.gone) { q.alive = false; return; }
-  if (!q.alive) return;
+  if (q.focusT > 0) { q.focusT -= dt; if (q.focusT <= 0 || !q.focus || q.focus.dead) { q.focus = null; q.focusT = 0; } }
+  if (!o || o.gone) { q.alive = false; q.respT = 0; return; }
+  if (!q.alive) { // KO'd: comes back on its own after PET_RESPAWN seconds, at its owner's side with full health
+    q.respT -= dt;
+    if (q.respT <= 0) {
+      const fresh = makePet(g, o); fresh.abCd = q.abCd;
+      Object.assign(q, fresh, { id: q.id });
+      addFx(g, { type: 'heal', x: q.x, y: q.y }); addFx(g, { type: 'txt', x: q.x, y: q.y - 24, s: 'BACK!', c: '#69f0ae' });
+    }
+    return;
+  }
   if (q.slashN > 0) { // panther: rapid triple slash
     q.slashT -= dt;
     if (q.slashT <= 0) {
@@ -985,6 +1061,7 @@ function petStep(g, q, dt) {
     const d = Math.hypot(e.x - q.x, e.y - q.y);
     if (d < fd && clearLine(g, q.x, q.y, e.x, e.y, 2)) { fd = d; foe = e; }
   }
+  if (q.focus && !q.focus.dead) { foe = q.focus; fd = Math.hypot(foe.x - q.x, foe.y - q.y); } // the owner is attacking this one: join in at once
   q.combat = !!foe;
   const od = Math.hypot(o.x - q.x, o.y - q.y);
   if (foe) {
@@ -1000,9 +1077,13 @@ function petStep(g, q, dt) {
     }
   }
   // not fighting: follow the owner, or wander around once the owner has stood still for 5 seconds
-  if (od > 450) { q.x = o.x; q.y = o.y; return; }
+  if (od > 450) { q.x = o.x; q.y = o.y; q.face = o.face; return; }
   if (o.still >= 5 && od < 220) { q.home = { x: o.x, y: o.y }; wander(g, q, dt); return; }
+  const px = q.x, py = q.y;
   if (od > 56) stepTo(g, q, o, q.owner, dt, clamp((od - 56) / 70, 0.3, 1));
+  // no sliding sideways: face the way it is travelling, or the way its owner faces once it has caught up
+  const mv = Math.hypot(q.x - px, q.y - py), want = mv > 0.15 ? Math.atan2(q.y - py, q.x - px) : o.face;
+  q.face += angDiff(want, q.face) * Math.min(1, dt * 12);
 }
 
 function step(g, dt) {
@@ -1093,17 +1174,20 @@ function step(g, dt) {
       continue;
     }
     for (const e of g.enemies) {
-      if (!e.dead && Math.hypot(e.x - j.x, e.y - j.y) < e.r + 5) { hitEnemy(g, e, j.dmg); j.dead = true; break; }
+      if (!e.dead && Math.hypot(e.x - j.x, e.y - j.y) < e.r + 5) { hitEnemy(g, e, j.dmg, g.players[j.owner]); j.dead = true; break; }
     }
   }
-  // pickups
+  // pickups: points are shared by both players; a potion heals whoever walks over it (and stays put if they are already at full health)
   for (const k of g.pickups) {
     for (const p of g.players) {
-      if (p.alive && !p.gone && Math.hypot(p.x - k.x, p.y - k.y) < p.r + 10) {
-        p.cp++; g.teamCp++; k.dead = true; // every point found is shared: both players are credited
-        addFx(g, { type: 'txt', x: k.x, y: k.y - 10, s: '+1 CP', c: '#ffd600' });
-        break;
+      if (!p.alive || p.gone || Math.hypot(p.x - k.x, p.y - k.y) >= p.r + 10) continue;
+      if (k.kind === 'pot') {
+        if (p.hp >= p.maxhp) continue;
+        heal(g, p, POTION.heal * p.maxhp); k.dead = true; break;
       }
+      if (k.kind === 'pp') { g.teamPp++; addFx(g, { type: 'txt', x: k.x, y: k.y - 10, s: '+1 PP', c: '#f48fb1' }); }
+      else { p.cp++; g.teamCp++; addFx(g, { type: 'txt', x: k.x, y: k.y - 10, s: '+1 CP', c: '#ffd600' }); }
+      k.dead = true; break;
     }
   }
   g.enemies = g.enemies.filter(e => !e.dead);
@@ -1127,7 +1211,7 @@ function checkOver(g) {
   if (g.over || !g.grid) return;
   if (g.players.every(p => !p.alive || p.gone)) {
     g.over = true;
-    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp, gold: g.teamGold });
+    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp, gold: g.teamGold, pp: g.teamPp, lt: g.loot });
     showOver(g);
   }
 }
@@ -1136,13 +1220,15 @@ function creditCp(g, announce) { // points and gold found by either player go to
     const n = g.teamCp - g.seenCp; profile.cp += n; g.seenCp = g.teamCp; saveProfile();
     if (announce) toast(n > 1 ? `+${n} Character Points!` : '+1 Character Point!');
   }
+  if (g.teamPp > g.seenPp) { const n = g.teamPp - g.seenPp; profile.pp += n; g.seenPp = g.teamPp; saveProfile(); if (announce) toast(n > 1 ? `+${n} Pet Points!` : '+1 Pet Point!'); }
   if (g.teamGold > g.seenGold) { profile.gold += g.teamGold - g.seenGold; g.seenGold = g.teamGold; saveProfile(); }
+  while (g.seenLoot < g.loot.length) { const k = g.loot[g.seenLoot++]; if (EQUIP[k]) { addGear(k, 0); if (announce) toast(`Found: ${EQUIP[k].name}!`); } saveProfile(); }
 }
 function showOver(g) {
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').textContent = `Character Points earned: 🟡 ${g.teamCp}   ·   Gold earned: 🪙 ${g.teamGold}` + (g.multi ? '  (shared with your partner)' : '');
+  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  Pet Points: 🐾 ${g.teamPp}  ·  Gold: 🪙 ${g.teamGold}` + (g.loot.length ? `\nEquipment found: ${g.loot.map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   show('scrOver');
 }
@@ -1151,12 +1237,12 @@ function showOver(g) {
 const r1 = v => Math.round(v * 10) / 10;
 function snapshot(g) {
   const s = {
-    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold,
+    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.loot,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100, Math.round(p.shield || 0), Math.round((p.revP || 0) * 100) / 100]),
     e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
-    q: g.pets.map(q => [q.id, q.type, r1(q.x), r1(q.y), q.hp, q.maxhp, Math.round(q.face * 100) / 100, q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), Math.round(q.hurt * 100) / 100, q.combat ? 1 : 0]),
+    q: g.pets.map(q => [q.id, q.type, r1(q.x), r1(q.y), q.hp, q.maxhp, Math.round(q.face * 100) / 100, q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), Math.round(q.hurt * 100) / 100, q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
     j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
-    c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y)]),
+    c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
     f: g.fxq,
   };
   g.fxq = [];
@@ -1176,6 +1262,8 @@ function applySnap(g, s) {
   g.door.open = !!s.d;
   if (s.t > g.teamCp) g.teamCp = s.t;
   if (s.gd > g.teamGold) g.teamGold = s.gd;
+  if (s.pp > g.teamPp) g.teamPp = s.pp;
+  if (Array.isArray(s.lt) && s.lt.length > g.loot.length) g.loot = s.lt.filter(k => EQUIP[k]);
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
     p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0;
@@ -1191,7 +1279,7 @@ function applySnap(g, s) {
   g.pets = (s.q || []).map(a => {
     let q = oldQ.get(a[0]);
     if (!q) q = { id: a[0], type: a[1], x: a[2], y: a[3], isPet: true, r: PETS[a[1]] ? PETS[a[1]].r : 9 };
-    q.tx = a[2]; q.ty = a[3]; q.hp = a[4]; q.maxhp = a[5]; q.face = a[6]; q.alive = !!a[7]; q.owner = a[8]; q.shield = a[9] || 0; q.hurt = a[10] || 0; q.combat = !!a[11];
+    q.tx = a[2]; q.ty = a[3]; q.hp = a[4]; q.maxhp = a[5]; q.face = a[6]; q.alive = !!a[7]; q.owner = a[8]; q.shield = a[9] || 0; q.hurt = a[10] || 0; q.combat = !!a[11]; q.respT = a[12] || 0;
     return q;
   });
   const oldJ = new Map(g.proj.map(j => [j.id, j]));
@@ -1201,7 +1289,7 @@ function applySnap(g, s) {
     j.tx = a[1]; j.ty = a[2]; j.kind = a[3]; j.ang = a[4];
     return j;
   });
-  g.pickups = s.c.map(a => ({ id: a[0], x: a[1], y: a[2] }));
+  g.pickups = s.c.map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3] === 1 ? 'pp' : a[3] === 2 ? 'pot' : 'cp' }));
   (s.f || []).forEach(f => pushFx(g, f));
 }
 function smooth(g, dt) {
@@ -1490,9 +1578,21 @@ function drawWorld(g) {
   // pickups
   for (const k of g.pickups) {
     const b = Math.sin(t * 5 + k.id) * 2;
-    ctx.fillStyle = 'rgba(255,214,0,.25)'; ctx.beginPath(); ctx.arc(k.x, k.y + b, 10, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.x, k.y + b, 6, 0, 7); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(k.x - 2, k.y + b - 2, 1.8, 0, 7); ctx.fill();
+    if (k.kind === 'pot') { // health potion
+      ctx.fillStyle = 'rgba(255,82,82,.25)'; ctx.beginPath(); ctx.arc(k.x, k.y + b, 11, 0, 7); ctx.fill();
+      ctx.fillStyle = '#e53935'; ctx.strokeStyle = '#7f0000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(k.x, k.y + b + 2, 6, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = '#cfd8dc'; ctx.fillRect(k.x - 2.5, k.y + b - 8, 5, 5); ctx.strokeRect(k.x - 2.5, k.y + b - 8, 5, 5);
+      ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.beginPath(); ctx.arc(k.x - 2, k.y + b, 1.6, 0, 7); ctx.fill();
+    } else if (k.kind === 'pp') { // pet point: a pink paw
+      ctx.fillStyle = 'rgba(244,143,177,.28)'; ctx.beginPath(); ctx.arc(k.x, k.y + b, 11, 0, 7); ctx.fill();
+      ctx.fillStyle = '#f06292'; ctx.strokeStyle = '#880e4f'; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.ellipse(k.x, k.y + b + 2, 5, 4, 0, 0, 7); ctx.fill(); ctx.stroke();
+      for (const [ox, oy] of [[-5, -3], [-2, -6], [2, -6], [5, -3]]) { ctx.beginPath(); ctx.arc(k.x + ox, k.y + b + oy, 2, 0, 7); ctx.fill(); ctx.stroke(); }
+    } else {
+      ctx.fillStyle = 'rgba(255,214,0,.25)'; ctx.beginPath(); ctx.arc(k.x, k.y + b, 10, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffd400'; ctx.strokeStyle = '#b8860b'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(k.x, k.y + b, 6, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.arc(k.x - 2, k.y + b - 2, 1.8, 0, 7); ctx.fill();
+    }
   }
   // skill telegraphs: whatever is about to hit you is drawn on the floor first, so you can move out of it
   for (const e of g.enemies) if (e.ch > 0) {
@@ -1522,7 +1622,7 @@ function drawWorld(g) {
   // enemies + players sorted by y
   const ents = [];
   g.enemies.forEach(e => ents.push({ y: e.y, f: () => drawEnemy(ctx, e) }));
-  g.pets.forEach(q => ents.push({ y: q.y, f: () => drawPet(ctx, q) }));
+  g.pets.forEach(q => ents.push({ y: q.y, f: () => { drawPet(ctx, q); if (!q.alive && q.respT > 0) { ctx.font = 'bold 12px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.8)'; ctx.fillStyle = '#fff'; const tx = Math.ceil(q.respT) + 's'; ctx.strokeText(tx, q.x, q.y - 14); ctx.fillText(tx, q.x, q.y - 14); } } }));
   g.players.forEach(p => {
     if (p.gone) return;
     ents.push({ y: p.y, f: () => {
@@ -1639,7 +1739,7 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   { // points collected so far this run (shared by both players)
     const y = 12 + g.players.length * 34 + 8;
     ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
-    const txt = `🟡 Points: ${g.teamCp || 0}   🪙 Gold: ${g.teamGold || 0}`; ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+    const txt = `🟡 CP ${g.teamCp || 0}   🐾 PP ${g.teamPp || 0}   🪙 ${g.teamGold || 0}` + (g.loot && g.loot.length ? `   🎁 ${g.loot.length}` : ''); ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
   }
   if (troll && !portrait) {
     const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
@@ -1752,7 +1852,7 @@ function render() {
 function updateMenu() {
   $('menuName').textContent = profile.name;
   $('menuCp').textContent = profile.cp;
-  $('menuGold').textContent = profile.gold;
+  $('menuGold').textContent = profile.gold; $('menuPp').textContent = profile.pp;
   $('menuVer').textContent = 'v' + GAME_VERSION;
   $('menuBest').textContent = `${profile.best.stage}-${profile.best.level}`;
 }
@@ -1780,50 +1880,104 @@ $('charCards').addEventListener('click', e => {
   else if ((b.dataset.act === 'up-atk' || b.dataset.act === 'up-hp') && profile.cp >= 1) { profile.cp--; profile.up[c][b.dataset.act === 'up-atk' ? 'atk' : 'hp']++; }
   saveProfile(); renderChars();
 });
-// ---- pets & shop ----
+// ---- pets, equipment & shop ----
 const PET_KEYS = Object.keys(PETS);
-function petCard(key, mode) { // mode: 'pets' (select) or 'shop' (buy)
-  const d = PETS[key], owned = profile.pets.includes(key), card = document.createElement('div');
+const SHOW_TIER = t => `<span class="tier" style="color:${TIER_COLORS[t]}">${TIERS[t]}</span>`;
+function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
+  const d = PETS[key], owned = profile.pets.includes(key), st = petStatsFor(key), u = profile.petUp[key], card = document.createElement('div');
   card.className = 'card' + (mode === 'pets' && profile.pet === key ? ' sel' : '');
-  let btn;
-  if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price}</button>`;
-  else btn = !owned ? `<button disabled>Not owned — buy in Shop</button>` : profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped (tap to remove)</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
+  let btns;
+  if (mode === 'shop') btns = `<div class="btns">${owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`}</div>`;
+  else if (!owned) btns = `<div class="btns"><button disabled>Not owned — buy in Shop</button></div>`;
+  else btns = `<div class="btns">${profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped (tap to remove)</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`}</div>
+      <div class="btns"><button data-act="up-atk" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🐾 1</small></button>
+      <button data-act="up-hp" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+5 HP<br><small>🐾 1</small></button></div>`;
   card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
-    <div class="stats">ATK <b>${d.atk}</b> · HP <b>${d.hp}</b></div><div class="desc">${d.speedTxt}.<br>${d.ability}</div><div class="btns">${btn}</div>`;
+    <div class="stats">ATK <b>${st.atk}</b>${u.atk ? ` <small>(+${u.atk})</small>` : ''} · HP <b>${st.hp}</b>${u.hp ? ` <small>(+${5 * u.hp})</small>` : ''}</div><div class="desc">${d.ability}</div>${btns}`;
   const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, 120, 120);
   c2.save(); c2.translate(60, 62); c2.scale(3.2, 3.2); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
   return card;
 }
 function renderPets() {
-  $('petGold').textContent = profile.gold;
+  $('petGold').textContent = profile.gold; $('petPp').textContent = profile.pp;
   const box = $('petCards'); box.innerHTML = '';
   PET_KEYS.forEach(k => box.appendChild(petCard(k, 'pets')));
+}
+function gearRow(key, tier, count, buttons) { // one line of an equipment list
+  const d = EQUIP[key], row = document.createElement('div'); row.className = 'gear';
+  row.innerHTML = `<span class="gi">${d.icon}</span><span class="gt"><b>${d.name}</b> ${SHOW_TIER(tier)}${count > 1 ? ` ×${count}` : ''}<br><small>${SLOTS[d.slot]} · ${equipText(key, tier)}</small></span><span class="gb">${buttons}</span>`;
+  return row;
+}
+function renderGear() { // Equipment screen: equipped slots, inventory, equip / merge
+  const box = $('gearBox'); box.innerHTML = '';
+  const b = gearBonus(profile.eq);
+  $('gearSummary').textContent = `Bonuses: +${b.atk} ATK · +${b.hp} HP` + (b.dr ? ` · ${Math.round(b.dr * 100)}% less damage` : '') + (b.spd ? ` · ${Math.round(b.spd * 100)}% faster` : '') + (b.vamp ? ` · ${b.vamp} HP per kill` : '');
+  const h1 = document.createElement('h3'); h1.textContent = 'Equipped'; box.appendChild(h1);
+  for (const sl of Object.keys(SLOTS)) {
+    const it = profile.eq[sl];
+    if (it) box.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${sl}">Unequip</button>`));
+    else { const e = document.createElement('div'); e.className = 'gear empty'; e.innerHTML = `<span class="gi">·</span><span class="gt">${SLOTS[sl]} — empty</span>`; box.appendChild(e); }
+  }
+  const h2 = document.createElement('h3'); h2.textContent = 'Inventory — 2 identical pieces merge into the next rarity'; box.appendChild(h2);
+  let any = false;
+  for (const key of EQUIP_KEYS) {
+    const r = profile.inv[key]; if (!r) continue;
+    for (let t = TIERS.length - 1; t >= 0; t--) {
+      if (!r[t]) continue; any = true;
+      const merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${key}" data-t="${t}" ${r[t] < 2 ? 'disabled' : ''}>Merge 2 → ${TIERS[t + 1]}</button>` : '';
+      box.appendChild(gearRow(key, t, r[t], `<button data-act="equip" data-k="${key}" data-t="${t}">Equip</button>${merge}`));
+    }
+  }
+  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy gear in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
 }
 let shopTab = 'pets';
 function renderShop() {
   $('shopGold').textContent = profile.gold;
   $('tabEquip').classList.toggle('on', shopTab === 'equip'); $('tabPets').classList.toggle('on', shopTab === 'pets');
   const box = $('shopCards'); box.innerHTML = '';
-  if (shopTab === 'pets') PET_KEYS.forEach(k => box.appendChild(petCard(k, 'shop')));
-  else { const d = document.createElement('div'); d.className = 'soon'; d.innerHTML = '🛡 Equipment (Head · Body · Weapon) — buy &amp; sell<br><b>Coming soon</b>'; box.appendChild(d); }
+  if (shopTab === 'pets') { box.className = 'cards'; PET_KEYS.forEach(k => box.appendChild(petCard(k, 'shop'))); return; }
+  box.className = 'list';
+  const h1 = document.createElement('h3'); h1.textContent = 'Buy'; box.appendChild(h1);
+  for (const key of EQUIP_KEYS) box.appendChild(gearRow(key, 0, 1, `<button data-act="buy-gear" data-k="${key}" ${profile.gold < EQUIP[key].price ? 'disabled' : ''}>Buy · 🪙 ${EQUIP[key].price.toLocaleString()}</button>`));
+  const h2 = document.createElement('h3'); h2.textContent = 'Sell (from your inventory)'; box.appendChild(h2);
+  let any = false;
+  for (const key of EQUIP_KEYS) {
+    const r = profile.inv[key]; if (!r) continue;
+    for (let t = 0; t < TIERS.length; t++) if (r[t]) { any = true; box.appendChild(gearRow(key, t, r[t], `<button data-act="sell" data-k="${key}" data-t="${t}">Sell · 🪙 ${sellPrice(key, t).toLocaleString()}</button>`)); }
+  }
+  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No spare equipment to sell. (Unequip a piece first to sell it.)'; box.appendChild(e); }
 }
 $('petCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const k = b.dataset.p;
-  if (b.dataset.act === 'sel' && profile.pets.includes(k)) profile.pet = k; else if (b.dataset.act === 'unsel') profile.pet = '';
+  if (b.dataset.act === 'sel' && profile.pets.includes(k)) profile.pet = k;
+  else if (b.dataset.act === 'unsel') profile.pet = '';
+  else if ((b.dataset.act === 'up-atk' || b.dataset.act === 'up-hp') && profile.pets.includes(k) && profile.pp >= 1) { profile.pp--; profile.petUp[k][b.dataset.act === 'up-atk' ? 'atk' : 'hp']++; }
   saveProfile(); renderPets();
 });
 $('shopCards').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b || b.disabled || b.dataset.act !== 'buy') return;
-  const k = b.dataset.p, d = PETS[k];
-  if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
-  profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
-  saveProfile(); renderShop(); toast(`${d.name} bought!`);
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  if (b.dataset.act === 'buy') {
+    const k = b.dataset.p, d = PETS[k];
+    if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
+    profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
+    saveProfile(); renderShop(); toast(`${d.name} bought!`);
+  } else if (b.dataset.act === 'buy-gear') { if (buyGear(b.dataset.k)) { renderShop(); toast(`${EQUIP[b.dataset.k].name} bought!`); } }
+  else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
+});
+$('gearBox').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const a = b.dataset.act;
+  if (a === 'equip') equipGear(b.dataset.k, +b.dataset.t);
+  else if (a === 'unequip') unequipGear(b.dataset.s);
+  else if (a === 'merge') { if (mergeGear(b.dataset.k, +b.dataset.t)) toast(`Merged into ${TIERS[+b.dataset.t + 1]} ${EQUIP[b.dataset.k].name}!`); }
+  renderGear();
 });
 $('tabEquip').addEventListener('click', () => { shopTab = 'equip'; renderShop(); });
 $('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); });
 $('btnPets').addEventListener('click', () => { renderPets(); show('scrPets'); });
 $('btnShop').addEventListener('click', () => { renderShop(); show('scrShop'); });
+$('btnGear').addEventListener('click', () => { renderGear(); show('scrGear'); });
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
   const to = b.dataset.go;
   if (to === 'scrMenu') updateMenu();

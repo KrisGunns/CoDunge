@@ -27,19 +27,20 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 Character Points found by either player in a multiplayer run are credited to both players. Name, Character Points (each point = +1 ATK or +5 HP, your choice), upgrades, selected character and best level are stored in each player's browser (localStorage).
 Clearing site data resets progress.
 
-## Gold, pets and shop
+## Gold, pets, equipment and shop
 
-* Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 10 / Goblin 20 / Skeleton Archer 20 / Voidling 30 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
-* **Pets** (1000 gold each in the **Shop**): Wolf, Panther (Attackers) and Turtle (Defender). One pet follows you into battle; abilities fire only when an enemy is in sight.
-* The Shop's Equipment tab is a placeholder until the equipment list is approved.
+* Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 2.5 / Goblin 5 / Skeleton Archer 5 / Voidling 7.5 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
+* Normal enemies drop (per kill) a Character Point 3%, a **Pet Point** 3% and a **health potion** 8% (walk over it to heal 20% of max HP). Bosses give exactly one point (Character or Pet) plus one random piece of equipment.
+* **Pets** (5000 gold each in the Shop): Wolf, Panther (Attackers), Turtle (Defender). One pet follows you; a KO'd pet respawns after 20 s. Pet Points: +1 ATK or +5 HP. The Healer's skill also heals pets in range (half amount).
+* **Equipment** (Equipment button on the menu; buy/sell in the Shop): Head = passive, Body = HP, Weapon = ATK, 4 rarities. Two identical pieces of the same rarity merge into the next rarity.
 * Starting stage: solo = one stage below your best; co-op = the lower of the two players' best stages.
-* The menu shows the game version; the lobby warns when the two players run different versions (usually a stale cached copy).
+* The menu shows the game version; the lobby warns when the two players run different versions.
 
 ## Controls
 
 Works in portrait and landscape. On a portrait screen the host gets a tall room (start at the bottom, door on one of the other sides) that fills the screen width; a player on a landscape screen joining a portrait host just sees it scaled to fit.
 Touch: floating joystick anywhere on the screen, Attack (bottom right), Special (stacked above Attack).
-Revive: a green **Revive** button (left of Attack) appears when you stand next to a downed ally (keyboard: R or E).
+Revive: a green **Revive** button (left of Attack) appears when you stand next to a downed ally; it takes 5 s and is cancelled if you take damage or move away (keyboard: R or E).
 Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.
 
 ## Enemies
