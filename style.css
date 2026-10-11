@@ -11,7 +11,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0f16;color:#eef;fon
 h1{margin:0;font-size:clamp(34px,8vw,54px);letter-spacing:2px;color:#ffd54f;text-shadow:0 3px 0 #7a5a00,0 0 22px rgba(255,200,60,.35)}
 h2{margin:0;font-size:28px;color:#ffd54f}
 .sub{margin:0;color:#b9c0dd;font-size:15px}
-.status{margin:0;min-height:20px;color:#ffab91;font-size:14px}
+.status{white-space:pre-line;margin:0;min-height:20px;color:#ffab91;font-size:14px}
 .link{color:#80d8ff;cursor:pointer;text-decoration:underline}
 
 button{font:inherit;color:#fff;background:#3949ab;border:0;border-bottom:4px solid #1a237e;border-radius:10px;padding:10px 18px;cursor:pointer;touch-action:manipulation}

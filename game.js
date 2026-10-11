@@ -107,9 +107,11 @@ const PJ_OPTS = { debug: 1, config: { iceServers: [
 ].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } }; // your own TURN relay goes in turn-config.js
 // Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
-const FIND_SLOTS = 3;
+const FIND_SLOTS = 5;
+const SLOT_CONNECT_MS = 20000; // a WebRTC link through a relay can take a while on mobile data; don't give up on it too early
 const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0 };
-let lobby = { code: '', players: [], hostId: 0, auto: false, searching: false };
+let lobby = { code: '', players: [], hostId: 0, auto: false, searching: false, note: '' };
+const findNote = (tk, t) => { if (tk !== net.token || !lobby.auto || !lobby.searching) return; lobby.note = t; renderLobby(); };
 let cdTimer = 0;
 const safe = fn => { try { return fn(); } catch (e) { return undefined; } };
 const mkCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 5; i++) c += A[rnd(A.length)]; return c; };
@@ -247,33 +249,43 @@ function joinRoom(code) {
 function findGame() {
   if (!needPeer()) return;
   closeNet(); const tk = net.token;
-  lobby = { code: '', players: [], hostId: 0, auto: true, searching: true };
+  lobby = { code: '', players: [], hostId: 0, auto: true, searching: true, note: 'Connecting to the matchmaking service…' };
   show('scrLobby'); renderLobby();
   scanSlot(tk, 0, 0);
 }
 function scanSlot(tk, i, n) {
   if (tk !== net.token) return;
-  if (i >= FIND_SLOTS) { net.findTimer = setTimeout(() => scanSlot(tk, 0, 0), 2500 + rnd(2000)); return; }
+  if (i >= FIND_SLOTS) { findNote(tk, 'No players waiting yet — still searching…'); net.findTimer = setTimeout(() => scanSlot(tk, 0, 0), 2500 + rnd(2000)); return; }
   const p = new Peer(PJ_PREFIX + 'q' + i, PJ_OPTS); net.pj = p;
   let settled = false;
-  p.on('open', () => { if (tk !== net.token || net.pj !== p) return; settled = true; waitForPartner(tk, p); });
+  p.on('open', () => { if (tk !== net.token || net.pj !== p) return; settled = true; waitForPartner(tk, p, i); });
   p.on('error', err => {
     if (tk !== net.token || net.pj !== p || settled) return;
     if (err.type === 'unavailable-id') { safe(() => p.destroy()); joinSlot(tk, i, n); } else netFail(peerMsg(err));
   });
 }
-function waitForPartner(tk, p) {
-  let matched = false;
+function waitForPartner(tk, p, slot) {
+  let matched = false, pending = false, pendT = 0;
+  findNote(tk, 'Waiting in the queue — press Find Game on your friend\'s device too.');
   p.on('connection', c => {
     if (tk !== net.token || net.pj !== p) return safe(() => c.close());
+    pending = true; clearTimeout(pendT); pendT = setTimeout(() => { pending = false; }, SLOT_CONNECT_MS + 3000); // someone is connecting: don't tear this slot down
+    findNote(tk, 'Another player found — connecting…');
     c.on('open', () => {
       if (matched || tk !== net.token) { safe(() => c.send({ k: 'busy' })); setTimeout(() => safe(() => c.close()), 300); return; }
-      matched = true; makeMatchRoom(tk, p, c, 0);
+      matched = true; clearTimeout(pendT); makeMatchRoom(tk, p, c, 0);
     });
   });
   p.on('disconnected', () => { if (tk === net.token && net.pj === p && !matched) safe(() => p.reconnect()); });
-  // re-scan from slot 0 now and then so two waiters that landed on different slots still find each other
-  net.findTimer = setTimeout(() => { if (tk === net.token && net.pj === p && !matched) { safe(() => p.destroy()); scanSlot(tk, 0, 0); } }, 12000 + rnd(8000));
+  p.on('close', () => { if (tk === net.token && net.pj === p && !matched) scanSlot(tk, 0, 0); }); // lost the slot unexpectedly: start over
+  // The first slot is the meeting point, so a waiter there just stays put. Waiters on later slots re-scan now and then
+  // so they can move down to slot 0 once it frees up, but never while somebody is mid-connection.
+  if (slot > 0) {
+    const again = () => { if (tk !== net.token || net.pj !== p || matched) return;
+      if (pending) { net.findTimer = setTimeout(again, 4000); return; }
+      safe(() => p.destroy()); scanSlot(tk, 0, 0); };
+    net.findTimer = setTimeout(again, 15000 + rnd(10000));
+  }
 }
 function makeMatchRoom(tk, sp, c, n) {
   const code = mkCode(), rp = new Peer(PJ_PREFIX + code, PJ_OPTS);
@@ -295,11 +307,13 @@ function makeMatchRoom(tk, sp, c, n) {
 function joinSlot(tk, i, n) {
   const p = new Peer(PJ_OPTS); net.pj = p;
   let done = false;
+  findNote(tk, `Looking for a waiting player (slot ${i + 1}/${FIND_SLOTS})…`);
   const next = same => { if (done) return; done = true; safe(() => p.destroy()); if (tk === net.token) scanSlot(tk, same && n < 2 ? i : i + 1, same ? n + 1 : 0); };
   p.on('open', () => {
     if (tk !== net.token || net.pj !== p) return;
     const c = p.connect(PJ_PREFIX + 'q' + i, { reliable: true, serialization: 'json' });
-    const to = setTimeout(() => { safe(() => c.close()); next(false); }, 6000);
+    const to = setTimeout(() => { safe(() => c.close()); next(false); }, SLOT_CONNECT_MS);
+    c.on('open', () => findNote(tk, 'Connected — setting up the match…'));
     c.on('data', d => {
       if (done || tk !== net.token || !d) return;
       if (d.k === 'match' && /^[A-Z0-9]{5}$/.test(String(d.room))) { done = true; clearTimeout(to); safe(() => c.close()); connectRoom(p, d.room, tk, true); }
@@ -351,7 +365,7 @@ function renderLobby() {
   });
   const n = (lobby.players || []).length;
   let st = '';
-  if (lobby.searching) st = 'Searching for other players…';
+  if (lobby.searching) st = 'Searching for other players…' + (lobby.note ? '\n' + lobby.note : '');
   else if (n < 2) st = lobby.auto ? 'Waiting for the other player…' : 'Waiting for your friend to join…';
   else if (lobby.auto) st = 'Match found! Starting soon…';
   else st = net.isHost ? 'Ready — press Start!' : 'Waiting for the host to start…';
