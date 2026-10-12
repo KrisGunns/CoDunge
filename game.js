@@ -40,7 +40,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.11-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.11-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -157,7 +157,20 @@ function mergeGear(key, tier) { // two identical pieces of one tier -> one piece
   const row = profile.inv[key]; if (!row || row[tier] < 2 || tier >= TIERS.length - 1) return false;
   row[tier] -= 2; row[tier + 1]++; saveProfile(); return true;
 }
-function buyGear(key) { const d = EQUIP[key]; if (!d || profile.gold < d.price) return false; profile.gold -= d.price; addGear(key, 0); saveProfile(); return true; }
+// ---- chests: the only way to buy equipment. Each chest holds 2 random pieces; odds are per piece [Common, Rare, Epic, Legendary] ----
+const CHESTS = {
+  common: { name: 'Common Chest', icon: '📦', price: 2000, odds: [0.895, 0.10, 0.005, 0] },
+  rare:   { name: 'Rare Chest',   icon: '🎁', price: 5000, odds: [0.60, 0.38, 0.02, 0] },
+};
+const CHEST_PIECES = 2;
+function rollTier(odds) { let r = Math.random(), a = 0; for (let t = 0; t < odds.length; t++) { a += odds[t]; if (r < a) return t; } return 0; }
+function buyChest(kind) { // returns the pieces found, or null if it can't be afforded
+  const c = CHESTS[kind]; if (!c || profile.gold < c.price) return null;
+  profile.gold -= c.price; const out = [];
+  for (let i = 0; i < CHEST_PIECES; i++) { const k = EQUIP_KEYS[rnd(EQUIP_KEYS.length)], t = rollTier(c.odds); addGear(k, t); out.push({ k, t }); }
+  saveProfile(); return out;
+}
+function sellEquipped(sl) { const it = profile.eq[sl]; if (!it) return 0; const p = sellPrice(it.k, it.t); profile.eq[sl] = null; profile.gold += p; saveProfile(); return p; }
 function sellGear(key, tier) { if (!EQUIP[key] || !takeGear(key, tier)) return false; profile.gold += sellPrice(key, tier); saveProfile(); return true; }
 
 // ---------------- screens / toast ----------------
@@ -1928,24 +1941,34 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
       box.appendChild(gearRow(key, t, r[t], `<button data-act="equip" data-k="${key}" data-t="${t}">Equip</button>${merge}`));
     }
   }
-  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy gear in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
+  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy a chest in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
 }
-let shopTab = 'pets';
+let shopTab = 'pets', chestResult = null;
 function renderShop() {
   $('shopGold').textContent = profile.gold;
   $('tabEquip').classList.toggle('on', shopTab === 'equip'); $('tabPets').classList.toggle('on', shopTab === 'pets');
   const box = $('shopCards'); box.innerHTML = '';
   if (shopTab === 'pets') { box.className = 'cards'; PET_KEYS.forEach(k => box.appendChild(petCard(k, 'shop'))); return; }
   box.className = 'list';
-  const h1 = document.createElement('h3'); h1.textContent = 'Buy'; box.appendChild(h1);
-  for (const key of EQUIP_KEYS) box.appendChild(gearRow(key, 0, 1, `<button data-act="buy-gear" data-k="${key}" ${profile.gold < EQUIP[key].price ? 'disabled' : ''}>Buy · 🪙 ${EQUIP[key].price.toLocaleString()}</button>`));
-  const h2 = document.createElement('h3'); h2.textContent = 'Sell (from your inventory)'; box.appendChild(h2);
+  if (chestResult) { // what the last chest contained
+    const r = document.createElement('div'); r.className = 'chestres';
+    r.innerHTML = `<b>${chestResult.name} opened!</b>` + chestResult.items.map(it => `<div>${EQUIP[it.k].icon} ${EQUIP[it.k].name} ${SHOW_TIER(it.t)} <small>${equipText(it.k, it.t)}</small></div>`).join('');
+    box.appendChild(r);
+  }
+  const h1 = document.createElement('h3'); h1.textContent = `Chests — ${CHEST_PIECES} random pieces each`; box.appendChild(h1);
+  for (const kind of Object.keys(CHESTS)) {
+    const c = CHESTS[kind], row = document.createElement('div'); row.className = 'gear';
+    row.innerHTML = `<span class="gi">${c.icon}</span><span class="gt"><b>${c.name}</b><br><small>Each piece: ${TIERS.slice(0, 3).map((n, t) => `${n} ${+(c.odds[t] * 100).toFixed(1)}%`).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" data-c="${kind}" ${profile.gold < c.price ? 'disabled' : ''}>Buy · 🪙 ${c.price.toLocaleString()}</button></span>`;
+    box.appendChild(row);
+  }
+  const h2 = document.createElement('h3'); h2.textContent = 'Sell (your equipment)'; box.appendChild(h2);
   let any = false;
+  for (const sl of Object.keys(SLOTS)) { const it = profile.eq[sl]; if (it) { any = true; box.appendChild(gearRow(it.k, it.t, 1, `<small>equipped</small><button data-act="sell-eq" data-s="${sl}">Sell · 🪙 ${sellPrice(it.k, it.t).toLocaleString()}</button>`)); } }
   for (const key of EQUIP_KEYS) {
     const r = profile.inv[key]; if (!r) continue;
     for (let t = 0; t < TIERS.length; t++) if (r[t]) { any = true; box.appendChild(gearRow(key, t, r[t], `<button data-act="sell" data-k="${key}" data-t="${t}">Sell · 🪙 ${sellPrice(key, t).toLocaleString()}</button>`)); }
   }
-  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No spare equipment to sell. (Unequip a piece first to sell it.)'; box.appendChild(e); }
+  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'You have no equipment to sell.'; box.appendChild(e); }
 }
 $('petCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -1962,7 +1985,8 @@ $('shopCards').addEventListener('click', e => {
     if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
     profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
     saveProfile(); renderShop(); toast(`${d.name} bought!`);
-  } else if (b.dataset.act === 'buy-gear') { if (buyGear(b.dataset.k)) { renderShop(); toast(`${EQUIP[b.dataset.k].name} bought!`); } }
+  } else if (b.dataset.act === 'buy-chest') { const items = buyChest(b.dataset.c); if (items) { chestResult = { name: CHESTS[b.dataset.c].name, items }; renderShop(); } }
+  else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
   else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
 });
 $('gearBox').addEventListener('click', e => {
@@ -1973,7 +1997,7 @@ $('gearBox').addEventListener('click', e => {
   else if (a === 'merge') { if (mergeGear(b.dataset.k, +b.dataset.t)) toast(`Merged into ${TIERS[+b.dataset.t + 1]} ${EQUIP[b.dataset.k].name}!`); }
   renderGear();
 });
-$('tabEquip').addEventListener('click', () => { shopTab = 'equip'; renderShop(); });
+$('tabEquip').addEventListener('click', () => { shopTab = 'equip'; chestResult = null; renderShop(); });
 $('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); });
 $('btnPets').addEventListener('click', () => { renderPets(); show('scrPets'); });
 $('btnShop').addEventListener('click', () => { renderShop(); show('scrShop'); });

@@ -32,7 +32,7 @@ Clearing site data resets progress.
 * Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 2.5 / Goblin 5 / Skeleton Archer 5 / Voidling 7.5 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
 * Normal enemies drop (per kill) a Character Point 3%, a **Pet Point** 3% and a **health potion** 8% (walk over it to heal 20% of max HP). Bosses give exactly one point (Character or Pet) plus one random piece of equipment.
 * **Pets** (5000 gold each in the Shop): Wolf, Panther (Attackers), Turtle (Defender). One pet follows you; a KO'd pet respawns after 20 s. Pet Points: +1 ATK or +5 HP. The Healer's skill also heals pets in range (half amount).
-* **Equipment** (Equipment button on the menu; buy/sell in the Shop): Head = passive, Body = HP, Weapon = ATK, 4 rarities. Two identical pieces of the same rarity merge into the next rarity.
+* **Equipment** (Equipment button on the menu): Head = passive, Body = HP, Weapon = ATK, 4 rarities; two identical pieces of the same rarity merge into the next rarity. It can't be bought directly: the Shop sells **chests** (2 random pieces each — Common Chest 2000 gold: 89.5% Common / 10% Rare / 0.5% Epic; Rare Chest 5000 gold: 60% / 38% / 2%), and you can sell your own equipment there. Bosses also drop a piece.
 * Starting stage: solo = one stage below your best; co-op = the lower of the two players' best stages.
 * The menu shows the game version; the lobby warns when the two players run different versions.
 

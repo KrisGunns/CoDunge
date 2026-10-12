@@ -81,3 +81,4 @@ input:focus{border-color:#ffd54f}
 .gear .gb{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .gear .gb button{padding:7px 10px;font-size:13px}
 .tier{font-size:12px;font-weight:800}
+.chestres{background:#2a2f55;border:2px solid #ffd54f;border-radius:12px;padding:10px;text-align:left;line-height:1.7;box-shadow:0 0 14px rgba(255,213,79,.3)}.chestres small{color:#9fa8da}
