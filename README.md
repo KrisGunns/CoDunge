@@ -34,6 +34,7 @@ Clearing site data resets progress.
 * **Pets** (5000 gold each in the Shop): Wolf, Panther (Attackers), Turtle (Defender). One pet follows you; a KO'd pet respawns after 20 s. Pet Points: +1 ATK or +5 HP. The Healer's skill also heals pets in range (half amount).
 * **Equipment** (Equipment button on the menu): Head = passive, Body = HP, Weapon = ATK, 4 rarities; two identical pieces of the same rarity merge into the next rarity. It can't be bought directly: the Shop sells **chests** (2 random pieces each — Common Chest 2000 gold: 89.5% Common / 10% Rare / 0.5% Epic; Rare Chest 5000 gold: 60% / 38% / 2%), and you can sell your own equipment there. Bosses also drop a piece.
 * Starting stage: solo = one stage below your best; co-op = the lower of the two players' best stages.
+* **Dropped connections:** if your friend's link drops (or they press ✕, or their tab sleeps), the host keeps their hero safe and waits 2 minutes. A dropped guest sees a "reconnecting" banner and retries automatically, or can use **Rejoin your last game** on the menu. If the host leaves, the run ends for both (the host's browser runs the game). Equipment drops from bosses are rolled separately for each player.
 * The menu shows the game version; the lobby warns when the two players run different versions.
 
 ## Controls

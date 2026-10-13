@@ -82,3 +82,7 @@ input:focus{border-color:#ffd54f}
 .gear .gb button{padding:7px 10px;font-size:13px}
 .tier{font-size:12px;font-weight:800}
 .chestres{background:#2a2f55;border:2px solid #ffd54f;border-radius:12px;padding:10px;text-align:left;line-height:1.7;box-shadow:0 0 14px rgba(255,213,79,.3)}.chestres small{color:#9fa8da}
+button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
+#reconn{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
+  background:rgba(120,30,20,.92);border:2px solid #ffab91;border-radius:14px;padding:10px 14px;max-width:94vw;font-size:14px;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.5)}
+#reconn button{padding:6px 12px;font-size:13px}

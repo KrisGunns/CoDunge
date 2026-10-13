@@ -40,7 +40,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.11-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.12-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -202,7 +202,16 @@ const PJ_OPTS = { debug: 1, config: { iceServers: [
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
 const FIND_SLOTS = 5;
 const SLOT_CONNECT_MS = 20000; // a WebRTC link through a relay can take a while on mobile data; don't give up on it too early
-const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0 };
+const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0, lastMsg: 0, tok: '', roomCode: '', rc: null, helloT: 0 };
+const AWAY_MS = 5000;        // host: a partner silent for this long counts as disconnected (their hero stands still and is safe)
+const REJOIN_MS = 120000;    // how long a dropped player can come back (host keeps their slot) / how long a guest keeps retrying
+const LAST_KEY = 'coopquest.last';
+const newTok = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
+const nowMs = () => performance.now();
+function saveLast(ts) { if (net.isHost || !net.roomCode || !net.tok) return; try { localStorage.setItem(LAST_KEY, JSON.stringify({ code: net.roomCode, tok: net.tok, ts: ts || Date.now() })); } catch (e) {} }
+function clearLast() { try { localStorage.removeItem(LAST_KEY); } catch (e) {} }
+function lastGame() { try { const l = JSON.parse(localStorage.getItem(LAST_KEY)); if (l && /^[A-Z0-9]{5}$/.test(l.code) && l.tok && Date.now() - l.ts < REJOIN_MS - 5000) return l; } catch (e) {} return null; }
+const linkBusy = c => { const dc = c && (c.dataChannel || c._dc); return !!(dc && dc.bufferedAmount > 24576); }; // send queue is backing up: skip a snapshot instead of lagging further
 let lobby = { code: '', players: [], hostId: 0, auto: false, searching: false, note: '' };
 const findNote = (tk, t) => { if (tk !== net.token || !lobby.auto || !lobby.searching) return; lobby.note = t; renderLobby(); };
 let cdTimer = 0;
@@ -223,17 +232,19 @@ function keepBrokerLink(p, tk) { // re-attach a peer to the matchmaking service 
 }
 function reviveNet() { // called when the page returns to the foreground / network comes back
   const p = net.pj;
-  if (!p || game) return;
+  if (!p) return;
+  if (game) { if (net.isHost && p.disconnected && !p.destroyed) keepBrokerLink(p, net.token); return; }
   if (p.destroyed && net.revive && !net.conn) net.revive();
   else if (p.disconnected && !p.destroyed) keepBrokerLink(p, net.token);
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { reviveNet(); if (net.pj || game) keepAwake(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { if (game) net.lastMsg = nowMs(); reviveNet(); if (net.pj || game) keepAwake(); } });
 window.addEventListener('online', reviveNet);
 
 function closeNet() {
   net.token++; // invalidates every pending callback from the previous session
   net.revive = null; if (wakeLock) { safe(() => wakeLock.release()); wakeLock = null; }
-  clearInterval(cdTimer); cdTimer = 0; clearTimeout(net.findTimer);
+  clearInterval(cdTimer); cdTimer = 0; clearTimeout(net.findTimer); clearInterval(net.helloT); net.helloT = 0;
+  if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn();
   const c = net.conn, p = net.pj, extra = net.extra;
   net.conn = null; net.pj = null; net.peer = null; net.extra = [];
   safe(() => c && c.close()); safe(() => p && p.destroy()); extra.forEach(x => safe(() => x.destroy()));
@@ -252,34 +263,48 @@ function needPeer() {
   $('multiStatus').textContent = 'Multiplayer library failed to load. Check your connection and reload.';
   return false;
 }
-function myProfileMsg() { const s = statsFor(profile.sel), g = gearBonus(profile.eq), ps = profile.pet ? petStatsFor(profile.pet) : { atk: 0, hp: 0 }; return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, patk: ps.atk, php: ps.hp, dr: g.dr, spd: g.spd, vamp: g.vamp, best: profile.best.stage, ver: GAME_VERSION }; }
+function myProfileMsg() { const s = statsFor(profile.sel), g = gearBonus(profile.eq), ps = profile.pet ? petStatsFor(profile.pet) : { atk: 0, hp: 0 }; return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, patk: ps.atk, php: ps.hp, dr: g.dr, spd: g.spd, vamp: g.vamp, best: profile.best.stage, ver: GAME_VERSION, tok: net.tok }; }
 
+function ensureHello() { // guest: until the game has arrived, keep asking the host to (re)send it
+  if (net.isHost || net.helloT) return;
+  net.helloT = setInterval(() => { if (!net.isHost && (!game || !game.grid) && net.conn && net.conn.open && !net.rc) relay({ k: 'hello' }); }, 2000);
+}
 function attachConn(conn, tk) {
   net.conn = conn;
   conn.on('open', () => { if (tk === net.token && net.conn === conn) onLinkOpen(); });
   conn.on('data', d => { if (tk === net.token && net.conn === conn) onRelay(d); });
+  ensureHello();
   const closed = () => { if (tk === net.token && net.conn === conn) onLinkClosed(); };
   conn.on('close', closed); conn.on('error', closed);
   if (conn.open) onLinkOpen();
 }
 function onLinkOpen() { relay({ k: 'prof', p: myProfileMsg() }); refreshLobby(); }
 function onLinkClosed() {
-  net.conn = null; net.peer = null; clearInterval(cdTimer); cdTimer = 0;
+  net.conn = null; clearInterval(cdTimer); cdTimer = 0;
   if (game) {
-    if (game.isHost) {
-      const gp = game.players[1];
-      if (gp) { gp.gone = true; gp.alive = false; }
-      toast('Your friend left the game');
-      checkOver(game);
-    } else { toast('The host left the game'); leaveGame(); }
+    if (game.isHost) { toast('Your friend disconnected — they can rejoin for 2 minutes'); } // the update loop marks them "away" and waits
+    else startReconnect('Connection to the host was lost');
     return;
   }
+  net.peer = null;
   if (net.isHost && !lobby.auto) refreshLobby(); // room stays open for another friend
   else netFail(net.isHost ? 'Your partner left.' : 'The host left the room.');
 }
 
 function hostAccept(p, c, tk) {
   if (tk !== net.token || net.pj !== p) return safe(() => c.close());
+  if (game && game.isHost && game.multi) { // a dropped partner coming back (or a stranger, who is turned away)
+    const refuse = () => { safe(() => c.send({ k: 'full' })); setTimeout(() => safe(() => c.close()), 300); };
+    c.on('data', d => {
+      if (!d || d.k !== 'rejoin' || c._done) return;
+      c._done = true;
+      if (!game || !game.guestTok || d.tok !== game.guestTok) return refuse();
+      const old = net.conn; attachConn(c, tk); if (old && old !== c) safe(() => old.close());
+      resyncGuest(true);
+    });
+    setTimeout(() => { if (!c._done) { c._done = true; safe(() => c.close()); } }, 15000);
+    return;
+  }
   if ((net.conn && net.conn.open) || game) { // room already has two players
     c.on('open', () => { safe(() => c.send({ k: 'full' })); setTimeout(() => safe(() => c.close()), 300); });
     return;
@@ -310,20 +335,33 @@ function createRoom() {
       } else netFail(peerMsg(err));
     });
     p.on('close', () => { // peer destroyed by the browser/broker: bring the same room code back
-      if (dead || !current() || net.conn || game || !announced) return;
+      if (dead || !current() || !announced) return;
+      if (game) { reopenRoom(tk, code, 0); return; } // mid-game: bring the room code back so a dropped friend can rejoin
+      if (net.conn) return;
       if (tries < 8) { tries++; setTimeout(() => { if (tk === net.token && !net.conn && !game) start(); }, 1500); }
     });
   };
   net.revive = () => { tries = 0; start(); };
   start();
 }
+function reopenRoom(tk, code, tries) { // host peer died during a game: register the same room code again
+  if (tk !== net.token || !game) return;
+  const p = new Peer(PJ_PREFIX + code, PJ_OPTS); net.pj = p;
+  const cur = () => tk === net.token && net.pj === p;
+  p.on('connection', c => hostAccept(p, c, tk));
+  p.on('disconnected', () => { if (cur()) keepBrokerLink(p, tk); });
+  p.on('error', err => { if (!cur()) return; if (err.type === 'unavailable-id' && tries < 10) { safe(() => p.destroy()); setTimeout(() => reopenRoom(tk, code, tries + 1), 2000); } });
+  p.on('close', () => { if (cur() && tries < 10) setTimeout(() => reopenRoom(tk, code, tries + 1), 1500); });
+}
 function connectRoom(p, code, tk, auto) {
   const conn = p.connect(PJ_PREFIX + code, { reliable: true, serialization: 'json' });
-  net.isHost = false; net.id = 1;
-  lobby = { code, players: [], hostId: 0, auto, searching: false };
+  net.isHost = false; net.id = 1; net.roomCode = code; if (!net.tok) net.tok = newTok();
+  lobby = { code, players: [], hostId: 0, auto, searching: false, connecting: true };
   $('multiStatus').textContent = 'Connecting to the host…';
+  if (auto) renderLobby();
   attachConn(conn, tk);
-  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links and no relay server worked. Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
+  setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open && auto) { findGame(); return; } // matched room unreachable: just look for another match
+    if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links and no relay server worked. Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
 }
 function joinRoom(code) {
   if (!needPeer()) return;
@@ -333,9 +371,61 @@ function joinRoom(code) {
   p.on('open', () => { if (tk === net.token && net.pj === p) connectRoom(p, code, tk, false); });
   p.on('error', err => {
     if (tk !== net.token || net.pj !== p) return;
+    if (game || net.rc) { rcError(err); return; }
     if (net.conn && net.conn.open) return; // already linked: ignore stray errors
     netFail(peerMsg(err));
   });
+}
+
+// ----- reconnecting after a drop -----
+function showReconn(txt) { const el = $('reconn'); if (!el) return; $('reconnTxt').textContent = txt; el.classList.remove('hidden'); }
+function hideReconn() { const el = $('reconn'); if (el) el.classList.add('hidden'); }
+function startReconnect(reason) {
+  if (net.rc || net.isHost) return;
+  net.rc = { t0: nowMs(), tries: 0, gone: 0, timer: 0, reason };
+  rcAttempt();
+}
+function rcAttempt() {
+  const rc = net.rc; if (!rc) return;
+  clearTimeout(rc.timer);
+  if (nowMs() - rc.t0 > REJOIN_MS) return giveUp('Could not reconnect to the host.');
+  rc.tries++;
+  const old = net.conn; net.conn = null; safe(() => old && old.close());
+  if (game) showReconn(`${rc.reason} — reconnecting (try ${rc.tries})…`); else $('multiStatus').textContent = `Rejoining your game (try ${rc.tries})…`;
+  const go = p => {
+    if (net.rc !== rc) return;
+    const conn = p.connect(PJ_PREFIX + net.roomCode, { reliable: true, serialization: 'json' });
+    net.conn = conn;
+    conn.on('open', () => { if (net.rc === rc && net.conn === conn) safe(() => conn.send({ k: 'rejoin', tok: net.tok })); });
+    conn.on('data', d => { if (net.conn === conn) onRelay(d); });
+    const closed = () => { if (net.conn === conn) net.conn = null; };
+    conn.on('close', closed); conn.on('error', closed);
+  };
+  let p = net.pj;
+  if (!p || p.destroyed || p.disconnected) {
+    safe(() => p && p.destroy());
+    p = new Peer(PJ_OPTS); net.pj = p;
+    p.on('open', () => { if (net.rc === rc && net.pj === p) go(p); });
+    p.on('error', err => { if (net.pj === p) rcError(err); });
+  } else go(p);
+  rc.timer = setTimeout(rcAttempt, 6000);
+}
+function rcError(err) { // a reconnect attempt failed; a vanished room means the host is gone for good
+  const rc = net.rc; if (!rc) return;
+  if (err && err.type === 'peer-unavailable' && ++rc.gone >= 4) giveUp('The host ended the game.');
+}
+function giveUp(msg) {
+  if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; }
+  hideReconn(); clearLast();
+  if (game) { toast(msg); leaveGame(); } else netFail(msg);
+}
+function endReconnect() { if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); net.lastMsg = nowMs(); toast('Reconnected!'); }
+function rejoinLast() { // menu button: come back to a run you left (or lost) a moment ago
+  const l = lastGame(); if (!l || !needPeer()) { updateMenu(); return; }
+  closeNet(); keepAwake(); net.isHost = false; net.id = 1; net.roomCode = l.code; net.tok = l.tok;
+  $('multiStatus').textContent = 'Rejoining your game…'; show('scrMulti');
+  net.rc = { t0: nowMs(), tries: 0, gone: 0, timer: 0, reason: 'Rejoining' };
+  rcAttempt();
 }
 
 // ----- Find Game -----
@@ -391,6 +481,8 @@ function makeMatchRoom(tk, sp, c, n) {
     refreshLobby();
   });
   rp.on('connection', x => hostAccept(rp, x, tk));
+  rp.on('disconnected', () => { if (tk === net.token && net.pj === rp) keepBrokerLink(rp, tk); });
+  rp.on('close', () => { if (tk === net.token && net.pj === rp && game) reopenRoom(tk, code, 0); }); // mid-game: keep the room code alive for a rejoin
   rp.on('error', err => {
     if (tk !== net.token || net.pj !== rp) return;
     if (!FATAL.has(err.type)) return;
@@ -429,7 +521,7 @@ function refreshLobby() {
   const me = { id: net.id, name: profile.name }, other = { id: 1 - net.id, name: net.peer ? net.peer.name : '…' };
   const list = [];
   if (net.isHost) { list.push(me); if (linked) list.push(other); } else { if (linked) list.push(other); list.push(me); }
-  lobby.players = list; lobby.hostId = 0;
+  lobby.players = list; lobby.hostId = 0; if (linked) lobby.connecting = false;
   if (list.length < 2) { clearInterval(cdTimer); cdTimer = 0; }
   show('scrLobby'); renderLobby(); maybeAutoStart();
 }
@@ -458,7 +550,8 @@ function renderLobby() {
   });
   const n = (lobby.players || []).length;
   let st = '';
-  if (lobby.searching) st = 'Searching for other players…' + (lobby.note ? '\n' + lobby.note : '');
+  if (lobby.connecting && !lobby.players.some(p => p.id !== net.id)) st = 'Match found — connecting to the host…';
+  else if (lobby.searching) st = 'Searching for other players…' + (lobby.note ? '\n' + lobby.note : '');
   else if (n < 2) st = lobby.auto ? 'Waiting for the other player…' : 'Waiting for your friend to join…';
   else if (lobby.auto) st = 'Match found! Starting soon…';
   else st = net.isHost ? 'Ready — press Start!' : 'Waiting for the host to start…';
@@ -469,24 +562,39 @@ function renderLobby() {
 }
 function onRelay(d) {
   if (!d) return;
+  net.lastMsg = nowMs();
   switch (d.k) {
     case 'full': netFail('That room is full.'); break;
     case 'prof': {
       const p = d.p || {};
       if (!CHARS[p.char]) return;
       net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
-        pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
+        tok: String(p.tok || '').slice(0, 20), pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
       if (!game) refreshLobby();
       break;
     }
-    case 'start': if (!game) { clearInterval(cdTimer); cdTimer = 0; startGuest(d.pid); } break;
-    case 'lvl': if (game && !game.isHost) applyLevel(game, d); break;
-    case 's': if (game && !game.isHost && game.grid) applySnap(game, d); break;
+    case 'start':
+      if (!game && !net.isHost) { clearInterval(cdTimer); cdTimer = 0; startGuest(d.pid); }
+      if (net.rc && !net.isHost) endReconnect();
+      break;
+    case 'lvl':
+      if (!game && !net.isHost && net.conn) startGuest(1); // the 'start' message was lost: the level itself is proof the match is on
+      if (game && !game.isHost) { applyLevel(game, d); if (net.rc) endReconnect(); }
+      break;
+    case 's':
+      if (!game && !net.isHost && net.conn) startGuest(1);
+      if (game && !game.isHost && game.grid) { // only the newest snapshot is applied each frame; effects from skipped ones are kept
+        if (game.pendSnap) d.f = (game.pendSnap.f || []).concat(d.f || []).slice(-40);
+        game.pendSnap = d;
+      }
+      break;
+    case 'hello': if (game && game.isHost && game.multi) resyncGuest(false); break;
+    case 'bye': if (game && !game.isHost) { clearLast(); if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); toast('The host ended the game'); leaveGame(); } break;
     case 'in': if (game && game.isHost) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
       i.mx = clamp(+d.mx || 0, -1, 1); i.my = clamp(+d.my || 0, -1, 1); i.atk = !!d.atk; if (d.sp) i.sp = true; if (d.rev) i.rev = true;
     } break;
-    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; if (d.gold > game.teamGold) game.teamGold = d.gold; if (d.pp > game.teamPp) game.teamPp = d.pp; if (Array.isArray(d.lt) && d.lt.length > game.loot.length) game.loot = d.lt.filter(k => EQUIP[k]); creditCp(game); game.over = true; showOver(game); } break;
+    case 'over': if (game && !game.isHost) { game.stage = d.stage; game.level = d.level; if (d.cp > game.teamCp) game.teamCp = d.cp; if (d.gold > game.teamGold) game.teamGold = d.gold; if (d.pp > game.teamPp) game.teamPp = d.pp; if (Array.isArray(d.lt) && Array.isArray(d.lt[game.pid]) && d.lt[game.pid].length > game.lootBy[game.pid].length) game.lootBy[game.pid] = d.lt[game.pid].filter(k => EQUIP[k]); creditCp(game); game.over = true; showOver(game); } break;
   }
 }
 
@@ -562,7 +670,7 @@ function makePlayer(d, id) {
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
-    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, seenPp: 0, teamPp: 0, loot: [], seenLoot: 0, pets: [], bossRoom: false, banner: null };
+    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, seenPp: 0, teamPp: 0, lootBy: [[], []], seenLoot: 0, pets: [], bossRoom: false, banner: null };
 }
 // Where a new run begins. Solo: one stage below your best (never below 1). Co-op: the lowest best stage of the two players.
 function startStage(multi, otherBest) {
@@ -579,14 +687,14 @@ function startSingle() {
 function hostStart() {
   if (!net.peer || game) return;
   relay({ k: 'start', pid: 1 });
-  const s = statsFor(profile.sel);
-  const g = newGameBase(true, 0, true);
+  const g = newGameBase(true, 0, true); g.guestTok = net.peer.tok || ''; net.lastMsg = nowMs();
   g.players = [makePlayer(myProfileMsg(), 0), makePlayer(net.peer, 1)];
   g.stage = startStage(true, net.peer.best); // co-op: the lower of the two players' best stages
   game = g; enterGameUI(); loadLevel(g, true);
 }
 function startGuest(pid) {
   game = newGameBase(false, pid, true);
+  net.lastMsg = nowMs(); saveLast(); ensureHello();
   enterGameUI();
 }
 function enterGameUI() {
@@ -596,6 +704,10 @@ function enterGameUI() {
   ctl.sp = false;
 }
 function leaveGame() {
+  const g = game;
+  if (g && g.multi && !g.over) { // the host ending the run ends it for the partner; a guest leaving can rejoin from the menu for 2 minutes
+    if (g.isHost) relay({ k: 'bye' }); else saveLast();
+  }
   game = null;
   ctl.sp = false; ui.atk = false; joy.active = false; joy.id = null;
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
@@ -621,11 +733,19 @@ function loadLevel(g, first) {
   g.players.forEach(p => { if (!p.gone && p.pet) g.pets.push(makePet(g, p)); }); // each player's pet comes along, at full health
   g.banner = { text: g.level === 10 ? `Stage ${g.stage}-${g.level} — BOSS` : `Stage ${g.stage}-${g.level}`, t: 0 };
   noteProgress(g);
-  if (g.multi) {
-    relay({ k: 'lvl', stage: g.stage, level: g.level, grid: g.grid.map(r => r.join('')),
-      door: { c: g.door.c, r: g.door.r, ic: g.door.ic, ir: g.door.ir },
-      players: g.players.map(p => ({ id: p.id, name: p.name, char: p.char, atk: p.atk, maxhp: p.maxhp, hp: p.hp, alive: p.alive, gone: p.gone, cp: p.cp, x: p.x, y: p.y })) });
-  }
+  if (g.multi) relay(lvlMsg(g));
+}
+function lvlMsg(g) {
+  return { k: 'lvl', stage: g.stage, level: g.level, grid: g.grid.map(r => r.join('')),
+    door: { c: g.door.c, r: g.door.r, ic: g.door.ic, ir: g.door.ir },
+    players: g.players.map(p => ({ id: p.id, name: p.name, char: p.char, atk: p.atk, maxhp: p.maxhp, hp: p.hp, alive: p.alive, gone: p.gone, cp: p.cp, x: p.x, y: p.y })) };
+}
+function resyncGuest(rejoined) { // host: (re)send the whole game state to the partner
+  const g = game; if (!g || !g.isHost || !g.multi || !g.grid) return;
+  net.lastMsg = nowMs();
+  relay({ k: 'start', pid: 1, re: rejoined ? 1 : 0 });
+  relay(lvlMsg(g));
+  const gp = g.players[1]; if (gp && !gp.gone && gp.away) { gp.away = false; toast('Your friend is back!'); }
 }
 function makeEnemy(g, type, x, y, summoned) {
   const def = ENEMIES[type], m = 1 + 0.2 * (g.stage - 1), hp = Math.ceil(def.hp * m - 1e-9);
@@ -698,7 +818,7 @@ const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI;
 
 // ---------------- effects ----------------
 const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7 };
-function pushFx(g, f) { g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
+function pushFx(g, f) { if (g.fx.length > 160) g.fx.splice(0, 40); g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
 function addFx(g, f) { pushFx(g, f); if (g.multi && g.isHost) g.fxq.push(f); }
 
 // ---------------- simulation (host) ----------------
@@ -714,7 +834,7 @@ function nearestEnemy(g, x, y, maxd, skip) {
 function nearestPlayer(g, x, y) {
   let b = null, bd = 1e9;
   for (const p of g.players) {
-    if (!p.alive || p.gone) continue;
+    if (!p.alive || p.gone || p.away) continue;
     const d = Math.hypot(p.x - x, p.y - y);
     if (d < bd) { bd = d; b = p; }
   }
@@ -744,8 +864,8 @@ function hitEnemy(g, e, dmg, src) {
         const cp = Math.random() < 0.5;
         if (cp) g.teamCp++; else g.teamPp++;
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 34, s: cp ? '+1 CP' : '+1 PP', c: cp ? '#ffd600' : '#f48fb1' });
-        const key = EQUIP_KEYS[rnd(EQUIP_KEYS.length)]; g.loot.push(key);
-        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 ' + EQUIP[key].name, c: TIER_COLORS[0] });
+        for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(EQUIP_KEYS[rnd(EQUIP_KEYS.length)]); // each player rolls their own piece
+        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 Loot!', c: '#ffd54f' });
       } else {
         if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'cp');
         if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'pp');
@@ -876,6 +996,7 @@ function reviveTick(g, p, dt) {
   }
 }
 function hurtT(g, t, dmg) {
+  if (t.away || (t.isPet && g.players[t.owner] && g.players[t.owner].away)) return;
   if (t.dr > 0) dmg = Math.max(1, Math.round(dmg * (1 - t.dr))); // Iron Helm
   if (t.shield > 0) {
     const ab = Math.min(t.shield, dmg); t.shield -= ab; dmg -= ab;
@@ -904,7 +1025,7 @@ function playerInSight(g, e) {
   let best = null, bd = 1e9;
   const vr = VISION[e.type];
   for (const p of g.players) {
-    if (!p.alive || p.gone) continue;
+    if (!p.alive || p.gone || p.away) continue;
     const dx = p.x - e.x, dy = p.y - e.y, d = Math.hypot(dx, dy);
     if (d > vr || d >= bd) continue;
     if (d > NOTICE && Math.abs(angDiff(Math.atan2(dy, dx), e.face)) > FOV / 2) continue; // outside the vision cone
@@ -1006,8 +1127,8 @@ function kingAI(g, e, tgt, seen, d) { // returns true when it used up this frame
 // ---- pets ----
 function targetsOf(g) { // everything an enemy can hurt: living players and living pets
   const r = [];
-  for (const p of g.players) if (p.alive && !p.gone) r.push(p);
-  for (const q of g.pets) if (q.alive) r.push(q);
+  for (const p of g.players) if (p.alive && !p.gone && !p.away) r.push(p);
+  for (const q of g.pets) if (q.alive && !(g.players[q.owner] && g.players[q.owner].away)) r.push(q); // a disconnected player's hero and pet stay safe
   return r;
 }
 function nearestTarget(g, x, y) {
@@ -1222,9 +1343,9 @@ function step(g, dt) {
 }
 function checkOver(g) {
   if (g.over || !g.grid) return;
-  if (g.players.every(p => !p.alive || p.gone)) {
+  if (g.players.every(p => !p.alive || p.gone || p.away)) {
     g.over = true;
-    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp, gold: g.teamGold, pp: g.teamPp, lt: g.loot });
+    if (g.multi) relay({ k: 'over', stage: g.stage, level: g.level, cp: g.teamCp, gold: g.teamGold, pp: g.teamPp, lt: g.lootBy });
     showOver(g);
   }
 }
@@ -1235,28 +1356,31 @@ function creditCp(g, announce) { // points and gold found by either player go to
   }
   if (g.teamPp > g.seenPp) { const n = g.teamPp - g.seenPp; profile.pp += n; g.seenPp = g.teamPp; saveProfile(); if (announce) toast(n > 1 ? `+${n} Pet Points!` : '+1 Pet Point!'); }
   if (g.teamGold > g.seenGold) { profile.gold += g.teamGold - g.seenGold; g.seenGold = g.teamGold; saveProfile(); }
-  while (g.seenLoot < g.loot.length) { const k = g.loot[g.seenLoot++]; if (EQUIP[k]) { addGear(k, 0); if (announce) toast(`Found: ${EQUIP[k].name}!`); } saveProfile(); }
+  const mine = g.lootBy[g.pid] || [];
+  while (g.seenLoot < mine.length) { const k = mine[g.seenLoot++]; if (EQUIP[k]) { addGear(k, 0); if (announce) toast(`Found: ${EQUIP[k].name}!`); } saveProfile(); }
 }
 function showOver(g) {
+  if (!g.isHost) clearLast();
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  Pet Points: 🐾 ${g.teamPp}  ·  Gold: 🪙 ${g.teamGold}` + (g.loot.length ? `\nEquipment found: ${g.loot.map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
+  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  Pet Points: 🐾 ${g.teamPp}  ·  Gold: 🪙 ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   show('scrOver');
 }
 
 // ---------------- snapshots (host -> guest) ----------------
 const r1 = v => Math.round(v * 10) / 10;
-function snapshot(g) {
+const ri = v => Math.round(v), r2 = v => Math.round(v * 100) / 100;
+function snapshot(g) { // kept small on purpose: it goes out 20x a second over a relayed WebRTC link
   const s = {
-    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.loot,
-    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, Math.round(p.face * 100) / 100, r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, Math.round(p.hurt * 100) / 100, Math.round(p.shield || 0), Math.round((p.revP || 0) * 100) / 100]),
-    e: g.enemies.map(e => [e.id, e.type, r1(e.x), r1(e.y), e.hp, e.maxhp, Math.round(e.face * 100) / 100, Math.round(e.hurt * 100) / 100, e.alert > 0 ? 1 : 0, e.ch > 0 ? Math.round(e.ch * 100) / 100 : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
-    q: g.pets.map(q => [q.id, q.type, r1(q.x), r1(q.y), q.hp, q.maxhp, Math.round(q.face * 100) / 100, q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), Math.round(q.hurt * 100) / 100, q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
-    j: g.proj.map(j => [j.id, r1(j.x), r1(j.y), j.kind, Math.round(Math.atan2(j.vy, j.vx) * 100) / 100]),
-    c: g.pickups.map(k => [k.id, r1(k.x), r1(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
-    f: g.fxq,
+    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
+    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
+    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
+    q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
+    j: g.proj.map(j => [j.id, ri(j.x), ri(j.y), j.kind, r2(Math.atan2(j.vy, j.vx))]),
+    c: g.pickups.map(k => [k.id, ri(k.x), ri(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
+    f: g.fxq.length > 40 ? g.fxq.slice(-40) : g.fxq,
   };
   g.fxq = [];
   return s;
@@ -1266,7 +1390,7 @@ function applyLevel(g, m) {
   g.grid = m.grid.map(r => [...r].map(Number));
   setDims(g.grid.length > g.grid[0].length);
   g.door = { c: m.door.c, r: m.door.r, ic: m.door.ic, ir: m.door.ir, open: false };
-  g.enemies = []; g.proj = []; g.pickups = []; g.fx = []; g.pets = [];
+  g.enemies = []; g.proj = []; g.pickups = []; g.fx = []; g.pets = []; g.pendSnap = null;
   g.players = m.players.map(p => Object.assign({ r: 10, face: 0, spCd: 0, hurt: 0, shield: 0, tx: p.x, ty: p.y }, p));
   g.banner = { text: m.level === 10 ? `Stage ${m.stage}-${m.level} — BOSS` : `Stage ${m.stage}-${m.level}`, t: 0 };
   noteProgress(g);
@@ -1276,10 +1400,10 @@ function applySnap(g, s) {
   if (s.t > g.teamCp) g.teamCp = s.t;
   if (s.gd > g.teamGold) g.teamGold = s.gd;
   if (s.pp > g.teamPp) g.teamPp = s.pp;
-  if (Array.isArray(s.lt) && s.lt.length > g.loot.length) g.loot = s.lt.filter(k => EQUIP[k]);
+  if (Array.isArray(s.lt) && Array.isArray(s.lt[g.pid]) && s.lt[g.pid].length > g.lootBy[g.pid].length) g.lootBy[g.pid] = s.lt[g.pid].filter(k => EQUIP[k]);
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
-    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0;
+    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0; p.away = !!a[11];
   });
   const oldE = new Map(g.enemies.map(e => [e.id, e]));
   g.enemies = s.e.map(a => {
@@ -1370,6 +1494,17 @@ function readInput() {
 }
 
 // ---------------- main loop ----------------
+function hostLinkTick(g, dt) { // is the partner still there? (a closed tab often sends no 'close' event, so silence counts too)
+  const gp = g.players[1]; if (!gp || gp.gone) return;
+  const silent = !net.conn || !net.conn.open || nowMs() - net.lastMsg > AWAY_MS;
+  if (silent && !gp.away) { gp.away = true; g.awayT = 0; cancelRevive(g, gp, false); toast(`${gp.name} disconnected — waiting for them to rejoin`); }
+  else if (!silent && gp.away) { gp.away = false; toast(`${gp.name} is back!`); }
+  if (gp.away) {
+    g.awayT = (g.awayT || 0) + dt;
+    g.inputs[1] = { mx: 0, my: 0, atk: false, sp: false };
+    if (g.awayT > REJOIN_MS / 1000) { gp.gone = true; gp.alive = false; gp.away = false; toast(`${gp.name} left the game`); checkOver(g); }
+  }
+}
 function update(dt) {
   const g = game; if (!g) return;
   const inp = readInput();
@@ -1383,9 +1518,19 @@ function update(dt) {
       while (g.acc >= STEP && n < 5) { step(g, STEP); g.acc -= STEP; n++; if (!game || g.over) break; }
       if (g.acc > STEP) g.acc = 0;
     }
-    if (game && g.multi && g.grid) { g.snapT += dt; if (g.snapT >= 0.05) { g.snapT = 0; relay(snapshot(g)); } }
+    if (game && g.multi && g.grid) {
+      hostLinkTick(g, dt);
+      g.snapT += dt;
+      if (g.snapT >= 0.05) {
+        g.snapT = 0;
+        if (linkBusy(net.conn)) { if (g.fxq.length > 40) g.fxq = g.fxq.slice(-40); } // connection is backed up: drop this snapshot rather than pile on lag
+        else relay(snapshot(g));
+      }
+    }
   } else if (g.grid) {
+    if (g.pendSnap) { applySnap(g, g.pendSnap); g.pendSnap = null; }
     smooth(g, dt);
+    if (g.multi && !net.rc && nowMs() - net.lastMsg > 4000) startReconnect(net.conn && net.conn.open ? 'No data from the host' : 'Connection lost'); // silent link: try to re-establish it
     if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.2) g.banner = null; }
     g.sendT += dt;
     if (g.sendT >= 0.04) {
@@ -1413,8 +1558,8 @@ let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - last) / 1000); last = now; frameDt = dt;
-  update(dt);
-  render();
+  try { update(dt); } catch (e) { safe(() => console.error(e)); } // one bad frame must never freeze the game
+  try { render(); } catch (e) { safe(() => console.error(e)); }
 }
 
 // ---------------- drawing ----------------
@@ -1752,7 +1897,11 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   { // points collected so far this run (shared by both players)
     const y = 12 + g.players.length * 34 + 8;
     ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
-    const txt = `🟡 CP ${g.teamCp || 0}   🐾 PP ${g.teamPp || 0}   🪙 ${g.teamGold || 0}` + (g.loot && g.loot.length ? `   🎁 ${g.loot.length}` : ''); ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+    const txt = `🟡 CP ${g.teamCp || 0}   🐾 PP ${g.teamPp || 0}   🪙 ${g.teamGold || 0}` + (g.lootBy && (g.lootBy[g.pid] || []).length ? `   🎁 ${g.lootBy[g.pid].length}` : ''); ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+  }
+  if (g.isHost && g.multi) for (const p of g.players) if (p.away && !p.gone) {
+    const y = 12 + g.players.length * 34 + 30; ctx.font = 'bold 12px system-ui,sans-serif'; ctx.fillStyle = '#ffab91'; ctx.textAlign = 'left';
+    const txt = `⚠ ${p.name} disconnected — waiting (${Math.max(0, Math.ceil(REJOIN_MS / 1000 - (g.awayT || 0)))}s)`; ctx.strokeText(txt, 12, y); ctx.fillText(txt, 12, y);
   }
   if (troll && !portrait) {
     const bw = Math.min(300, hw - 24), x = hw / 2 - bw / 2;
@@ -1867,6 +2016,7 @@ function updateMenu() {
   $('menuCp').textContent = profile.cp;
   $('menuGold').textContent = profile.gold; $('menuPp').textContent = profile.pp;
   $('menuVer').textContent = 'v' + GAME_VERSION;
+  $('btnRejoin').classList.toggle('hidden', !lastGame());
   $('menuBest').textContent = `${profile.best.stage}-${profile.best.level}`;
 }
 function renderChars() {
@@ -1876,7 +2026,7 @@ function renderChars() {
     const def = CHARS[key], u = profile.up[key], st = statsFor(key);
     const card = document.createElement('div'); card.className = 'card' + (profile.sel === key ? ' sel' : '');
     card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${def.name}</h3>
-      <div class="stats">ATK <b>${st.atk}</b>${u.atk ? ` <small>(+${u.atk})</small>` : ''} · HP <b>${st.hp}</b>${u.hp ? ` <small>(+${5 * u.hp})</small>` : ''}</div><div class="desc">${def.desc}</div>
+      <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div>
       <div class="btns"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
       <div class="btns"><button data-act="up-atk" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🟡 1</small></button>
       <button data-act="up-hp" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+5 HP<br><small>🟡 1</small></button></div>`;
@@ -1906,7 +2056,7 @@ function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
       <div class="btns"><button data-act="up-atk" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🐾 1</small></button>
       <button data-act="up-hp" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+5 HP<br><small>🐾 1</small></button></div>`;
   card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
-    <div class="stats">ATK <b>${st.atk}</b>${u.atk ? ` <small>(+${u.atk})</small>` : ''} · HP <b>${st.hp}</b>${u.hp ? ` <small>(+${5 * u.hp})</small>` : ''}</div><div class="desc">${d.ability}</div>${btns}`;
+    <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${d.ability}</div>${btns}`;
   const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, 120, 120);
   c2.save(); c2.translate(60, 62); c2.scale(3.2, 3.2); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
   return card;
@@ -1948,7 +2098,13 @@ function renderShop() {
   $('shopGold').textContent = profile.gold;
   $('tabEquip').classList.toggle('on', shopTab === 'equip'); $('tabPets').classList.toggle('on', shopTab === 'pets');
   const box = $('shopCards'); box.innerHTML = '';
-  if (shopTab === 'pets') { box.className = 'cards'; PET_KEYS.forEach(k => box.appendChild(petCard(k, 'shop'))); return; }
+  if (shopTab === 'pets') {
+    box.className = 'cards';
+    const avail = PET_KEYS.filter(k => !profile.pets.includes(k));
+    if (!avail.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No available pets.'; box.appendChild(e); }
+    avail.forEach(k => box.appendChild(petCard(k, 'shop')));
+    return;
+  }
   box.className = 'list';
   if (chestResult) { // what the last chest contained
     const r = document.createElement('div'); r.className = 'chestres';
@@ -2043,7 +2199,13 @@ $('btnShare').addEventListener('click', async () => {
 $('btnLobbyLeave').addEventListener('click', () => { closeNet(); $('multiStatus').textContent = ''; show('scrMulti'); });
 window.addEventListener('beforeunload', closeNet);
 $('btnOverMenu').addEventListener('click', leaveGame);
-$('btnQuit').addEventListener('click', () => { if (confirm('Quit this run?')) leaveGame(); });
+$('btnQuit').addEventListener('click', () => {
+  const g = game, msg = g && g.multi ? (g.isHost ? 'Quit? This ends the run for your friend too.' : 'Leave this run? You can rejoin from the main menu for 2 minutes.') : 'Quit this run?';
+  if (confirm(msg)) leaveGame();
+});
+$('btnRejoin').addEventListener('click', rejoinLast);
+$('btnReconn').addEventListener('click', () => { if (net.rc) rcAttempt(); });
+$('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); leaveGame(); });
 
 // ---------------- boot ----------------
 resize();

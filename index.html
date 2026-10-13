@@ -30,6 +30,7 @@
     <h1>CoDunge</h1>
     <p class="sub">Playing as <b id="menuName" class="link"></b> · 🟡 <b id="menuCp">0</b> · 🐾 <b id="menuPp">0</b> · 🪙 <b id="menuGold">0</b> · Best <b id="menuBest">1-1</b></p>
     <button id="btnStart" class="big">Start Game</button>
+    <button id="btnRejoin" class="big warn hidden">↩ Rejoin your last game</button>
     <button id="btnChar" class="big alt">Characters</button>
     <button id="btnPets" class="big alt">Pets</button>
     <button id="btnGear" class="big alt">Equipment</button>
@@ -114,6 +115,7 @@
   </section>
 </div>
 
+<div id="reconn" class="hidden"><span id="reconnTxt">Reconnecting…</span><button id="btnReconn" type="button">Reconnect now</button><button id="btnReconnLeave" type="button" class="back">Leave</button></div>
 <div id="toast"></div>
 <!-- PeerJS (WebRTC) for multiplayer; the second tag only loads if the first CDN is unreachable -->
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
