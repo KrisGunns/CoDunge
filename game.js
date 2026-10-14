@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-f'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-g'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -750,7 +750,7 @@ function leaveGame() {
   updateMenu(); show('scrMenu');
 }
 
-function bannerText(stage, level) { return `Stage ${stage}-${level}` + (level === levelsIn(stage) ? (isHell(stage) ? ' — HELL BOSS' : ' — BOSS') : isHell(stage) ? ' — HELL' : ''); }
+function bannerText(stage, level) { return `Stage ${stage}-${level}` + (level === levelsIn(stage) ? (isHell(stage) ? ' — DOOM BOSS' : ' — BOSS') : isHell(stage) ? ' — DOOM' : ''); }
 function loadLevel(g, first) {
   const L = genLevel(g.stage, g.level, innerHeight > innerWidth);
   g.grid = L.grid; g.door = { c: L.door.c, r: L.door.r, ic: L.door.ic, ir: L.door.ir, open: false };
@@ -845,6 +845,8 @@ function hitsWall(g, x, y, r) {
   for (let rr = r0; rr <= r1; rr++) for (let cc = c0; cc <= c1; cc++) if (solid(g, cc, rr)) return true;
   return false;
 }
+const BOSS_HIT = 1.7;                                                   // bosses are drawn 2x bigger: hit-tests use a larger body radius, walls still use the small one
+const bodyR = e => (ENEMIES[e.type] && ENEMIES[e.type].boss ? e.r * BOSS_HIT : e.r);
 function moveEnt(g, e, dx, dy) {
   const nx = e.x + dx; if (!hitsWall(g, nx, e.y, e.r)) e.x = nx;
   const ny = e.y + dy; if (!hitsWall(g, e.x, ny, e.r)) e.y = ny;
@@ -928,8 +930,8 @@ function doAttack(g, p) {
     for (const e of g.enemies) {
       if (e.dead) continue;
       const dx = e.x - p.x, dy = e.y - p.y, d = Math.hypot(dx, dy);
-      if (d > 58 + e.r) continue;
-      if (d < e.r + p.r + 6 || Math.abs(angDiff(Math.atan2(dy, dx), p.face)) <= 1.25) hitEnemy(g, e, p.atk, p);
+      if (d > 58 + bodyR(e)) continue;
+      if (d < bodyR(e) + p.r + 6 || Math.abs(angDiff(Math.atan2(dy, dx), p.face)) <= 1.25) hitEnemy(g, e, p.atk, p);
     }
     addFx(g, { type: 'slash', x: p.x, y: p.y, a: p.face });
   } else {
@@ -941,7 +943,7 @@ function doAttack(g, p) {
 }
 function doSpecial(g, p) {
   if (p.char === 'warrior') {
-    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + e.r) hitEnemy(g, e, 1.5 * p.atk, p);
+    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + bodyR(e)) hitEnemy(g, e, 1.5 * p.atk, p);
     addFx(g, { type: 'spin', x: p.x, y: p.y, r: 85 });
     return true;
   }
@@ -1273,7 +1275,7 @@ function petStep(g, q, dt) {
       for (const e of g.enemies) {
         if (e.dead) continue;
         const dx = e.x - q.x, dy = e.y - q.y;
-        if (Math.hypot(dx, dy) <= PANTHER.r + e.r && Math.abs(angDiff(Math.atan2(dy, dx), q.face)) <= PANTHER.arc) hitEnemy(g, e, PANTHER.mult * q.atk);
+        if (Math.hypot(dx, dy) <= PANTHER.r + bodyR(e) && Math.abs(angDiff(Math.atan2(dy, dx), q.face)) <= PANTHER.arc) hitEnemy(g, e, PANTHER.mult * q.atk);
       }
       addFx(g, { type: 'slash', x: q.x, y: q.y, a: q.face });
     }
@@ -1377,7 +1379,7 @@ function step(g, dt) {
     }
     const ranged = !!def.ranged;
     const los = ranged && clearLine(g, e.x, e.y, tgt.x, tgt.y, 3);
-    const reach = def.reach || (e.r + tgt.r + 4);
+    const reach = def.reach || (bodyR(e) + tgt.r + 4);
     if (ranged ? (d > ARROW.hold || !los) : d > reach) stepTo(g, e, tgt, fk, dt, 1);
     if (ranged) {
       if (d < ARROW.keep) { // too close: back away to keep shooting distance
@@ -1390,7 +1392,7 @@ function step(g, dt) {
         g.proj.push({ id: g.nid++, x: e.x, y: e.y, vx: Math.cos(a) * ARROW.speed, vy: Math.sin(a) * ARROW.speed,
           dmg: Math.max(1, Math.round(e.atk)), life: ARROW.life, kind: 'arrow', hostile: true, dead: false });
       }
-    } else if (e.type !== 'skeleton_king' && d <= e.r + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); }
+    } else if (e.type !== 'skeleton_king' && d <= bodyR(e) + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); }
   }
   // enemy separation
   for (let i = 0; i < g.enemies.length; i++) for (let j = i + 1; j < g.enemies.length; j++) {
@@ -1416,7 +1418,7 @@ function step(g, dt) {
       continue;
     }
     for (const e of g.enemies) {
-      if (!e.dead && !isAir(e) && Math.hypot(e.x - j.x, e.y - j.y) < e.r + 5) { hitEnemy(g, e, j.dmg, g.players[j.owner]); j.dead = true; break; }
+      if (!e.dead && !isAir(e) && Math.hypot(e.x - j.x, e.y - j.y) < bodyR(e) + 5) { hitEnemy(g, e, j.dmg, g.players[j.owner]); j.dead = true; break; }
     }
   }
   hazardTick(g, dt);
@@ -1767,12 +1769,13 @@ function airLift(e) { // Cerberus mid-jump: 0 on the ground .. 1 at the top of t
   if (kind === 'jumpdn') { const u = clamp(e.ch / CERB.jump.down, 0, 1); return u * u; }
   return 0;
 }
-const LIFT_PX = 46;
+const LIFT_PX = 80;
+const isBossT = e => !!(ENEMIES[e.type] && ENEMIES[e.type].boss);          // bosses are drawn twice as big
 function drawEnemy(c, e) {
   const lift = e.type === 'cerberus' ? airLift(e) : 0;
-  if (lift > 0) { c.fillStyle = `rgba(0,0,0,${0.28 * (1 - lift * 0.5)})`; c.beginPath(); c.ellipse(e.x, e.y + 2, (e.r + 3) * (1 - lift * 0.3), e.r * (1 - lift * 0.3), 0, 0, 7); c.fill(); }
+  if (lift > 0) { c.fillStyle = `rgba(0,0,0,${0.28 * (1 - lift * 0.5)})`; c.beginPath(); c.ellipse(e.x, e.y + 2, e.r * 2.1 * (1 - lift * 0.3), e.r * 1.6 * (1 - lift * 0.3), 0, 0, 7); c.fill(); }
   c.save(); c.translate(e.x, e.y - lift * LIFT_PX); c.rotate(e.face || 0);
-  if (lift <= 0) { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 2, e.r + 3, e.r, 0, 0, 7); c.fill(); }
+  if (lift <= 0) { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 2, isBossT(e) ? e.r * 2.1 : e.r + 3, isBossT(e) ? e.r * 1.6 : e.r, 0, 0, 7); c.fill(); }
   if (e.type === 'rat') {
     c.strokeStyle = '#e8a0a0'; c.lineWidth = 2; c.beginPath(); c.moveTo(-8, 0); c.quadraticCurveTo(-14, 6, -20, 2); c.stroke();
     c.fillStyle = '#9e9e9e'; c.strokeStyle = '#616161'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(0, 0, 10, 7, 0, 0, 7); c.fill(); c.stroke();
@@ -1805,7 +1808,7 @@ function drawEnemy(c, e) {
     c.fillStyle = '#ff1744'; c.beginPath(); c.arc(4, 0, 4.2, 0, 7); c.fill();
     c.fillStyle = '#fff'; c.beginPath(); c.arc(5.2, -0.8, 1.2, 0, 7); c.fill();
   } else if (e.type === 'skeleton_king') {
-    c.scale(1.6, 1.6);
+    c.scale(3.2, 3.2);
     c.strokeStyle = '#6d4c2f'; c.lineWidth = 3; c.beginPath(); c.moveTo(6, 11); c.lineTo(22, 11); c.stroke();      // mace handle
     c.fillStyle = '#78909c'; c.strokeStyle = '#37474f'; c.lineWidth = 1.5; c.beginPath(); c.arc(24, 11, 6, 0, 7); c.fill(); c.stroke(); // mace head
     c.fillStyle = '#b0bec5'; for (let i = 0; i < 6; i++) { const a = i * 1.047; c.beginPath(); c.arc(24 + Math.cos(a) * 6.5, 11 + Math.sin(a) * 6.5, 1.6, 0, 7); c.fill(); }
@@ -1815,7 +1818,7 @@ function drawEnemy(c, e) {
     c.fillStyle = '#ffca28'; c.strokeStyle = '#b8860b'; c.lineWidth = 1; c.beginPath(); // crown
     c.moveTo(-3, -6); c.lineTo(-1, -12); c.lineTo(2, -7); c.lineTo(5, -12); c.lineTo(8, -6); c.closePath(); c.fill(); c.stroke();
     c.fillStyle = '#d50000'; c.beginPath(); c.arc(6, -2.6, 1.8, 0, 7); c.fill(); c.beginPath(); c.arc(6, 2.6, 1.8, 0, 7); c.fill();
-    c.scale(1 / 1.6, 1 / 1.6);
+    c.scale(1 / 3.2, 1 / 3.2);
   } else if (e.type === 'sorcerer') { // hooded fire mage: crimson robe, glowing eyes, staff with a flame orb
     const casting = e.ch > 0 || e.al;
     c.strokeStyle = '#5d4037'; c.lineWidth = 2.5; c.beginPath(); c.moveTo(4, 9); c.lineTo(19, 9); c.stroke();                                                 // staff
@@ -1829,7 +1832,7 @@ function drawEnemy(c, e) {
     c.strokeStyle = '#ffca28'; c.lineWidth = 1; c.beginPath(); c.arc(-1, 0, 10, 2.2, 4.1); c.stroke();                                                     // golden trim
   } else if (e.type === 'cerberus') { // three-headed hound, seen from above
     const tt = performance.now() / 1000 + e.x * 0.01;
-    c.scale(1.35, 1.35);
+    c.scale(2.7, 2.7);
     c.fillStyle = '#ff6d00'; c.strokeStyle = '#3b0d0d'; c.lineWidth = 3; c.lineCap = 'round';
     c.beginPath(); c.moveTo(-17, 0); c.quadraticCurveTo(-27, 4 * Math.sin(tt * 3), -30, -7 + 3 * Math.sin(tt * 3 + 1)); c.stroke();                           // tail
     c.fillStyle = '#ff9100'; c.beginPath(); c.arc(-30, -7 + 3 * Math.sin(tt * 3 + 1), 3.2, 0, 7); c.fill(); c.lineCap = 'butt';                                // flame on the tail tip
@@ -1850,9 +1853,9 @@ function drawEnemy(c, e) {
       c.fillStyle = '#ffd740'; c.beginPath(); c.arc(hs * 0.35, -hs * 0.42, hs * 0.2, 0, 7); c.fill(); c.beginPath(); c.arc(hs * 0.35, hs * 0.42, hs * 0.2, 0, 7); c.fill(); // glowing eyes
       c.restore();
     }
-    c.scale(1 / 1.35, 1 / 1.35);
+    c.scale(1 / 2.7, 1 / 2.7);
   } else {
-    c.scale(1.5, 1.5);
+    c.scale(3, 3);
     c.fillStyle = '#7b8f4a'; c.strokeStyle = '#4e5d2c'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); c.stroke();
     c.fillStyle = '#8fa35c'; c.beginPath(); c.arc(6, -14, 6, 0, 7); c.fill(); c.beginPath(); c.arc(6, 14, 6, 0, 7); c.fill();
     c.strokeStyle = '#6d4c2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(8, 14); c.lineTo(26, 14); c.stroke();
@@ -1860,11 +1863,11 @@ function drawEnemy(c, e) {
     c.fillStyle = '#9aae63'; c.beginPath(); c.arc(4, 0, 8, 0, 7); c.fill();
     c.fillStyle = '#fff'; c.beginPath(); c.moveTo(11, -3); c.lineTo(15, -4); c.lineTo(12, -1); c.fill(); c.beginPath(); c.moveTo(11, 3); c.lineTo(15, 4); c.lineTo(12, 1); c.fill();
     c.fillStyle = '#d50000'; c.beginPath(); c.arc(8, -3, 1.3, 0, 7); c.fill(); c.beginPath(); c.arc(8, 3, 1.3, 0, 7); c.fill();
-    c.scale(1 / 1.5, 1 / 1.5);
+    c.scale(1 / 3, 1 / 3);
   }
-  if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, e.type === 'cerberus' ? e.r * 1.5 : e.r >= 14 ? e.r * 1.55 : e.r + 2, 0, 7); c.fill(); }
+  if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, isBossT(e) ? e.r * 3.1 : e.r + 2, 0, 7); c.fill(); }
   c.restore();
-  const big = e.r >= 14, bw = big ? 48 : e.r * 2 + 6, by = e.y - lift * LIFT_PX - (big ? e.r * 2 + 4 : e.r + 8);
+  const big = isBossT(e), bw = big ? 84 : e.r * 2 + 6, by = e.y - lift * LIFT_PX - (big ? e.r * 3.4 : e.r + 8);
   c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
   c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
   if (e.al !== undefined ? e.al : e.alert > 0) { // "!" = this enemy has noticed a player
