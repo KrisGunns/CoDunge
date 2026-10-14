@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-j'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-k'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -216,14 +216,12 @@ function toast(msg) {
 // "waiting slot" ids: the first player registers a slot and waits; the next player finds it,
 // the waiter opens a fresh room and tells the newcomer its code.
 const PJ_PREFIX = 'coopquest-v1-';
-// STUN finds a direct path; the TURN relay is a best-effort fallback for networks that block direct WebRTC
-// (it is a free shared service and may be slow or rate-limited; swap in your own TURN server if you have one).
+// Direct-only: STUN servers just help the two browsers find each other, and all game data then flows peer to peer (no relay, no data cost).
+// The catch: if both networks block direct links (some mobile data / strict networks) the connection fails instead of being relayed.
+// To allow a relay fallback again, list TURN servers in turn-config.js (they are used only if present).
 const PJ_OPTS = { debug: 1, config: { iceServers: [
   { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
-  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } }; // your own TURN relay goes in turn-config.js
+].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } };
 // Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
 const FIND_SLOTS = 5;
@@ -409,7 +407,7 @@ function connectRoom(p, code, tk, auto) {
   if (auto) renderLobby();
   attachConn(conn, tk);
   setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open && auto) { findGame(); return; } // matched room unreachable: just look for another match
-    if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links and no relay server worked. Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
+    if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links (common on mobile data). Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
 }
 function joinRoom(code) {
   if (!needPeer()) return;

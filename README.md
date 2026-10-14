@@ -19,8 +19,8 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 * Keep the host's game tab in the foreground until your friend has joined. If the browser drops the room while backgrounded, it re-registers the same code when you come back.
 * **Find Game** pairs you with another searching player automatically.
 * The room creator's browser runs the simulation; the other player sends inputs and renders 20 Hz snapshots.
-* Free STUN servers plus a best-effort free TURN relay (openrelay.metered.ca) are configured in `PJ_OPTS` at the top of the
-  networking section of `game.js`. The relay is shared and may be slow or rate-limited; put your own TURN server there for reliability.
+* Multiplayer is direct peer to peer (free STUN only, no relay): the host's device runs the game. If both networks block direct links the
+  connection fails; list TURN servers in `turn-config.js` to allow a relay fallback.
 
 ## Saving
 
