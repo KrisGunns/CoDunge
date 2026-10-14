@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-<title>CoDunge</title>
+<title>Doom and Dungeons</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -19,7 +19,7 @@
 <div id="screens">
   <!-- Name -->
   <section id="scrName" class="screen hidden">
-    <h1>CoDunge</h1>
+    <h1>Doom and Dungeons</h1>
     <p class="sub">Enter your game name</p>
     <input id="nameInput" maxlength="12" placeholder="Your name" autocomplete="off">
     <button id="btnNameOk" class="big">Continue</button>
@@ -27,7 +27,7 @@
 
   <!-- Main menu -->
   <section id="scrMenu" class="screen hidden">
-    <h1>CoDunge</h1>
+    <h1>Doom and Dungeons</h1>
     <p class="sub">Playing as <b id="menuName" class="link"></b> · 🟡 <b id="menuCp">0</b> · 🐾 <b id="menuPp">0</b> · 🪙 <b id="menuGold">0</b> · Best <b id="menuBest">1-1</b></p>
     <button id="btnStart" class="big">Start Game</button>
     <button id="btnRejoin" class="big warn hidden">↩ Rejoin your last game</button>
@@ -44,6 +44,14 @@
     <button id="btnSingle" class="big">Single Player</button>
     <button id="btnMulti" class="big">Multiplayer</button>
     <button class="back" data-go="scrMenu">Back</button>
+  </section>
+
+  <!-- Solo: which stage to start at -->
+  <section id="scrStage" class="screen hidden">
+    <h2>Choose a starting stage</h2>
+    <p class="sub">Your best is Stage <b id="stageBest">1</b>. You can start up to 5 stages back.</p>
+    <div id="stageBtns"></div>
+    <button class="back" data-go="scrMode">Back</button>
   </section>
 
   <!-- Multiplayer -->
@@ -90,7 +98,7 @@
   </section>
 
   <!-- Equipment -->
-  <section id="scrGear" class="screen wide hidden">
+  <section id="scrGear" class="screen wide top hidden">
     <h2>Equipment</h2>
     <p class="sub" id="gearSummary"></p>
     <div id="gearBox" class="list"></div>
@@ -98,10 +106,11 @@
   </section>
 
   <!-- Shop -->
-  <section id="scrShop" class="screen wide hidden">
+  <section id="scrShop" class="screen wide top hidden">
     <h2>Shop</h2>
     <p class="sub">Gold: 🪙 <b id="shopGold">0</b></p>
     <div class="tabs"><button id="tabEquip" type="button">Equipment</button><button id="tabPets" type="button" class="on">Pets</button></div>
+    <div class="tabs subtabs hidden" id="subTabs"><button id="subBuy" type="button" class="on">Buy</button><button id="subSell" type="button">Sell</button></div>
     <div id="shopCards"></div>
     <button class="back" data-go="scrMenu">Back</button>
   </section>

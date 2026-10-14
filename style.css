@@ -8,7 +8,7 @@ html,body{margin:0;height:100%;overflow:hidden;background:#0d0f16;color:#eef;fon
   background:radial-gradient(ellipse at 50% 30%,#232a45 0%,#0d0f16 75%);z-index:10;overflow:auto;touch-action:auto}
 .screen{display:flex;flex-direction:column;align-items:center;gap:12px;padding:20px;width:min(92vw,420px);text-align:center;margin:auto}
 .screen.wide{width:min(96vw,860px)}
-h1{margin:0;font-size:clamp(34px,8vw,54px);letter-spacing:2px;color:#ffd54f;text-shadow:0 3px 0 #7a5a00,0 0 22px rgba(255,200,60,.35)}
+h1{margin:0;font-size:clamp(26px,7vw,46px);letter-spacing:2px;color:#ffd54f;text-shadow:0 3px 0 #7a5a00,0 0 22px rgba(255,200,60,.35)}
 h2{margin:0;font-size:28px;color:#ffd54f}
 .sub{margin:0;color:#b9c0dd;font-size:15px}
 .status{white-space:pre-line;margin:0;min-height:20px;color:#ffab91;font-size:14px}
@@ -86,3 +86,19 @@ button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
 #reconn{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
   background:rgba(120,30,20,.92);border:2px solid #ffab91;border-radius:14px;padding:10px 14px;max-width:94vw;font-size:14px;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.5)}
 #reconn button{padding:6px 12px;font-size:13px}
+
+.screen.top{margin:0 auto auto}
+#stageBtns{display:flex;flex-direction:column;gap:8px;width:100%}
+#stageBtns button{width:100%;font-size:18px;padding:12px 16px}
+#stageBtns button.rec{background:#00897b;border-bottom-color:#004d40}
+.tabs.subtabs button{max-width:150px;padding:7px 12px;font-size:14px;background:#232a52}
+.tabs.subtabs button.on{background:#3949ab;border-bottom-color:#ffd54f}
+.pts{display:flex;flex-direction:column;gap:3px;width:100%}
+.pts .pl{font-size:12px;color:#b9c0dd;text-align:left}
+.pts .pl small{opacity:.8}
+.pts .po{display:flex;gap:4px;width:100%}
+.card .pts .po button{flex:1 1 0;min-width:0;padding:7px 2px;font-size:13px}
+.pts .po input.amt{flex:1.4 1 0;min-width:0;width:auto;font-size:14px;padding:6px 2px;border-width:1px;border-radius:8px}
+.gearhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.gearhead h3{flex:1;min-width:180px}
+.gearhead button{padding:7px 12px;font-size:13px;background:#00897b;border-bottom-color:#004d40}
