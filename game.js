@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-h'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-i'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -295,7 +295,8 @@ function netProbe(now) {
     }).catch(() => {}));
   }
 }
-function netText() { return (net.rtt ? Math.round(net.rtt) + ' ms' : '… ms') + (net.relayed === null ? '' : net.relayed ? ' · relay' : ' · direct'); }
+let fpsAvg = 60;
+function netText() { return Math.round(fpsAvg) + ' fps · ' + (net.rtt ? Math.round(net.rtt) + ' ms' : '… ms') + (net.relayed === null ? '' : net.relayed ? ' · relay' : ' · direct'); }
 function relay(d) { const c = net.conn; if (c && c.open) safe(() => c.send(d)); }
 function peerMsg(err) {
   const t = err && err.type;
@@ -1714,7 +1715,7 @@ const netInfo = $('netInfo');
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.1, (now - last) / 1000); last = now; frameDt = dt;
+  const dt = Math.min(0.1, (now - last) / 1000); last = now; frameDt = dt; if (dt > 0) fpsAvg += (1 / dt - fpsAvg) * 0.05;
   try { update(dt); } catch (e) { safe(() => console.error(e)); } // one bad frame must never freeze the game
   try { render(); } catch (e) { safe(() => console.error(e)); }
 }
