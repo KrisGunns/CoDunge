@@ -2327,7 +2327,7 @@ function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
   return card;
 }
 function renderPets() {
-  $('petGold').textContent = profile.gold; $('petPp').textContent = profile.pp;
+  $('petPp').textContent = profile.pp;
   const box = $('petCards'); box.innerHTML = '';
   PET_KEYS.forEach(k => box.appendChild(petCard(k, 'pets')));
 }
