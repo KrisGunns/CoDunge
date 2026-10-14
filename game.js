@@ -40,7 +40,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -1630,7 +1630,8 @@ function drawPet(c, q) {
   } else if (q.type === 'panther') { // sleek, long and low: black coat with a violet sheen, round ears, short muzzle, long curled tail, green eyes
     c.strokeStyle = '#15101c'; c.lineWidth = 3; c.lineCap = 'round';
     c.beginPath(); c.moveTo(-11, 0); c.bezierCurveTo(-20, 1, -22, -9, -16, -11); c.stroke(); c.lineCap = 'butt';                                               // long curled tail
-    c.strokeStyle = '#2a2236'; c.lineWidth = 2.2; for (const [lx, ly, ex, ey] of [[6, -3, 9, -8.5], [6, 3, 9, 8.5], [-6, -3, -9, -8], [-6, 3, -9, 8]]) { c.beginPath(); c.moveTo(lx, ly); c.lineTo(ex, ey); c.stroke(); } // thin legs
+    c.fillStyle = '#3a2f4d'; c.strokeStyle = '#0a0710'; c.lineWidth = 1.1;
+    for (const [lx, ly, s] of [[6, -1, -1], [6, 1, 1], [-7, -1, -1], [-7, 1, 1]]) { c.beginPath(); c.ellipse(lx, ly + s * 6, 4, 2.8, 0, 0, 7); c.fill(); c.stroke(); c.fillStyle = '#5a4a78'; c.beginPath(); c.arc(lx + 2.8, ly + s * 8, 2, 0, 7); c.fill(); c.fillStyle = '#3a2f4d'; } // muscular legs with paws
     c.fillStyle = '#1b1426'; c.strokeStyle = '#0a0710'; c.lineWidth = 1.4; c.beginPath(); c.ellipse(-0.5, 0, 14, 5.2, 0, 0, 7); c.fill(); c.stroke();             // long lean body
     c.fillStyle = 'rgba(140,110,200,.35)'; c.beginPath(); c.ellipse(-1, -1.6, 10, 1.6, 0, 0, 7); c.fill();                                                    // violet sheen along the back
     c.fillStyle = '#1b1426'; c.beginPath(); c.arc(12.5, 0, 5, 0, 7); c.fill(); c.stroke();                                                                      // round head
@@ -1640,6 +1641,7 @@ function drawPet(c, q) {
   } else { // turtle
     c.fillStyle = '#81c784'; c.strokeStyle = '#2e7d32'; c.lineWidth = 1;
     for (const [lx, ly] of [[6, -10.5], [6, 10.5], [-7, -10.5], [-7, 10.5]]) { c.beginPath(); c.arc(lx, ly, 3.4, 0, 7); c.fill(); c.stroke(); } // legs: drawn first so the shell covers their inner half (they sit under it)
+    c.beginPath(); c.moveTo(-9, -3.4); c.lineTo(-19, 0); c.lineTo(-9, 3.4); c.closePath(); c.fill(); c.stroke();                      // short tail (behind the shell)
     c.beginPath(); c.arc(12, 0, 4.5, 0, 7); c.fill();                                                                              // head
     c.fillStyle = '#2e7d32'; c.strokeStyle = '#1b5e20'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 11, 0, 7); c.fill(); c.stroke(); // shell
     c.strokeStyle = '#66bb6a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-8, 0); c.lineTo(8, 0); c.moveTo(0, -8); c.lineTo(0, 8); c.moveTo(-5, -5); c.lineTo(5, 5); c.moveTo(5, -5); c.lineTo(-5, 5); c.stroke();
