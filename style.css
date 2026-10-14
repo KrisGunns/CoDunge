@@ -102,3 +102,4 @@ button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
 .gearhead{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .gearhead h3{flex:1;min-width:180px}
 .gearhead button{padding:7px 12px;font-size:13px;background:#00897b;border-bottom-color:#004d40}
+#netInfo{position:fixed;top:calc(10px + env(safe-area-inset-top));left:calc(10px + env(safe-area-inset-left));z-index:6;font-size:11px;color:#cfd8ff;background:rgba(0,0,0,.45);padding:2px 8px;border-radius:10px;pointer-events:none}

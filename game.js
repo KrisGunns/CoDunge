@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-g'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-h'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -275,6 +275,27 @@ function closeNet() {
   net.conn = null; net.pj = null; net.peer = null; net.extra = [];
   safe(() => c && c.close()); safe(() => p && p.destroy()); extra.forEach(x => safe(() => x.destroy()));
 }
+// Connection diagnostics (multiplayer): ping to the other player, and whether the WebRTC link is direct or goes through the TURN relay.
+// Relayed traffic is what counts against the TURN data cap and adds latency, so the readout makes both visible.
+net.rtt = 0; net.relayed = null; net.probeT = 0; net.statT = 0;
+function netProbe(now) {
+  const c = net.conn; if (!c || !c.open) return;
+  if (net.pongT !== undefined) { relay({ k: 'pong', t: net.pongT }); net.pongT = undefined; }
+  if (now - net.probeT > 2000) { net.probeT = now; relay({ k: 'ping', t: now }); }
+  if (now - net.statT > 4000) {
+    net.statT = now;
+    const pc = c.peerConnection; if (!pc || !pc.getStats) return;
+    safe(() => pc.getStats().then(rep => {
+      let pair = null; const cands = {};
+      rep.forEach(r => { if (r.type === 'local-candidate' || r.type === 'remote-candidate') cands[r.id] = r; });
+      rep.forEach(r => { if (r.type === 'candidate-pair' && (r.selected || (r.nominated && r.state === 'succeeded'))) pair = pair && !r.selected ? pair : r; });
+      if (!pair) return;
+      const l = cands[pair.localCandidateId], m = cands[pair.remoteCandidateId];
+      net.relayed = !!((l && l.candidateType === 'relay') || (m && m.candidateType === 'relay'));
+    }).catch(() => {}));
+  }
+}
+function netText() { return (net.rtt ? Math.round(net.rtt) + ' ms' : '… ms') + (net.relayed === null ? '' : net.relayed ? ' · relay' : ' · direct'); }
 function relay(d) { const c = net.conn; if (c && c.open) safe(() => c.send(d)); }
 function peerMsg(err) {
   const t = err && err.type;
@@ -615,6 +636,8 @@ function onRelay(d) {
       }
       break;
     case 'hello': if (game && game.isHost && game.multi) resyncGuest(false); break;
+    case 'ping': net.pongT = d.t; break;   // answered from the frame loop (netProbe), so a frozen game loop still counts as silent
+    case 'pong': { const r = nowMs() - (+d.t || 0); if (r >= 0 && r < 20000) net.rtt = net.rtt ? net.rtt * 0.7 + r * 0.3 : r; break; }
     case 'bye': if (game && !game.isHost) { clearLast(); if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); toast('The host ended the game'); leaveGame(); } break;
     case 'in': if (game && game.isHost) {
       const i = game.inputs[1] || (game.inputs[1] = { mx: 0, my: 0, atk: false, sp: false });
@@ -773,7 +796,7 @@ function loadLevel(g, first) {
 function lvlMsg(g) {
   return { k: 'lvl', stage: g.stage, level: g.level, grid: g.grid.map(r => r.join('')),
     door: { c: g.door.c, r: g.door.r, ic: g.door.ic, ir: g.door.ir },
-    players: g.players.map(p => ({ id: p.id, name: p.name, char: p.char, atk: p.atk, maxhp: p.maxhp, hp: p.hp, alive: p.alive, gone: p.gone, cp: p.cp, x: p.x, y: p.y })) };
+    players: g.players.map(p => ({ id: p.id, name: p.name, char: p.char, atk: p.atk, maxhp: p.maxhp, hp: p.hp, alive: p.alive, gone: p.gone, cp: p.cp, x: p.x, y: p.y, speed: p.speed })) };
 }
 function resyncGuest(rejoined) { // host: (re)send the whole game state to the partner
   const g = game; if (!g || !g.isHost || !g.multi || !g.grid) return;
@@ -1540,9 +1563,29 @@ function applySnap(g, s) {
   g.pickups = s.c.map(a => ({ id: a[0], x: a[1], y: a[2], kind: a[3] === 1 ? 'pp' : a[3] === 2 ? 'pot' : 'cp' }));
   (s.f || []).forEach(f => pushFx(g, f));
 }
-function smooth(g, dt) {
+// Guest-side prediction: the host is the only one who simulates, so without this the joining player's own hero would
+// only move after the input had travelled to the host AND the snapshot had come back (one full ping + up to 50 ms).
+// The guest therefore moves its own hero locally right away, with the same movement and wall rules, and only gets
+// nudged back when the host's position disagrees by more than what ping alone explains.
+const PRED_DEADZONE = 46;   // px of disagreement tolerated (ping x speed); beyond this the hero is eased towards the host's position
+function predictMe(g, me, inp, dt) {
+  const len = Math.hypot(inp.mx, inp.my);
+  if (len > 0.08) {
+    const m = len > 1 ? 1 / len : 1, sp = me.speed || CHARS[me.char].speed;
+    moveEnt(g, me, inp.mx * m * sp * dt, inp.my * m * sp * dt);
+  }
+  if (me.tx === undefined) return;
+  const ex = me.tx - me.x, ey = me.ty - me.y, err = Math.hypot(ex, ey);
+  const idle = len <= 0.08;
+  if (err > 110) { me.x = me.tx; me.y = me.ty; }                                          // teleported / revived / new room
+  else if (idle && err > 0.5) { const k = 1 - Math.exp(-dt * 12); me.x += ex * k; me.y += ey * k; } // standing still: the host has caught up, so settle exactly on its position
+  else if (err > PRED_DEADZONE) { const k = (1 - Math.exp(-dt * 6)) * (err - PRED_DEADZONE) / err; me.x += ex * k; me.y += ey * k; }
+}
+function smooth(g, dt, inp) {
   const k = 1 - Math.exp(-dt * 18);
+  const me = g.players[g.pid];
   const f = o => {
+    if (o === me && inp && o.alive && !o.gone && !o.away) return predictMe(g, o, inp, dt);
     if (o.tx === undefined) return;
     if (Math.abs(o.tx - o.x) + Math.abs(o.ty - o.y) > 100) { o.x = o.tx; o.y = o.ty; }
     else { o.x += (o.tx - o.x) * k; o.y += (o.ty - o.y) * k; }
@@ -1630,9 +1673,9 @@ function update(dt) {
       if (g.acc > STEP) g.acc = 0;
     }
     if (game && g.multi && g.grid) {
-      hostLinkTick(g, dt);
+      hostLinkTick(g, dt); netProbe(nowMs());
       g.snapT += dt;
-      if (g.snapT >= 0.05) {
+      if (g.snapT >= (net.relayed ? 0.067 : 0.05)) {   // relayed links get 15 snapshots/s instead of 20: less data through the TURN cap
         g.snapT = 0;
         if (linkBusy(net.conn)) { if (g.fxq.length > 40) g.fxq = g.fxq.slice(-40); } // connection is backed up: drop this snapshot rather than pile on lag
         else relay(snapshot(g));
@@ -1640,14 +1683,15 @@ function update(dt) {
     }
   } else if (g.grid) {
     if (g.pendSnap) { applySnap(g, g.pendSnap); g.pendSnap = null; }
-    smooth(g, dt);
+    smooth(g, dt, inp);
     if (g.multi && !net.rc && nowMs() - net.lastMsg > 4000) startReconnect(net.conn && net.conn.open ? 'No data from the host' : 'Connection lost'); // silent link: try to re-establish it
     if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.2) g.banner = null; }
+    if (g.multi) netProbe(nowMs());
     g.sendT += dt;
-    if (g.sendT >= 0.04) {
-      g.sendT = 0;
-      relay({ k: 'in', mx: Math.round(inp.mx * 100) / 100, my: Math.round(inp.my * 100) / 100, atk: inp.atk ? 1 : 0, sp: ctl.sp ? 1 : 0, rev: ctl.rev ? 1 : 0 });
-      ctl.sp = false; ctl.rev = false;
+    if (g.sendT >= 0.04) {   // inputs go out only when they change (plus a 4/s heartbeat): every relayed packet costs data, and the host keeps the last input anyway
+      const m = { k: 'in', mx: Math.round(inp.mx * 100) / 100, my: Math.round(inp.my * 100) / 100, atk: inp.atk ? 1 : 0, sp: ctl.sp ? 1 : 0, rev: ctl.rev ? 1 : 0 };
+      const sig = m.mx + "," + m.my + "," + m.atk;
+      if (m.sp || m.rev || sig !== g.lastSig || g.sendT >= 0.25) { g.sendT = 0; g.lastSig = sig; relay(m); ctl.sp = false; ctl.rev = false; }
     }
   }
   if (!game) return;
@@ -1664,7 +1708,9 @@ function update(dt) {
   // Revive button: only while you're standing next to a downed ally
   const canRev = !!me && me.alive && g.players.some(a => a !== me && !a.alive && !a.gone && Math.hypot(a.x - me.x, a.y - me.y) <= REVIVE_RANGE + 6);
   btnRev.classList.toggle('hidden', !canRev);
+  if (netInfo) { if (g.multi) { netInfo.classList.remove('hidden'); const tx = netText(); if (netInfo.textContent !== tx) netInfo.textContent = tx; } else netInfo.classList.add('hidden'); }
 }
+const netInfo = $('netInfo');
 let last = performance.now();
 function frame(now) {
   requestAnimationFrame(frame);
