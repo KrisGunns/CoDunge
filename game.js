@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-i'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-j'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -73,7 +73,7 @@ const KING = {
   dash: { charge: 1, mult: 3, cd: 12, first: 6, speed: 520, range: 420 }, // skill 2: charge cleave
 };
 // Sorcerer: 3 pillars of fire erupt one after another in a line toward the target. gap = seconds between pillars; step = px between them.
-const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.25, step: 70, n: 3, r: 30, rise: 0.45 };
+const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.45, step: 70, n: 3, r: 30, rise: 0.45 };
 // Cerberus: Fireballs (one per head, fired one after another, bounce off walls) and a Jump that lands on the target.
 const CERB = {
   fire: { cd: 25, first: 6, windup: 0.5, gap: 0.3, speed: 210, mult: 1.5, life: 10, spread: 0.3, range: 640 },
@@ -2202,7 +2202,7 @@ function objective(g, troll) {
 // Portrait: stage + objective live in the dark strip below the room, bottom-left, opposite the attack/special buttons.
 function drawInfoPanel(g, top, ih) {
   const troll = g.enemies.find(e => ENEMIES[e.type].boss);
-  const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp, btnRev]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return isFinite(l) ? l : innerWidth * 0.7; })();
+  const right = (() => { let l = Infinity; for (const b of [btnAtk, btnSp, btnRev]) { const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null; if (r && r.width) l = Math.min(l, r.left); } return innerWidth; })();
   const x = 14, maxW = Math.max(120, right - x - 12);
   ctx.save(); ctx.textAlign = 'left'; ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
   const [sub, col] = objective(g, troll);
@@ -2238,21 +2238,15 @@ function controlsReserve() { // landscape: CSS px on the right edge occupied by 
   }
   return isFinite(left) ? Math.max(0, innerWidth - left + 8) : 110;
 }
-function bottomReserve() { // portrait: CSS px at the bottom occupied by the buttons (the room is drawn above them)
-  if (!game || game.over) return 0;
-  let top = Infinity;
-  for (const b of [btnAtk, btnSp]) {
-    const r = typeof b.getBoundingClientRect === 'function' ? b.getBoundingClientRect() : null;
-    if (r && r.height) top = Math.min(top, r.top);
-  }
-  return isFinite(top) ? Math.max(0, innerHeight - top + 8) : 170;
-}
+const PORTRAIT_STRIP = 84, PORTRAIT_ZOOM_MAX = 1.25; // portrait: a slim strip at the bottom for the stage text; the buttons float over the room, higher up the screen
+function bottomReserve() { return !game || game.over ? 0 : PORTRAIT_STRIP; }
 // Where the room goes on screen. world -> CSS px is x*s+tx. Landscape shows the whole room left of the buttons;
 // portrait zooms in across the screen width (room above the buttons) and follows the local player.
 function layout(g) {
   const iw = innerWidth, ih = innerHeight;
   if (ih > iw) {
-    const s = iw / (W <= PORTRAIT_VIEW_W + 40 ? W : PORTRAIT_VIEW_W); // a portrait room fits the width exactly; a wide one is zoomed
+    const sw = iw / (W <= PORTRAIT_VIEW_W + 40 ? W : PORTRAIT_VIEW_W); // a portrait room fits the width exactly; a wide one is zoomed
+    const s = Math.min(Math.max(sw, (ih - bottomReserve()) / H), sw * PORTRAIT_ZOOM_MAX);  // ...then zoomed in a little more (up to 25%) so the room fills the taller play area; the camera follows the player sideways
     const vh = Math.max(120, Math.min(H * s, ih - bottomReserve()));
     const vw = iw / s, vhw = vh / s;
     const me = g && g.players[g.pid];
@@ -2314,14 +2308,19 @@ function updateMenu() {
 // portraits are drawn at 3x (shown at 120 CSS px) so they stay sharp on phones and high-DPI screens
 const PORTRAIT_K = 3, PORTRAIT_PX = 120 * PORTRAIT_K;
 // one stat's row of point options in a horizontal line: +1, +5, Max, or type an amount and press OK. dk = 'c' (character) or 'p' (pet)
-function spendRows(dk, key, avail, icon) {
-  const row = (stat, label) => `<div class="pts"><span class="pl">${label} <small>${icon} ${stat === 'atk' ? '+1 each' : '+5 each'}</small></span><div class="po">
-    <button data-act="spend" data-${dk}="${key}" data-s="${stat}" data-n="1" ${avail < 1 ? 'disabled' : ''}>+1</button>
-    <button data-act="spend" data-${dk}="${key}" data-s="${stat}" data-n="5" ${avail < 5 ? 'disabled' : ''}>+5</button>
-    <button data-act="spend" data-${dk}="${key}" data-s="${stat}" data-n="max" ${avail < 1 ? 'disabled' : ''}>Max</button>
-    <input class="amt" type="number" inputmode="numeric" min="1" step="1" placeholder="#" aria-label="amount" ${avail < 1 ? 'disabled' : ''}>
-    <button data-act="spend" data-${dk}="${key}" data-s="${stat}" data-n="in" ${avail < 1 ? 'disabled' : ''}>OK</button></div></div>`;
-  return row('atk', 'ATK') + row('hp', 'HP');
+const openSpend = {};   // which stat's point options are showing on a card: 'c:warrior' -> 'atk' | 'hp'
+function toggleSpend(dk, key, stat) { const id = dk + ':' + key; openSpend[id] = openSpend[id] === stat ? '' : stat; }
+function spendRows(dk, key, avail, icon) { // two buttons, "+ ATK" and "+ HP"; tapping one opens its options in a horizontal line: +1, +5, Max, or type an amount and press OK
+  const cur = openSpend[dk + ':' + key] || '', dis = avail < 1 ? 'disabled' : '', d5 = avail < 5 ? 'disabled' : '';
+  const tog = (stat, label) => `<button data-act="open" data-${dk}="${key}" data-s="${stat}" class="${cur === stat ? 'on' : ''}">${label}</button>`;
+  const opts = !cur ? '' : `<div class="po">
+    <button data-act="spend" data-${dk}="${key}" data-s="${cur}" data-n="1" ${dis}>+1</button>
+    <button data-act="spend" data-${dk}="${key}" data-s="${cur}" data-n="5" ${d5}>+5</button>
+    <button data-act="spend" data-${dk}="${key}" data-s="${cur}" data-n="max" ${dis}>Max</button>
+    <input class="amt" type="number" inputmode="numeric" min="1" step="1" placeholder="#" aria-label="amount" ${dis}>
+    <button data-act="spend" data-${dk}="${key}" data-s="${cur}" data-n="in" ${dis}>OK</button></div>
+    <span class="pl"><small>${icon} ${cur === 'atk' ? '+1 ATK' : '+5 HP'} per point</small></span>`;
+  return `<div class="pts"><div class="po tog">${tog('atk', '+ ATK')}${tog('hp', '+ HP')}</div>${opts}</div>`;
 }
 function spendAmount(b, pool) { // how many points a spend button means: 1, 5, all of them, or what was typed next to it
   const n = b.dataset.n;
@@ -2354,6 +2353,7 @@ function renderChars() {
 $('charCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const c = b.dataset.c;
+  if (b.dataset.act === 'open') { toggleSpend('c', c, b.dataset.s); renderChars(); return; }
   if (b.dataset.act === 'sel') profile.sel = c;
   else if (b.dataset.act === 'spend' && profile.up[c]) spendPoints('cp', profile.up[c], b.dataset.s, spendAmount(b, 'cp'));
   saveProfile(); renderChars();
@@ -2451,6 +2451,7 @@ function renderShop() {
 $('petCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const k = b.dataset.p;
+  if (b.dataset.act === 'open') { toggleSpend('p', k, b.dataset.s); renderPets(); return; }
   if (b.dataset.act === 'sel' && profile.pets.includes(k)) profile.pet = k;
   else if (b.dataset.act === 'unsel') profile.pet = '';
   else if (b.dataset.act === 'spend' && profile.pets.includes(k)) spendPoints('pp', profile.petUp[k], b.dataset.s, spendAmount(b, 'pp'));
