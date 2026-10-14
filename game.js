@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-f'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -2107,7 +2107,7 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.7)';
   if (!portrait) { // landscape: stage title + objective centred at the top of the room (portrait draws them in the bottom-left corner instead)
     ctx.textAlign = 'center'; ctx.font = 'bold 22px system-ui,sans-serif'; ctx.fillStyle = '#fff';
-    const title = `Stage ${g.stage}-${g.level}` + (isHell(g.stage) ? ' 🔥' : '');
+    const title = `Stage ${g.stage}-${g.level}`;
     ctx.strokeText(title, hw / 2, 28); ctx.fillText(title, hw / 2, 28);
     ctx.font = '13px system-ui,sans-serif';
     const [sub, col] = objective(g, troll);
@@ -2462,7 +2462,7 @@ function renderStage() {
   $('stageBest').textContent = profile.best.stage;
   for (const st of list) {
     const b = document.createElement('button'); b.type = 'button'; b.className = st === rec ? 'rec' : '';
-    b.textContent = `Stage ${st}-1` + (isHell(st) ? ' 🔥' : '') + (st === rec ? ' (recommended)' : '');
+    b.textContent = `Stage ${st}-1` + (st === rec ? ' (recommended)' : '');
     b.addEventListener('click', () => startSingle(st)); box.appendChild(b);
   }
 }
