@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -77,7 +77,7 @@ const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.25, step: 7
 // Cerberus: Fireballs (one per head, fired one after another, bounce off walls) and a Jump that lands on the target.
 const CERB = {
   fire: { cd: 25, first: 6, windup: 0.5, gap: 0.3, speed: 210, mult: 1.5, life: 10, spread: 0.3, range: 640 },
-  jump: { cd: 15, first: 4, up: 0.5, down: 1, r: 110, mult: 1.5, min: 70, max: 450 },
+  jump: { cd: 15, first: 4, up: 0.5, down: 1, r: 110, mult: 3, min: 70, max: 450 },
 };
 const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
 const HEAL_RANGE = 200;
