@@ -40,7 +40,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -1614,19 +1614,29 @@ function drawPet(c, q) {
   if (!q.alive) c.globalAlpha = 0.3;
   c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 3, q.r + 3, q.r - 1, 0, 0, 7); c.fill();
   c.rotate(q.face || 0);
-  if (q.type === 'wolf') {
-    c.strokeStyle = '#9e9e9e'; c.lineWidth = 3; c.beginPath(); c.moveTo(-8, 0); c.quadraticCurveTo(-15, -4, -17, 3); c.stroke();                 // tail
-    c.fillStyle = '#b0bec5'; c.strokeStyle = '#607d8b'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(0, 0, 11, 7, 0, 0, 7); c.fill(); c.stroke(); // body
-    c.beginPath(); c.arc(9, 0, 6, 0, 7); c.fill(); c.stroke();                                                                                      // head
-    c.fillStyle = '#78909c'; c.beginPath(); c.moveTo(7, -4); c.lineTo(5, -10); c.lineTo(10, -6); c.fill(); c.beginPath(); c.moveTo(7, 4); c.lineTo(5, 10); c.lineTo(10, 6); c.fill();
-    c.fillStyle = '#263238'; c.beginPath(); c.arc(14, 0, 1.8, 0, 7); c.fill();
-    c.fillStyle = '#ffeb3b'; c.beginPath(); c.arc(10, -2.2, 1.1, 0, 7); c.fill(); c.beginPath(); c.arc(10, 2.2, 1.1, 0, 7); c.fill();
-  } else if (q.type === 'panther') {
-    c.strokeStyle = '#212121'; c.lineWidth = 3; c.beginPath(); c.moveTo(-9, 0); c.quadraticCurveTo(-17, 6, -20, -2); c.stroke();
-    c.fillStyle = '#37474f'; c.strokeStyle = '#102027'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(0, 0, 12, 6.5, 0, 0, 7); c.fill(); c.stroke();
-    c.beginPath(); c.arc(10, 0, 5.5, 0, 7); c.fill(); c.stroke();
-    c.beginPath(); c.moveTo(8, -4); c.lineTo(7, -9); c.lineTo(11, -5); c.fill(); c.beginPath(); c.moveTo(8, 4); c.lineTo(7, 9); c.lineTo(11, 5); c.fill();
-    c.fillStyle = '#ffd600'; c.beginPath(); c.arc(11.5, -2, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(11.5, 2, 1.4, 0, 7); c.fill();
+  if (q.type === 'wolf') { // stocky, grey and shaggy: bushy tail, pointed ears, long snout, pale muzzle
+    c.fillStyle = '#90a4ae'; c.strokeStyle = '#546e7a'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-8, -2); c.quadraticCurveTo(-18, -7, -20, 1); c.quadraticCurveTo(-17, 8, -8, 3); c.closePath(); c.fill(); c.stroke();              // bushy tail
+    c.fillStyle = '#cfd8dc'; c.beginPath(); c.moveTo(-17, -1); c.quadraticCurveTo(-20, 1, -19, 3); c.quadraticCurveTo(-17, 5, -15, 3); c.closePath(); c.fill(); // pale tail tip
+    c.fillStyle = '#78909c'; for (const [lx, ly] of [[5, -7.5], [5, 7.5], [-5, -7.5], [-5, 7.5]]) { c.beginPath(); c.arc(lx, ly, 2.4, 0, 7); c.fill(); }          // paws
+    c.fillStyle = '#b0bec5'; c.strokeStyle = '#546e7a'; c.beginPath(); c.ellipse(0, 0, 11.5, 8, 0, 0, 7); c.fill(); c.stroke();                                // body
+    c.fillStyle = '#607d8b'; c.beginPath(); c.ellipse(-1, 0, 8, 3.2, 0, 0, 7); c.fill();                                                                       // dark saddle
+    c.fillStyle = '#b0bec5'; c.beginPath(); c.arc(9, 0, 6.2, 0, 7); c.fill(); c.stroke();                                                                       // head
+    c.fillStyle = '#eceff1'; c.beginPath(); c.ellipse(14.5, 0, 4.6, 2.9, 0, 0, 7); c.fill(); c.stroke();                                                        // long muzzle
+    c.fillStyle = '#37474f'; c.beginPath(); c.moveTo(7, -4.5); c.lineTo(4.5, -11.5); c.lineTo(10.5, -6.5); c.closePath(); c.fill();                            // pointed ears
+    c.beginPath(); c.moveTo(7, 4.5); c.lineTo(4.5, 11.5); c.lineTo(10.5, 6.5); c.closePath(); c.fill();
+    c.fillStyle = '#212121'; c.beginPath(); c.arc(18.6, 0, 1.7, 0, 7); c.fill();                                                                                // nose
+    c.fillStyle = '#ffca28'; c.beginPath(); c.arc(10.5, -2.6, 1.2, 0, 7); c.fill(); c.beginPath(); c.arc(10.5, 2.6, 1.2, 0, 7); c.fill();                     // eyes
+  } else if (q.type === 'panther') { // sleek, long and low: black coat with a violet sheen, round ears, short muzzle, long curled tail, green eyes
+    c.strokeStyle = '#15101c'; c.lineWidth = 3; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-11, 0); c.bezierCurveTo(-20, 1, -22, -9, -16, -11); c.stroke(); c.lineCap = 'butt';                                               // long curled tail
+    c.strokeStyle = '#2a2236'; c.lineWidth = 2.2; for (const [lx, ly, ex, ey] of [[6, -3, 9, -8.5], [6, 3, 9, 8.5], [-6, -3, -9, -8], [-6, 3, -9, 8]]) { c.beginPath(); c.moveTo(lx, ly); c.lineTo(ex, ey); c.stroke(); } // thin legs
+    c.fillStyle = '#1b1426'; c.strokeStyle = '#0a0710'; c.lineWidth = 1.4; c.beginPath(); c.ellipse(-0.5, 0, 14, 5.2, 0, 0, 7); c.fill(); c.stroke();             // long lean body
+    c.fillStyle = 'rgba(140,110,200,.35)'; c.beginPath(); c.ellipse(-1, -1.6, 10, 1.6, 0, 0, 7); c.fill();                                                    // violet sheen along the back
+    c.fillStyle = '#1b1426'; c.beginPath(); c.arc(12.5, 0, 5, 0, 7); c.fill(); c.stroke();                                                                      // round head
+    c.beginPath(); c.arc(7.2, -4.2, 2.2, 0, 7); c.fill(); c.stroke(); c.beginPath(); c.arc(7.2, 4.2, 2.2, 0, 7); c.fill(); c.stroke();                         // small round ears
+    c.fillStyle = '#69f0ae'; c.beginPath(); c.ellipse(14, -2.2, 1.6, 1, 0.5, 0, 7); c.fill(); c.beginPath(); c.ellipse(14, 2.2, 1.6, 1, -0.5, 0, 7); c.fill();   // glowing green eyes
+    c.fillStyle = '#f8bbd0'; c.beginPath(); c.arc(17.2, 0, 1, 0, 7); c.fill();                                                                                  // nose
   } else { // turtle
     c.fillStyle = '#81c784'; c.strokeStyle = '#2e7d32'; c.lineWidth = 1;
     for (const [lx, ly] of [[6, -10.5], [6, 10.5], [-7, -10.5], [-7, 10.5]]) { c.beginPath(); c.arc(lx, ly, 3.4, 0, 7); c.fill(); c.stroke(); } // legs: drawn first so the shell covers their inner half (they sit under it)
@@ -2020,21 +2030,23 @@ function updateMenu() {
   $('btnRejoin').classList.toggle('hidden', !lastGame());
   $('menuBest').textContent = `${profile.best.stage}-${profile.best.level}`;
 }
+// portraits are drawn at 3x (shown at 120 CSS px) so they stay sharp on phones and high-DPI screens
+const PORTRAIT_K = 3, PORTRAIT_PX = 120 * PORTRAIT_K;
 function renderChars() {
   $('cpCount').textContent = profile.cp;
   const box = $('charCards'); box.innerHTML = '';
   for (const key of Object.keys(CHARS)) {
     const def = CHARS[key], u = profile.up[key], st = statsFor(key);
     const card = document.createElement('div'); card.className = 'card' + (profile.sel === key ? ' sel' : '');
-    card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${def.name}</h3>
+    card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><h3>${def.name}</h3>
       <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div>
       <div class="btns"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
       <div class="btns"><button data-act="up-atk" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🟡 1</small></button>
       <button data-act="up-hp" data-c="${key}" ${profile.cp < 1 ? 'disabled' : ''}>+5 HP<br><small>🟡 1</small></button></div>`;
     box.appendChild(card);
     const c2 = card.querySelector('canvas').getContext('2d');
-    c2.fillStyle = '#232838'; c2.fillRect(0, 0, 120, 120);
-    drawChar(c2, key, 52, 60, 0, 2.2, false);
+    c2.fillStyle = '#232838'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX);
+    c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); drawChar(c2, key, 44, 62, 0, 1.8, false); c2.restore();
   }
 }
 $('charCards').addEventListener('click', e => {
@@ -2056,10 +2068,10 @@ function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
   else btns = `<div class="btns">${profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped (tap to remove)</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`}</div>
       <div class="btns"><button data-act="up-atk" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+1 ATK<br><small>🐾 1</small></button>
       <button data-act="up-hp" data-p="${key}" ${profile.pp < 1 ? 'disabled' : ''}>+5 HP<br><small>🐾 1</small></button></div>`;
-  card.innerHTML = `<canvas width="120" height="120"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
+  card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
     <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${d.ability}</div>${btns}`;
-  const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, 120, 120);
-  c2.save(); c2.translate(60, 62); c2.scale(3.2, 3.2); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
+  const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX);
+  c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
   return card;
 }
 function renderPets() {
