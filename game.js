@@ -40,7 +40,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals an ally within range for 15 + 50% ATK, and yourself for half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.12-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -1628,10 +1628,11 @@ function drawPet(c, q) {
     c.beginPath(); c.moveTo(8, -4); c.lineTo(7, -9); c.lineTo(11, -5); c.fill(); c.beginPath(); c.moveTo(8, 4); c.lineTo(7, 9); c.lineTo(11, 5); c.fill();
     c.fillStyle = '#ffd600'; c.beginPath(); c.arc(11.5, -2, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(11.5, 2, 1.4, 0, 7); c.fill();
   } else { // turtle
-    c.fillStyle = '#81c784'; c.beginPath(); c.arc(12, 0, 4.5, 0, 7); c.fill();                                                  // head
+    c.fillStyle = '#81c784'; c.strokeStyle = '#2e7d32'; c.lineWidth = 1;
+    for (const [lx, ly] of [[6, -10.5], [6, 10.5], [-7, -10.5], [-7, 10.5]]) { c.beginPath(); c.arc(lx, ly, 3.4, 0, 7); c.fill(); c.stroke(); } // legs: drawn first so the shell covers their inner half (they sit under it)
+    c.beginPath(); c.arc(12, 0, 4.5, 0, 7); c.fill();                                                                              // head
     c.fillStyle = '#2e7d32'; c.strokeStyle = '#1b5e20'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 11, 0, 7); c.fill(); c.stroke(); // shell
     c.strokeStyle = '#66bb6a'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-8, 0); c.lineTo(8, 0); c.moveTo(0, -8); c.lineTo(0, 8); c.moveTo(-5, -5); c.lineTo(5, 5); c.moveTo(5, -5); c.lineTo(-5, 5); c.stroke();
-    c.fillStyle = '#81c784'; c.beginPath(); c.arc(-4, -11, 3, 0, 7); c.fill(); c.beginPath(); c.arc(-4, 11, 3, 0, 7); c.fill();
     c.fillStyle = '#000'; c.beginPath(); c.arc(14, -1.5, 0.9, 0, 7); c.fill(); c.beginPath(); c.arc(14, 1.5, 0.9, 0, 7); c.fill();
   }
   if (q.hurt > 0 && q.alive) { c.fillStyle = 'rgba(255,255,255,.55)'; c.beginPath(); c.arc(0, 0, q.r + 3, 0, 7); c.fill(); }
