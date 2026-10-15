@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-k'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-m'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -153,7 +153,8 @@ function loadProfile() {
   return defaultProfile();
 }
 let profile = loadProfile();
-function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} }
+let onProfileSaved = null; // set by the lobby code: while a player customises from the lobby, every save is passed on to the other player
+function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} if (onProfileSaved) onProfileSaved(); }
 function gearBonus(eq) { // total of what the three equipped pieces give
   const b = { atk: 0, hp: 0, dr: 0, spd: 0, vamp: 0 };
   for (const sl of Object.keys(SLOTS)) { const it = eq && eq[sl]; if (it && EQUIP[it.k]) b[EQUIP[it.k].eff] += EQUIP[it.k].vals[it.t]; }
@@ -204,7 +205,16 @@ const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrStage', 'scrMulti', 'scrLo
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
+  if (id === 'scrMulti' || id === 'scrMenu') applyLock();
 }
+// A run you left or lost (guest side) can be rejoined for 2 minutes. Until you reconnect or leave it, nothing else in the menus is available,
+// so a run can't be dodged to upgrade heroes and then rejoined.
+function applyLock() {
+  const l = !!lastGame();
+  $('rejoinBox').classList.toggle('hidden', !l); $('multiMain').classList.toggle('hidden', l);
+  for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnShop']) $(id).disabled = l;
+}
+{ const lt = setInterval(() => { if (!$('scrMenu').classList.contains('hidden') || !$('scrMulti').classList.contains('hidden')) applyLock(); }, 2000); if (lt && lt.unref) lt.unref(); }
 let toastTimer = 0;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.classList.add('show');
@@ -224,9 +234,20 @@ const PJ_OPTS = { debug: 1, config: { iceServers: [
 ].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } };
 // Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
-const FIND_SLOTS = 5;
+const FIND_SLOTS = 3;             // waiting slots per region pool
+const FIND_DWELL_MS = 18000;      // how long a waiting player stays in one region pool before widening the search
+const slotId = (pool, i) => PJ_PREFIX + 'q-' + pool + '-' + i;
+// Region pools, nearest first. A browser can't know where it is on the map, but its time zone is a good stand-in for distance:
+// same time zone -> same UTC offset -> same continent -> anywhere. Find Game starts in the nearest pool and only widens while nobody is found.
+function findPools() {
+  let tz = ''; try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) {}
+  const clean = x => String(x).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 24);
+  const off = -new Date(2026, 0, 1).getTimezoneOffset() / 60, cont = tz.indexOf('/') > 0 ? tz.split('/')[0] : '';
+  const all = [tz && { id: 'z' + clean(tz), label: 'near you' }, { id: 'o' + String(off).replace('-', 'm').replace('.', 'h'), label: 'in nearby time zones' }, cont && { id: 'c' + clean(cont), label: 'on your continent' }, { id: 'g', label: 'worldwide' }];
+  const seen = new Set(); return all.filter(p => p && !seen.has(p.id) && seen.add(p.id));
+}
 const SLOT_CONNECT_MS = 20000; // a WebRTC link through a relay can take a while on mobile data; don't give up on it too early
-const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0, lastMsg: 0, tok: '', roomCode: '', rc: null, helloT: 0 };
+const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0, lastMsg: 0, tok: '', roomCode: '', rc: null, helloT: 0, sub: false };
 const AWAY_MS = 5000;        // host: a partner silent for this long counts as disconnected (their hero stands still and is safe)
 const REJOIN_MS = 120000;    // how long a dropped player can come back (host keeps their slot) / how long a guest keeps retrying
 const LAST_KEY = 'coopquest.last';
@@ -265,7 +286,7 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 window.addEventListener('online', reviveNet);
 
 function closeNet() {
-  net.token++; // invalidates every pending callback from the previous session
+  net.sub = false; net.token++; // invalidates every pending callback from the previous session
   net.revive = null; if (wakeLock) { safe(() => wakeLock.release()); wakeLock = null; }
   clearInterval(cdTimer); cdTimer = 0; clearTimeout(net.findTimer); clearInterval(net.helloT); net.helloT = 0;
   if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn();
@@ -309,7 +330,7 @@ function needPeer() {
   $('multiStatus').textContent = 'Multiplayer library failed to load. Check your connection and reload.';
   return false;
 }
-function myProfileMsg() { const s = statsFor(profile.sel), g = gearBonus(profile.eq), ps = profile.pet ? petStatsFor(profile.pet) : { atk: 0, hp: 0 }; return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, patk: ps.atk, php: ps.hp, dr: g.dr, spd: g.spd, vamp: g.vamp, best: profile.best.stage, ver: GAME_VERSION, tok: net.tok }; }
+function myProfileMsg() { const s = statsFor(profile.sel), g = gearBonus(profile.eq), ps = profile.pet ? petStatsFor(profile.pet) : { atk: 0, hp: 0 }; return { name: profile.name, char: profile.sel, atk: s.atk, hp: s.hp, pet: profile.pet, patk: ps.atk, php: ps.hp, dr: g.dr, spd: g.spd, vamp: g.vamp, best: profile.best.stage, ver: GAME_VERSION, tok: net.tok, ed: net.sub ? 1 : 0 }; }
 
 function ensureHello() { // guest: until the game has arrived, keep asking the host to (re)send it
   if (net.isHost || net.helloT) return;
@@ -479,23 +500,37 @@ function findGame() {
   if (!needPeer()) return;
   closeNet(); const tk = net.token;
   lobby = { code: '', players: [], hostId: 0, auto: true, searching: true, note: 'Connecting to the matchmaking service…' };
+  net.find = { pools: findPools(), level: 0 };
   show('scrLobby'); renderLobby();
-  scanSlot(tk, 0, 0);
+  runFind(tk);
 }
-function scanSlot(tk, i, n) {
+function findLabel() { const f = net.find; return f ? f.pools[f.level].label : ''; }
+function runFind(tk) { // one search round at the current level: look for waiting players in the nearer pools first, then wait (or join) in this level's pool
+  if (tk !== net.token || !net.find) return;
+  const f = net.find, here = f.pools[f.level], near = [];
+  for (const pl of f.pools.slice(0, f.level)) for (let i = 0; i < FIND_SLOTS; i++) near.push([pl.id, i]);
+  findNote(tk, `Searching ${here.label}…`);
+  const probe = k => { if (tk !== net.token) return; if (k >= near.length) return scanSlot(tk, here.id, 0, 0); joinSlot(tk, near[k][0], near[k][1], 0, () => probe(k + 1), true); };
+  probe(0);
+}
+function widenFind(tk) { // nobody here: look a little further away (and loop back to the nearest pool after the widest)
+  const f = net.find; if (!f || tk !== net.token) return;
+  f.level = (f.level + 1) % f.pools.length; runFind(tk);
+}
+function scanSlot(tk, pool, i, n) { // claim the first free waiting slot of this pool; an occupied slot means somebody is waiting there, so join them instead
   if (tk !== net.token) return;
-  if (i >= FIND_SLOTS) { findNote(tk, 'No players waiting yet — still searching…'); net.findTimer = setTimeout(() => scanSlot(tk, 0, 0), 2500 + rnd(2000)); return; }
-  const p = new Peer(PJ_PREFIX + 'q' + i, PJ_OPTS); net.pj = p;
+  if (i >= FIND_SLOTS) { findNote(tk, `Searching ${findLabel()}…`); net.findTimer = setTimeout(() => scanSlot(tk, pool, 0, 0), 2500 + rnd(2000)); return; }
+  const p = new Peer(slotId(pool, i), PJ_OPTS); net.pj = p;
   let settled = false;
   p.on('open', () => { if (tk !== net.token || net.pj !== p) return; settled = true; waitForPartner(tk, p, i); });
   p.on('error', err => {
     if (tk !== net.token || net.pj !== p || settled) return;
-    if (err.type === 'unavailable-id') { safe(() => p.destroy()); joinSlot(tk, i, n); } else netFail(peerMsg(err));
+    if (err.type === 'unavailable-id') { safe(() => p.destroy()); joinSlot(tk, pool, i, n, same => scanSlot(tk, pool, same && n < 2 ? i : i + 1, same ? n + 1 : 0), false); } else netFail(peerMsg(err));
   });
 }
 function waitForPartner(tk, p, slot) {
   let matched = false, pending = false, pendT = 0;
-  findNote(tk, 'Waiting in the queue — press Find Game on your friend\'s device too.');
+  findNote(tk, `Waiting for a player ${findLabel()}…`);
   p.on('connection', c => {
     if (tk !== net.token || net.pj !== p) return safe(() => c.close());
     pending = true; clearTimeout(pendT); pendT = setTimeout(() => { pending = false; }, SLOT_CONNECT_MS + 3000); // someone is connecting: don't tear this slot down
@@ -506,15 +541,12 @@ function waitForPartner(tk, p, slot) {
     });
   });
   p.on('disconnected', () => { if (tk === net.token && net.pj === p && !matched) safe(() => p.reconnect()); });
-  p.on('close', () => { if (tk === net.token && net.pj === p && !matched) scanSlot(tk, 0, 0); }); // lost the slot unexpectedly: start over
-  // The first slot is the meeting point, so a waiter there just stays put. Waiters on later slots re-scan now and then
-  // so they can move down to slot 0 once it frees up, but never while somebody is mid-connection.
-  if (slot > 0) {
-    const again = () => { if (tk !== net.token || net.pj !== p || matched) return;
-      if (pending) { net.findTimer = setTimeout(again, 4000); return; }
-      safe(() => p.destroy()); scanSlot(tk, 0, 0); };
-    net.findTimer = setTimeout(again, 15000 + rnd(10000));
-  }
+  p.on('close', () => { if (tk === net.token && net.pj === p && !matched) runFind(tk); }); // lost the slot unexpectedly: start this round over
+  // Wait here for a while; if nobody comes, widen the search to the next region pool (never while somebody is mid-connection).
+  const dwell = () => { if (tk !== net.token || net.pj !== p || matched) return;
+    if (pending) { net.findTimer = setTimeout(dwell, 3000); return; }
+    safe(() => p.destroy()); widenFind(tk); };
+  net.findTimer = setTimeout(dwell, FIND_DWELL_MS + rnd(6000));
 }
 function makeMatchRoom(tk, sp, c, n) {
   const code = mkCode(), rp = new Peer(PJ_PREFIX + code, PJ_OPTS);
@@ -535,14 +567,14 @@ function makeMatchRoom(tk, sp, c, n) {
     if (err.type === 'unavailable-id' && n < 3) { safe(() => rp.destroy()); makeMatchRoom(tk, sp, c, n + 1); } else netFail(peerMsg(err));
   });
 }
-function joinSlot(tk, i, n) {
+function joinSlot(tk, pool, i, n, cont, probe) { // connect to whoever waits in this slot; cont(sameSlot) is called when it did not work out
   const p = new Peer(PJ_OPTS); net.pj = p;
   let done = false;
-  findNote(tk, `Looking for a waiting player (slot ${i + 1}/${FIND_SLOTS})…`);
-  const next = same => { if (done) return; done = true; safe(() => p.destroy()); if (tk === net.token) scanSlot(tk, same && n < 2 ? i : i + 1, same ? n + 1 : 0); };
+  findNote(tk, `Looking for a waiting player ${probe ? 'nearby' : findLabel()}…`);
+  const next = same => { if (done) return; done = true; safe(() => p.destroy()); if (tk === net.token) cont(same); };
   p.on('open', () => {
     if (tk !== net.token || net.pj !== p) return;
-    const c = p.connect(PJ_PREFIX + 'q' + i, { reliable: true, serialization: 'json' });
+    const c = p.connect(slotId(pool, i), { reliable: true, serialization: 'json' });
     const to = setTimeout(() => { safe(() => c.close()); next(false); }, SLOT_CONNECT_MS);
     c.on('open', () => findNote(tk, 'Connected — setting up the match…'));
     c.on('data', d => {
@@ -556,7 +588,7 @@ function joinSlot(tk, i, n) {
   p.on('error', err => {
     if (tk !== net.token || net.pj !== p) return;
     if (done) { netFail('The match fell through. Try again.'); return; }
-    if (err.type === 'peer-unavailable') next(true); else netFail(peerMsg(err));
+    if (err.type === 'peer-unavailable') next(!probe); else netFail(peerMsg(err));   // probing an empty slot is normal: just move on
   });
 }
 
@@ -567,8 +599,10 @@ function refreshLobby() {
   const me = { id: net.id, name: profile.name }, other = { id: 1 - net.id, name: net.peer ? net.peer.name : '…' };
   const list = [];
   if (net.isHost) { list.push(me); if (linked) list.push(other); } else { if (linked) list.push(other); list.push(me); }
+  const before = (lobby.players || []).length;
   lobby.players = list; lobby.hostId = 0; if (linked) lobby.connecting = false;
   if (list.length < 2) { clearInterval(cdTimer); cdTimer = 0; }
+  if (net.sub) { renderLobby(); if (before < 2 && list.length === 2) toast(other.name + ' joined the room'); return; } // browsing Characters / Pets / Equipment / Shop from the lobby: stay there
   show('scrLobby'); renderLobby(); maybeAutoStart();
 }
 function maybeAutoStart() {
@@ -591,7 +625,7 @@ function renderLobby() {
     const me = p.id === net.id;
     const ch = me ? CHARS[profile.sel].name : (net.peer ? CHARS[net.peer.char].name : '…');
     const li = document.createElement('li');
-    li.textContent = `${p.name}${me ? ' (you)' : ''}${p.id === lobby.hostId ? ' ★' : ''} — ${ch}`;
+    li.textContent = `${p.name}${me ? ' (you)' : ''}${p.id === lobby.hostId ? ' ★' : ''} — ${ch}${!me && net.peer && net.peer.ed ? ' · customizing…' : ''}`;
     ul.appendChild(li);
   });
   const n = (lobby.players || []).length;
@@ -600,11 +634,13 @@ function renderLobby() {
   else if (lobby.searching) st = 'Searching for other players…' + (lobby.note ? '\n' + lobby.note : '');
   else if (n < 2) st = lobby.auto ? 'Waiting for the other player…' : 'Waiting for your friend to join…';
   else if (lobby.auto) st = 'Match found! Starting soon…';
+  else if (net.peer && net.peer.ed) st = `${net.peer.name} is customizing their hero — Start unlocks when they are back.`;
   else st = net.isHost ? 'Ready — press Start!' : 'Waiting for the host to start…';
   if (n === 2 && net.peer && net.peer.ver && net.peer.ver !== GAME_VERSION) st += `\n⚠ Different game versions (you: ${GAME_VERSION}, partner: ${net.peer.ver}). Refresh the page (clear cache) on the older one.`;
   if (!cdTimer) $('lobbyStatus').textContent = st;
   $('btnLobbyStart').classList.toggle('hidden', !(net.isHost && !lobby.auto && n === 2));
-  $('btnLobbyStart').disabled = !net.peer;
+  $('btnLobbyStart').disabled = !net.peer || !!net.peer.ed;
+  $('lobbyTools').classList.toggle('hidden', !!lobby.auto);
 }
 function onRelay(d) {
   if (!d) return;
@@ -616,6 +652,7 @@ function onRelay(d) {
       if (!CHARS[p.char]) return;
       net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
         tok: String(p.tok || '').slice(0, 20), pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
+      net.peer.ed = !!p.ed;
       if (!game) refreshLobby();
       break;
     }
@@ -741,7 +778,7 @@ function startSingle(stage) {
   game = g; enterGameUI(); loadLevel(g, true);
 }
 function hostStart() {
-  if (!net.peer || game) return;
+  if (!net.peer || game || net.peer.ed) return;
   relay({ k: 'start', pid: 1 });
   const g = newGameBase(true, 0, true); g.guestTok = net.peer.tok || ''; net.lastMsg = nowMs();
   g.players = [makePlayer(myProfileMsg(), 0), makePlayer(net.peer, 1)];
@@ -754,6 +791,7 @@ function startGuest(pid) {
   enterGameUI();
 }
 function enterGameUI() {
+  net.sub = false;
   show(null);
   $('controls').classList.remove('hidden'); $('btnQuit').classList.remove('hidden');
   document.body.classList.add('playing');
@@ -769,7 +807,7 @@ function leaveGame() {
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   document.body.classList.remove('playing');
   closeNet();
-  updateMenu(); show('scrMenu');
+  updateMenu(); show(lastGame() ? 'scrMulti' : 'scrMenu'); // a guest who left a live run lands on the reconnect-or-leave screen
 }
 
 function bannerText(stage, level) { return `Stage ${stage}-${level}` + (level === levelsIn(stage) ? (isHell(stage) ? ' — DOOM BOSS' : ' — BOSS') : isHell(stage) ? ' — DOOM' : ''); }
@@ -2300,7 +2338,7 @@ function updateMenu() {
   $('menuCp').textContent = profile.cp;
   $('menuGold').textContent = profile.gold; $('menuPp').textContent = profile.pp;
   $('menuVer').textContent = 'v' + GAME_VERSION;
-  $('btnRejoin').classList.toggle('hidden', !lastGame());
+  applyLock();
   $('menuBest').textContent = `${profile.best.stage}-${profile.best.level}`;
 }
 // portraits are drawn at 3x (shown at 120 CSS px) so they stay sharp on phones and high-DPI screens
@@ -2480,11 +2518,15 @@ $('tabEquip').addEventListener('click', () => { shopTab = 'equip'; chestResult =
 $('subBuy').addEventListener('click', () => { shopSub = 'buy'; renderShop(); });
 $('subSell').addEventListener('click', () => { shopSub = 'sell'; chestResult = null; renderShop(); });
 $('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); });
-$('btnPets').addEventListener('click', () => { renderPets(); show('scrPets'); });
-$('btnShop').addEventListener('click', () => { renderShop(); show('scrShop'); });
-$('btnGear').addEventListener('click', () => { renderGear(); show('scrGear'); });
+const openPets = () => { renderPets(); show('scrPets'); };
+$('btnPets').addEventListener('click', openPets);
+const openShop = () => { renderShop(); show('scrShop'); };
+$('btnShop').addEventListener('click', openShop);
+const openGear = () => { renderGear(); show('scrGear'); };
+$('btnGear').addEventListener('click', openGear);
 document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => {
   const to = b.dataset.go;
+  if (to === 'scrMenu' && net.sub) { net.sub = false; relay({ k: 'prof', p: myProfileMsg() }); refreshLobby(); return; } // back from customising: return to the lobby and tell the other player
   if (to === 'scrMenu') updateMenu();
   show(to);
 }));
@@ -2504,8 +2546,9 @@ function afterName() { // an invite link (?room=CODE) jumps straight into joinin
 $('btnNameOk').addEventListener('click', submitName);
 $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
 $('menuName').addEventListener('click', () => { $('nameInput').value = profile.name; show('scrName'); });
-$('btnStart').addEventListener('click', () => show('scrMode'));
-$('btnChar').addEventListener('click', () => { renderChars(); show('scrChar'); });
+$('btnStart').addEventListener('click', () => { if (lastGame()) show('scrMulti'); else show('scrMode'); });
+const openChars = () => { renderChars(); show('scrChar'); };
+$('btnChar').addEventListener('click', openChars);
 function renderStage() {
   const list = soloStages(), rec = list[list.length - 1], box = $('stageBtns'); box.innerHTML = '';
   $('stageBest').textContent = profile.best.stage;
@@ -2525,6 +2568,11 @@ $('btnJoin').addEventListener('click', () => {
   $('multiStatus').textContent = ''; joinRoom(code);
 });
 $('btnLobbyStart').addEventListener('click', hostStart);
+// customise from inside the lobby: the connection stays open, and the other player sees "customizing…" until you are back
+for (const [id, open] of [['lbChar', openChars], ['lbPets', openPets], ['lbGear', openGear], ['lbShop', openShop]]) $(id).addEventListener('click', () => {
+  net.sub = true; relay({ k: 'prof', p: myProfileMsg() }); open();
+});
+onProfileSaved = () => { if (net.sub && net.conn && net.conn.open && !game) relay({ k: 'prof', p: myProfileMsg() }); };
 $('btnShare').addEventListener('click', async () => {
   const url = location.origin + location.pathname + '?room=' + lobby.code;
   try { if (navigator.share) { await navigator.share({ title: 'Doom and Dungeons', text: `Join my Doom and Dungeons room (${lobby.code})`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
@@ -2534,10 +2582,14 @@ $('btnLobbyLeave').addEventListener('click', () => { closeNet(); $('multiStatus'
 window.addEventListener('beforeunload', closeNet);
 $('btnOverMenu').addEventListener('click', leaveGame);
 $('btnQuit').addEventListener('click', () => {
-  const g = game, msg = g && g.multi ? (g.isHost ? 'Quit? This ends the run for your friend too.' : 'Leave this run? You can rejoin from the main menu for 2 minutes.') : 'Quit this run?';
+  const g = game, msg = g && g.multi ? (g.isHost ? 'Quit? This ends the run for your friend too.' : 'Leave this run? For 2 minutes you can only reconnect to it or leave it for good (Start Game > Multiplayer).') : 'Quit this run?';
   if (confirm(msg)) leaveGame();
 });
 $('btnRejoin').addEventListener('click', rejoinLast);
+$('btnRejoinLeave').addEventListener('click', () => {
+  if (!confirm('Leave this run for good? You will not be able to rejoin it.')) return;
+  if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); closeNet(); clearLast(); $('multiStatus').textContent = ''; updateMenu(); show('scrMenu');
+});
 $('btnReconn').addEventListener('click', () => { if (net.rc) rcAttempt(); });
 $('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); leaveGame(); });
 

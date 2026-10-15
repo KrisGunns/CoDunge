@@ -34,7 +34,6 @@
     <p class="sub">🪙 <b id="menuGold">0</b></p>
     <p class="sub">Best stage: <b id="menuBest">1-1</b></p>
     <button id="btnStart" class="big">Start Game</button>
-    <button id="btnRejoin" class="big warn hidden">↩ Rejoin your last game</button>
     <button id="btnChar" class="big alt">Characters</button>
     <button id="btnPets" class="big alt">Pets</button>
     <button id="btnGear" class="big alt">Equipment</button>
@@ -61,14 +60,21 @@
   <!-- Multiplayer -->
   <section id="scrMulti" class="screen hidden">
     <h2>Multiplayer</h2>
-    <button id="btnFind" class="big">Find Game</button>
-    <button id="btnCreate" class="big">Create Game Room</button>
-    <div class="row">
-      <input id="codeInput" maxlength="5" placeholder="ROOM CODE" autocomplete="off" autocapitalize="characters">
-      <button id="btnJoin">Join</button>
+    <div id="rejoinBox" class="hidden">
+      <p class="sub">A run you left or lost is still going.<br>Reconnect to it or leave it. Nothing else is available until you do.</p>
+      <button id="btnRejoin" class="big warn" type="button">↩ Reconnect</button>
+      <button id="btnRejoinLeave" class="back" type="button">Leave this run</button>
+    </div>
+    <div id="multiMain" class="multimain">
+      <button id="btnFind" class="big">Find Game</button>
+      <button id="btnCreate" class="big">Create Game Room</button>
+      <div class="row">
+        <input id="codeInput" maxlength="5" placeholder="ROOM CODE" autocomplete="off" autocapitalize="characters">
+        <button id="btnJoin">Join</button>
+      </div>
+      <button class="back" data-go="scrMode">Back</button>
     </div>
     <p id="multiStatus" class="status"></p>
-    <button class="back" data-go="scrMode">Back</button>
   </section>
 
   <!-- Lobby -->
@@ -80,6 +86,7 @@
       <button id="btnShare" type="button">Share invite link</button>
     </div>
     <ul id="lobbyPlayers"></ul>
+    <div id="lobbyTools" class="toolrow"><button id="lbChar" type="button" class="alt">Characters</button><button id="lbPets" type="button" class="alt">Pets</button><button id="lbGear" type="button" class="alt">Equipment</button><button id="lbShop" type="button" class="gold">Shop</button></div>
     <p id="lobbyStatus" class="status"></p>
     <button id="btnLobbyStart" class="big hidden">Start</button>
     <button id="btnLobbyLeave" class="back">Leave</button>

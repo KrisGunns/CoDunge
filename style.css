@@ -108,3 +108,6 @@ button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
 .pts .po.tog button.on{background:#3949ab;border-bottom-color:#ffd54f}
 .pts .pl{text-align:center}
 .pts{gap:6px}
+.multimain,#rejoinBox{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.toolrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
+.toolrow button{padding:10px 6px}
