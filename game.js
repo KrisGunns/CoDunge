@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -2594,12 +2594,13 @@ function gearRow(key, tier, count, buttons) { // one line of an equipment list
   row.innerHTML = `<span class="gi">${d.icon}</span><span class="gt"><b>${d.name}</b> ${SHOW_TIER(tier)}${count > 1 ? ` ×${count}` : ''}<br><small>${SLOTS[d.slot]} · ${equipText(key, tier)}</small></span><span class="gb">${buttons}</span>`;
   return row;
 }
+const gearTile = (key, tier, count, sel, attrs, label, act) => `<button type="button" class="gtile${sel ? ' sel' : ''}${key ? '' : ' empty'}" style="--tc:${key ? TIER_COLORS[tier] : '#3b4278'}" data-act="${act}" ${attrs}>${key ? `<span class="gic">${EQUIP[key].icon}</span><span class="gtier">${TIERS[tier]}</span>${count > 1 ? `<span class="gcnt">×${count}</span>` : ''}${act === 'sell-pick' && attrs.includes('data-s=') ? '<span class="geq">EQUIPPED</span>' : ''}` : `<span class="gic">·</span><span class="gtier">${label}</span>`}</button>`;;
 function renderGear() { // Equipment screen: equipped slots, inventory, equip / merge
   const box = $('gearBox'); box.innerHTML = '';
   const b = gearBonus(profile.eq);
   $('gearSummary').textContent = `Bonuses: +${b.atk} ATK · +${b.hp} HP` + (b.dr ? ` · ${Math.round(b.dr * 100)}% less damage` : '') + (b.spd ? ` · ${Math.round(b.spd * 100)}% faster` : '') + (b.vamp ? ` · ${b.vamp} HP per kill` : '');
   // equipped slots: three big tiles; inventory: a grid of tiles (one per item + rarity); tap a tile to see it and its buttons
-  const tile = (key, tier, count, sel, attrs, label) => `<button type="button" class="gtile${sel ? ' sel' : ''}${key ? '' : ' empty'}" style="--tc:${key ? TIER_COLORS[tier] : '#3b4278'}" data-act="pick" ${attrs}>${key ? `<span class="gic">${EQUIP[key].icon}</span><span class="gtier">${TIERS[tier]}</span>${count > 1 ? `<span class="gcnt">×${count}</span>` : ''}` : `<span class="gic">·</span><span class="gtier">${label}</span>`}</button>`;
+  const tile = (key, tier, count, sel, attrs, label) => gearTile(key, tier, count, sel, attrs, label, 'pick');
   if (gearSel && !(gearSel.s ? profile.eq[gearSel.s] : (profile.inv[gearSel.k] && profile.inv[gearSel.k][gearSel.t] > 0))) gearSel = null; // what was selected is gone (equipped, merged ...)
   const h1 = document.createElement('h3'); h1.textContent = 'Equipped'; box.appendChild(h1);
   const eqg = document.createElement('div'); eqg.className = 'ggrid three';
@@ -2619,7 +2620,7 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
   else { const { k, t } = gearSel, n = profile.inv[k][t], merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${k}" data-t="${t}" ${n < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : ''; det.appendChild(gearRow(k, t, n, `<button data-act="equip" data-k="${k}" data-t="${t}">Equip</button>${merge}`)); }
 }
 let gearSel = null; // { k, t } a piece in the inventory, or { s } an equipped slot
-let shopTab = 'pets', shopSub = 'buy', chestResult = null, chestOdds = false;
+let shopTab = 'pets', shopSub = 'buy', chestResult = null, chestOdds = false, sellSel = null;
 function renderShop() {
   applyGates();
   $('shopGold').textContent = profile.gold;
@@ -2651,14 +2652,19 @@ function renderShop() {
     box.appendChild(card);
     return;
   }
-  const h2 = document.createElement('h3'); h2.textContent = 'Sell (your equipment)'; box.appendChild(h2); // Sell: everything you own
-  let any = false;
-  for (const sl of Object.keys(SLOTS)) { const it = profile.eq[sl]; if (it) { any = true; box.appendChild(gearRow(it.k, it.t, 1, `<small>equipped</small><button data-act="sell-eq" data-s="${sl}">Sell · 🪙 ${sellPrice(it.k, it.t).toLocaleString()}</button>`)); } }
-  for (const key of EQUIP_KEYS) {
-    const r = profile.inv[key]; if (!r) continue;
-    for (let t = 0; t < TIERS.length; t++) if (r[t]) { any = true; box.appendChild(gearRow(key, t, r[t], `<button data-act="sell" data-k="${key}" data-t="${t}">Sell · 🪙 ${sellPrice(key, t).toLocaleString()}</button>`)); }
-  }
-  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'You have no equipment to sell.'; box.appendChild(e); }
+  // Sell: everything you own as a grid (equipped slots first); tap a piece, then sell it
+  const items = [];
+  for (const sl of Object.keys(SLOTS)) { const it = profile.eq[sl]; if (it) items.push({ k: it.k, t: it.t, n: 1, s: sl }); }
+  for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = TIERS.length - 1; t >= 0; t--) if (r[t]) items.push({ k: key, t, n: r[t] }); }
+  const same = (a, b) => a && b && (a.s || '') === (b.s || '') && a.k === b.k && a.t === b.t;
+  if (sellSel && !items.some(i => same(i, sellSel))) sellSel = null;
+  if (!items.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'You have no equipment to sell.'; box.appendChild(e); return; }
+  const det = document.createElement('div'); det.className = 'gdetail';
+  if (!sellSel) det.innerHTML = '<small>Tap a piece to sell it</small>';
+  else { const i = sellSel, price = sellPrice(i.k, i.t); det.appendChild(gearRow(i.k, i.t, i.s ? 1 : i.n, i.s ? `<small>equipped</small><button data-act="sell-eq" data-s="${i.s}">Sell · 🪙 ${price.toLocaleString()}</button>` : `<button data-act="sell" data-k="${i.k}" data-t="${i.t}">Sell · 🪙 ${price.toLocaleString()}</button>`)); }
+  box.appendChild(det);
+  const g = document.createElement('div'); g.className = 'ggrid';
+  g.innerHTML = items.map(i => gearTile(i.k, i.t, i.n, same(i, sellSel), `data-k="${i.k}" data-t="${i.t}"${i.s ? ` data-s="${i.s}"` : ''}`, '', 'sell-pick') + '').join(''); box.appendChild(g);
 }
 $('petCards').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -2679,8 +2685,9 @@ $('shopCards').addEventListener('click', e => {
     saveProfile(); renderShop(); toast(`${d.name} bought!`);
   } else if (b.dataset.act === 'chest-odds') { chestOdds = !chestOdds; renderShop(); }
   else if (b.dataset.act === 'buy-chest') { const lv0 = chestLevel(), items = buyChest(); if (items) { chestResult = { name: CHEST.name, items }; renderShop(); if (chestLevel() > lv0) toast(`Chest leveled up to ${chestLevel()}!`); } }
-  else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
-  else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
+  else if (b.dataset.act === 'sell-pick') { sellSel = { k: b.dataset.k, t: +b.dataset.t, s: b.dataset.s || '' }; renderShop(); }
+  else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); sellSel = null; if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
+  else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { if (!profile.inv[k] || !profile.inv[k][t]) sellSel = null; renderShop(); toast(`Sold for 🪙 ${p}`); } }
 });
 $('gearBox').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
