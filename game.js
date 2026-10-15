@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -256,6 +256,61 @@ function chestProgress() { // chests bought toward the next level: { lv, have, n
   return { lv, have: left, need: lv < CHEST_MAX ? CHEST.need[lv - 1] : 0 };
 }
 const chestPrice = lv => Math.round(CHEST.basePrice * Math.pow(CHEST.growth, lv - 1) / 50) * 50;
+// ---- chest artwork: one look per level (wood -> iron -> bronze -> silver -> gold -> gems -> crowns -> doomsday) ----
+// Chest icons: chestSVG(level 1..12) -> SVG string. Each level changes colours, trim, lid shape and adds extras.
+const CHEST_LOOKS = [
+  { name: 'Wooden',      body: '#8d5a2b', lid: '#a56a34', trim: '#5b3a1c', lock: '#b0a28a', glow: null,      arch: 0, studs: 0 },
+  { name: 'Banded',      body: '#8d5a2b', lid: '#a56a34', trim: '#6e7378', lock: '#c4c9cf', glow: null,      arch: 1, studs: 4 },
+  { name: 'Iron',        body: '#7a5530', lid: '#94653a', trim: '#8f979f', lock: '#d3d9de', glow: null,      arch: 1, studs: 6 },
+  { name: 'Bronze',      body: '#7a4a24', lid: '#935a2c', trim: '#c9803a', lock: '#f0b866', glow: '#c9803a', arch: 1, studs: 6 },
+  { name: 'Silver',      body: '#5f6f86', lid: '#7686a0', trim: '#d5dde8', lock: '#ffffff', glow: '#9ec5ff', arch: 1, studs: 6, gem: '#64b5f6' },
+  { name: 'Golden',      body: '#7b3f1a', lid: '#9c5224', trim: '#ffc83d', lock: '#ffe27a', glow: '#ffc83d', arch: 1, studs: 6, gem: '#e53935' },
+  { name: 'Emerald',     body: '#1f6b57', lid: '#2a8a6f', trim: '#ffc83d', lock: '#ffe27a', glow: '#3ddc97', arch: 1, studs: 6, gem: '#69f0ae', spark: 2 },
+  { name: 'Amethyst',    body: '#5e3a94', lid: '#7a4fb8', trim: '#e1c8ff', lock: '#ffffff', glow: '#b388ff', arch: 0, studs: 6, gem: '#ea80fc', spark: 3 },
+  { name: 'Royal',       body: '#8e1b2b', lid: '#b02336', trim: '#ffc83d', lock: '#ffe27a', glow: '#ff5252', arch: 1, studs: 8, gem: '#40c4ff', crown: 1, spark: 3 },
+  { name: 'Mythic',      body: '#a01a6b', lid: '#c9268a', trim: '#ffd1ec', lock: '#ffffff', glow: '#ff4fb0', arch: 0, studs: 8, gem: '#ffee58', crown: 1, spark: 4 },
+  { name: 'Radiant',     body: '#b8860b', lid: '#e0a81a', trim: '#fff3b0', lock: '#ffffff', glow: '#ffe066', arch: 1, studs: 8, gem: '#ff5252', crown: 1, spark: 5, gems: 1 },
+  { name: 'Doomsday',    body: '#1b1013', lid: '#2a171b', trim: '#ff6a1a', lock: '#ffb347', glow: '#ff3d00', arch: 0, studs: 8, gem: '#ff3d00', spikes: 1, cracks: 1, spark: 4 },
+];
+function chestSVG(level, opt = {}) {
+  const L = CHEST_LOOKS[Math.max(1, Math.min(12, level)) - 1], id = 'c' + level + (opt.uid || '');
+  const lid = L.arch ? 'M20 62 L20 50 Q20 27 60 27 Q100 27 100 50 L100 62 Z' : 'M17 62 L25 34 L95 34 L103 62 Z';
+  const lidTop = L.arch ? 27 : 34;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="${opt.size || 120}" height="${opt.size || 120}">
+<defs>
+<radialGradient id="${id}g" cx="50%" cy="55%" r="55%"><stop offset="0" stop-color="${L.glow || '#000'}" stop-opacity="${L.glow ? 0.55 : 0}"/><stop offset="1" stop-color="${L.glow || '#000'}" stop-opacity="0"/></radialGradient>
+<linearGradient id="${id}l" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".25"/></linearGradient>
+<linearGradient id="${id}b" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".12"/><stop offset="1" stop-color="#000" stop-opacity=".38"/></linearGradient>
+<linearGradient id="${id}t" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#000" stop-opacity=".2"/></linearGradient>
+</defs>
+<circle cx="60" cy="68" r="58" fill="url(#${id}g)"/>
+<ellipse cx="60" cy="104" rx="42" ry="7" fill="#000" opacity=".4"/>`;
+  if (L.spikes) for (const x of [30, 45, 60, 75, 90]) s += `<path d="M${x - 5} ${lidTop + 6} L${x} ${lidTop - 14 - (x === 60 ? 6 : 0)} L${x + 5} ${lidTop + 6} Z" fill="#12090b" stroke="${L.trim}" stroke-width="1.5"/>`;
+  // base
+  s += `<rect x="20" y="60" width="80" height="40" rx="5" fill="${L.body}" stroke="#1a0f08" stroke-width="2.5"/><rect x="20" y="60" width="80" height="40" rx="5" fill="url(#${id}b)"/>`;
+  for (const y of [72, 84]) s += `<line x1="22" y1="${y}" x2="98" y2="${y}" stroke="#000" stroke-opacity=".22" stroke-width="1.5"/>`;
+  // lid
+  s += `<path d="${lid}" fill="${L.lid}" stroke="#1a0f08" stroke-width="2.5" stroke-linejoin="round"/><path d="${lid}" fill="url(#${id}l)"/>`;
+  if (L.arch) s += `<path d="M30 40 Q60 24 90 40" fill="none" stroke="#fff" stroke-opacity=".25" stroke-width="3" stroke-linecap="round"/>`;
+  else s += `<path d="M30 40 L90 40" stroke="#fff" stroke-opacity=".25" stroke-width="3" stroke-linecap="round"/>`;
+  if (L.cracks) for (const p of ['M30 66 L36 74 L32 82 L38 92', '90 68 L84 77 L89 86 L83 96']) s += `<polyline points="${p.replace(/^M/, '')}" fill="none" stroke="#ff6a1a" stroke-width="2" stroke-linejoin="round"/>`;
+  // bands
+  for (const x of [32, 82]) { s += `<rect x="${x}" y="${L.arch ? 30 : 34}" width="9" height="${L.arch ? 70 : 66}" fill="${L.trim}" stroke="#1a0f08" stroke-width="1.5"/><rect x="${x}" y="${L.arch ? 30 : 34}" width="9" height="${L.arch ? 70 : 66}" fill="url(#${id}t)" opacity=".5"/>`; }
+  s += `<rect x="17" y="58" width="86" height="7" rx="2" fill="${L.trim}" stroke="#1a0f08" stroke-width="1.5"/><rect x="17" y="58" width="86" height="7" rx="2" fill="url(#${id}t)" opacity=".6"/>`;
+  s += `<rect x="18" y="96" width="84" height="6" rx="2" fill="${L.trim}" stroke="#1a0f08" stroke-width="1.5"/>`;
+  // studs
+  const studs = [[24, 68], [96, 68], [24, 92], [96, 92], [36, 100], [84, 100], [36, 38], [84, 38]].slice(0, L.studs);
+  for (const [x, y] of studs) s += `<circle cx="${x}" cy="${y}" r="2.3" fill="${L.lock}" stroke="#1a0f08" stroke-width="1"/>`;
+  // lock plate
+  s += `<rect x="50" y="54" width="20" height="26" rx="4" fill="${L.lock}" stroke="#1a0f08" stroke-width="2"/><rect x="50" y="54" width="20" height="26" rx="4" fill="url(#${id}t)" opacity=".5"/>`;
+  s += L.gem ? `<circle cx="60" cy="63" r="5" fill="${L.gem}" stroke="#1a0f08" stroke-width="1.5"/><circle cx="58.3" cy="61.3" r="1.6" fill="#fff" opacity=".85"/>` : `<circle cx="60" cy="63" r="3.6" fill="#1a0f08"/>`;
+  s += `<path d="M58 66 L62 66 L63 75 L57 75 Z" fill="#1a0f08"/>`;
+  if (L.gems) for (const [x, y, c] of [[26, 52, '#40c4ff'], [94, 52, '#ff5252'], [60, 38, '#69f0ae']]) s += `<polygon points="${x},${y - 5} ${x + 4},${y} ${x},${y + 5} ${x - 4},${y}" fill="${c}" stroke="#1a0f08" stroke-width="1.2"/>`;
+  if (L.crown) s += `<path d="M44 ${lidTop + 2} L44 ${lidTop - 8} L52 ${lidTop - 2} L60 ${lidTop - 13} L68 ${lidTop - 2} L76 ${lidTop - 8} L76 ${lidTop + 2} Z" fill="${L.trim}" stroke="#1a0f08" stroke-width="1.8" stroke-linejoin="round"/><circle cx="60" cy="${lidTop - 13}" r="2.4" fill="${L.gem || '#fff'}"/><circle cx="44" cy="${lidTop - 8}" r="1.8" fill="#ff5252"/><circle cx="76" cy="${lidTop - 8}" r="1.8" fill="#40c4ff"/>`;
+  const sp = [[12, 30, 5], [108, 26, 6], [16, 78, 4], [106, 72, 4], [60, 10, 5]].slice(0, L.spark || 0);
+  for (const [x, y, r] of sp) s += `<path d="M${x} ${y - r} Q${x + 1} ${y - 1} ${x + r} ${y} Q${x + 1} ${y + 1} ${x} ${y + r} Q${x - 1} ${y + 1} ${x - r} ${y} Q${x - 1} ${y - 1} ${x} ${y - r} Z" fill="${L.glow || '#fff'}" stroke="#fff" stroke-width=".8"/>`;
+  return s + '</svg>';
+}
 function rollTier(odds) { let r = Math.random(), a = 0; for (let t = 0; t < odds.length; t++) { a += odds[t]; if (r < a) return t; } return 0; }
 function buyChest() { // returns the pieces found, or null if it can't be afforded
   const lv = chestLevel(), price = chestPrice(lv); if (profile.gold < price) return null;
@@ -2543,27 +2598,28 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
   const box = $('gearBox'); box.innerHTML = '';
   const b = gearBonus(profile.eq);
   $('gearSummary').textContent = `Bonuses: +${b.atk} ATK · +${b.hp} HP` + (b.dr ? ` · ${Math.round(b.dr * 100)}% less damage` : '') + (b.spd ? ` · ${Math.round(b.spd * 100)}% faster` : '') + (b.vamp ? ` · ${b.vamp} HP per kill` : '');
+  // equipped slots: three big tiles; inventory: a grid of tiles (one per item + rarity); tap a tile to see it and its buttons
+  const tile = (key, tier, count, sel, attrs, label) => `<button type="button" class="gtile${sel ? ' sel' : ''}${key ? '' : ' empty'}" style="--tc:${key ? TIER_COLORS[tier] : '#3b4278'}" data-act="pick" ${attrs}>${key ? `<span class="gic">${EQUIP[key].icon}</span><span class="gtier">${TIERS[tier]}</span>${count > 1 ? `<span class="gcnt">×${count}</span>` : ''}` : `<span class="gic">·</span><span class="gtier">${label}</span>`}</button>`;
+  if (gearSel && !(gearSel.s ? profile.eq[gearSel.s] : (profile.inv[gearSel.k] && profile.inv[gearSel.k][gearSel.t] > 0))) gearSel = null; // what was selected is gone (equipped, merged ...)
   const h1 = document.createElement('h3'); h1.textContent = 'Equipped'; box.appendChild(h1);
-  for (const sl of Object.keys(SLOTS)) {
-    const it = profile.eq[sl];
-    if (it) box.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${sl}">Unequip</button>`));
-    else { const e = document.createElement('div'); e.className = 'gear empty'; e.innerHTML = `<span class="gi">·</span><span class="gt">${SLOTS[sl]} — empty</span>`; box.appendChild(e); }
-  }
+  const eqg = document.createElement('div'); eqg.className = 'ggrid three';
+  eqg.innerHTML = Object.keys(SLOTS).map(sl => { const it = profile.eq[sl]; return it ? tile(it.k, it.t, 1, gearSel && gearSel.s === sl, `data-s="${sl}"`) : tile(null, 0, 0, false, 'disabled', SLOTS[sl]); }).join('');
+  box.appendChild(eqg);
+  const det = document.createElement('div'); det.className = 'gdetail'; box.appendChild(det); // the selected piece and its buttons, right under the equipped slots
   let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < TIERS.length - 1; t++) pairs += Math.floor(r[t] / MERGE_N); }
   const hd = document.createElement('div'); hd.className = 'gearhead';
-  hd.innerHTML = `<h3>Inventory — ${MERGE_N} identical pieces merge into the next rarity</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all pairs${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
-  let any = false;
-  for (const key of EQUIP_KEYS) {
-    const r = profile.inv[key]; if (!r) continue;
-    for (let t = TIERS.length - 1; t >= 0; t--) {
-      if (!r[t]) continue; any = true;
-      const merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${key}" data-t="${t}" ${r[t] < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : '';
-      box.appendChild(gearRow(key, t, r[t], `<button data-act="equip" data-k="${key}" data-t="${t}">Equip</button>${merge}`));
-    }
-  }
-  if (!any) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy a chest in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
+  hd.innerHTML = `<h3>Inventory · ${MERGE_N} identical pieces merge up</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
+  const inv = [];
+  for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = TIERS.length - 1; t >= 0; t--) if (r[t]) inv.push([key, t, r[t]]); }
+  inv.sort((a, b) => b[1] - a[1]);
+  if (!inv.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy a chest in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
+  else { const g = document.createElement('div'); g.className = 'ggrid'; g.innerHTML = inv.map(([k, t, n]) => tile(k, t, n, gearSel && !gearSel.s && gearSel.k === k && gearSel.t === t, `data-k="${k}" data-t="${t}"`)).join(''); box.appendChild(g); }
+  if (!gearSel) det.innerHTML = '<small>Tap a piece to see it</small>';
+  else if (gearSel.s) { const it = profile.eq[gearSel.s]; det.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${gearSel.s}">Unequip</button>`)); }
+  else { const { k, t } = gearSel, n = profile.inv[k][t], merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${k}" data-t="${t}" ${n < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : ''; det.appendChild(gearRow(k, t, n, `<button data-act="equip" data-k="${k}" data-t="${t}">Equip</button>${merge}`)); }
 }
-let shopTab = 'pets', shopSub = 'buy', chestResult = null;
+let gearSel = null; // { k, t } a piece in the inventory, or { s } an equipped slot
+let shopTab = 'pets', shopSub = 'buy', chestResult = null, chestOdds = false;
 function renderShop() {
   applyGates();
   $('shopGold').textContent = profile.gold;
@@ -2585,11 +2641,14 @@ function renderShop() {
       r.innerHTML = `<b>${chestResult.name} opened!</b>` + chestResult.items.map(it => `<div>${EQUIP[it.k].icon} ${EQUIP[it.k].name} ${SHOW_TIER(it.t)} <small>${equipText(it.k, it.t)}</small></div>`).join('');
       box.appendChild(r);
     }
-    const cp = chestProgress(), lv = cp.lv, price = chestPrice(lv), od = CHEST.odds[lv - 1];
-    const h1 = document.createElement('h3'); h1.textContent = `${CHEST.name} — ${CHEST.pieces} random pieces`; box.appendChild(h1);
-    const row = document.createElement('div'); row.className = 'gear';
-    row.innerHTML = `<span class="gi">${CHEST.icon}</span><span class="gt"><b>${CHEST.name} · Level ${lv}${lv >= CHEST_MAX ? ' (max)' : ''}</b><br><small>${cp.need ? `${cp.have}/${cp.need} chests to level ${lv + 1}` : 'Max level'}<br>Each piece: ${TIERS.map((n, t) => od[t] > 0 ? `${n} ${+(od[t] * 100).toFixed(1)}%` : '').filter(Boolean).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" ${profile.gold < price ? 'disabled' : ''}>Buy · 🪙 ${price.toLocaleString()}</button></span>`;
-    box.appendChild(row);
+    const cp = chestProgress(), lv = cp.lv, price = chestPrice(lv), od = CHEST.odds[lv - 1], pct = cp.need ? Math.round(cp.have / cp.need * 100) : 100;
+    const card = document.createElement('div'); card.className = 'chestcard' + (chestOdds ? ' open' : '');
+    card.innerHTML = `<button type="button" class="chesticon" data-act="chest-odds" aria-label="Show the chances">${chestSVG(lv, { size: 150, uid: 's' })}</button>
+      <div class="cname">${CHEST.name} · Level ${lv}${lv >= CHEST_MAX ? ' (max)' : ''}</div>
+      <div class="cbar"><i style="width:${pct}%"></i><span>${cp.need ? `${cp.have} / ${cp.need}` : 'MAX'}</span></div>
+      ${chestOdds ? `<div class="codds">${TIERS.map((n, t) => od[t] > 0 ? `<div><span style="color:${TIER_COLORS[t]}">● ${n}</span><b>${+(od[t] * 100).toFixed(1)}%</b></div>` : '').join('')}</div>` : '<div class="chint">Tap the chest to see the chances</div>'}
+      <button class="chestbuy" data-act="buy-chest" ${profile.gold < price ? 'disabled' : ''}>Buy · 🪙 ${price.toLocaleString()}</button>`;
+    box.appendChild(card);
     return;
   }
   const h2 = document.createElement('h3'); h2.textContent = 'Sell (your equipment)'; box.appendChild(h2); // Sell: everything you own
@@ -2618,15 +2677,17 @@ $('shopCards').addEventListener('click', e => {
     if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
     profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
     saveProfile(); renderShop(); toast(`${d.name} bought!`);
-  } else if (b.dataset.act === 'buy-chest') { const lv0 = chestLevel(), items = buyChest(); if (items) { chestResult = { name: CHEST.name, items }; renderShop(); if (chestLevel() > lv0) toast(`Chest leveled up to ${chestLevel()}!`); } }
+  } else if (b.dataset.act === 'chest-odds') { chestOdds = !chestOdds; renderShop(); }
+  else if (b.dataset.act === 'buy-chest') { const lv0 = chestLevel(), items = buyChest(); if (items) { chestResult = { name: CHEST.name, items }; renderShop(); if (chestLevel() > lv0) toast(`Chest leveled up to ${chestLevel()}!`); } }
   else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
   else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
 });
 $('gearBox').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const a = b.dataset.act;
-  if (a === 'equip') equipGear(b.dataset.k, +b.dataset.t);
-  else if (a === 'unequip') unequipGear(b.dataset.s);
+  if (a === 'pick') { gearSel = b.dataset.s ? { s: b.dataset.s } : { k: b.dataset.k, t: +b.dataset.t }; }
+  else if (a === 'equip') { equipGear(b.dataset.k, +b.dataset.t); gearSel = null; }
+  else if (a === 'unequip') { unequipGear(b.dataset.s); gearSel = null; }
   else if (a === 'merge-all') { const n = mergeAllGear(); if (n) toast(n > 1 ? `${n} merges done!` : 'Merged!'); }
   else if (a === 'merge') { if (mergeGear(b.dataset.k, +b.dataset.t)) toast(`Merged into ${TIERS[+b.dataset.t + 1]} ${EQUIP[b.dataset.k].name}!`); }
   renderGear();
