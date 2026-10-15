@@ -114,3 +114,8 @@ button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
 textarea.code{width:100%;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;padding:8px;border-radius:10px;border:2px solid #3949ab;background:#151a2e;color:#fff;resize:vertical;word-break:break-all;-webkit-user-select:text;user-select:text;outline:none}
 textarea.code:focus{border-color:#ffd54f}
 .row3{display:flex;gap:8px;width:100%}.row3 button{flex:1;padding:10px 6px}
+
+.agechk{display:flex;gap:8px;align-items:center;font-size:14px;color:#cfd8ff;margin:4px 0}
+.agechk input{width:20px;height:20px}
+#devStage{width:100%;padding:10px;border-radius:8px;border:2px solid #3949ab;background:#161b3d;color:#fff;font-size:16px}
+.devrow{display:grid;grid-template-columns:1fr 2fr;gap:8px;width:100%}

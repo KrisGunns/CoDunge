@@ -23,6 +23,8 @@
     <h1>Doom and Dungeons</h1>
     <p class="sub">Enter your game name</p>
     <input id="nameInput" maxlength="12" placeholder="Your name" autocomplete="off">
+    <label class="agechk"><input type="checkbox" id="ageOk"> I am 13 years old or older</label>
+    <p id="nameErr" class="status"></p>
     <button id="btnNameOk" class="big">Continue</button>
   </section>
 
@@ -99,7 +101,19 @@
     <button id="btnSound" class="big alt" type="button">Sound</button>
     <button id="btnPrivacy" class="big alt" type="button">Privacy Policy</button>
     <button id="btnSaveData" class="big alt" type="button">Save Data</button>
+    <button id="btnDev" class="big alt" type="button">Developer</button>
     <button class="back" data-go="scrMenu">Back</button>
+  </section>
+
+  <!-- Developer panel (testing only; remove before release) -->
+  <section id="scrDev" class="screen hidden">
+    <h2>Developer</h2>
+    <p class="sub">Best stage now: <b id="devBest">1-1</b></p>
+    <div class="devrow"><input id="devStage" type="number" min="1" max="999" value="1"><button id="btnDevStage" type="button">Set best stage</button></div>
+    <button id="btnDevCp" class="big alt" type="button">+50 Character Points</button>
+    <button id="btnDevPp" class="big alt" type="button">+50 Pet Points</button>
+    <button id="btnDevGold" class="big alt" type="button">+10000 Gold</button>
+    <button class="back" data-go="scrSettings">Back</button>
   </section>
 
   <!-- Save data: export / import -->
@@ -143,7 +157,7 @@
   <section id="scrShop" class="screen wide top hidden">
     <h2>Shop</h2>
     <p class="sub">Gold: 🪙 <b id="shopGold">0</b></p>
-    <div class="tabs"><button id="tabEquip" type="button">Equipment</button><button id="tabPets" type="button" class="on">Pets</button></div>
+    <div class="tabs" id="shopTabs"><button id="tabEquip" type="button">Equipment</button><button id="tabPets" type="button" class="on">Pets</button></div>
     <div class="tabs subtabs hidden" id="subTabs"><button id="subBuy" type="button" class="on">Buy</button><button id="subSell" type="button">Sell</button></div>
     <div id="shopCards"></div>
     <button class="back" data-go="scrMenu">Back</button>

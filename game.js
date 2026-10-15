@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-n'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-o'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -100,7 +100,7 @@ const PANTHER = { hits: 3, gap: 0.14, mult: 1.5, r: 72, arc: 1.2, cd: 12 };
 const TURTLE = { mult: 0.75, dur: 5, heal: 0.2, cd: 25, r: 240 };
 // ---- equipment: 3 slots, 7 rarity tiers; MERGE_N identical pieces of the same tier merge into one of the next tier ----
 const TIERS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Doomsday'], TIER_COLORS = ['#b0bec5', '#81c784', '#4fc3f7', '#ba68c8', '#ffb300', '#ec407a', '#ff3d00'];
-const MERGE_N = 2;       // how many identical pieces make the next tier (2 now; 3 would make the top tiers far, far rarer)
+const MERGE_N = 3;       // how many identical pieces make the next tier
 const TIER_VERSION = 7;  // saves from the 4-tier days (Common/Rare/Epic/Legendary) are converted on load
 const SLOTS = { head: 'Head', body: 'Body', weapon: 'Weapon' };
 const EQUIP = {
@@ -121,11 +121,33 @@ function equipText(key, tier) {
   return d.eff === 'dr' ? `Take ${Math.round(v * 100)}% less damage` : d.eff === 'spd' ? `Move ${Math.round(v * 100)}% faster` : d.eff === 'vamp' ? `Heal ${v} HP on each kill` : d.eff === 'hp' ? `+${v} HP` : `+${v} ATK`;
 }
 
+// ---------------- name filter ----------------
+// Blocks rude or unfriendly names. It cannot be perfect (no filter is): it normalises look-alike characters, then checks a list of strong
+// words anywhere in the name and a list of weaker words only as whole words. Extend the lists freely.
+const BAD_STRONG = ['fuck', 'shit', 'cunt', 'bitch', 'nigg', 'fagg', 'whore', 'slut', 'rapist', 'nazi', 'hitler', 'molest', 'paedo', 'dickhead', 'asshole', 'bastard', 'retard', 'cocksuck', 'blowjob', 'handjob', 'jizz', 'cumshot', 'porn', 'penis', 'vagina', 'pussy', 'wank', 'twat', 'bollock', 'jihad', 'suicide', 'killyourself', 'tranny', 'chink', 'kike'];
+const BAD_WORDS = ['kkk', 'isis', 'spic', 'coon', 'kys', 'rape', 'pedo', 'ass', 'arse', 'dick', 'cock', 'cum', 'tit', 'tits', 'boob', 'boobs', 'anal', 'anus', 'sex', 'sexy', 'nude', 'nudes', 'hoe', 'fag', 'gay', 'dyke', 'damn', 'crap', 'piss', 'turd', 'fart', 'poo', 'nsfw', 'kill', 'die', 'rapey', 'bum', 'weed', 'drug', 'drugs', 'hell', 'idiot', 'stupid', 'dumb', 'loser', 'ugly', 'fat', 'noob'];
+const BAD_ALLOW = ['assassin', 'class', 'classic', 'glass', 'grass', 'pass', 'mass', 'bass', 'brass', 'assist', 'assume', 'assure', 'asset', 'cassie', 'massive', 'passion', 'sassy', 'scunthorpe', 'cocktail', 'peacock', 'hancock', 'titan', 'title', 'tittle', 'attitude', 'constitution', 'dickens', 'cumin', 'document', 'circumstance', 'cucumber', 'shitake', 'analyst', 'analog', 'canal', 'banal', 'sussex', 'essex', 'middlesex', 'bumble', 'bummer', 'hello', 'shell', 'seashell'];
+function isBadName(name) {
+  const raw = String(name || '').toLowerCase(); if (!raw) return false;
+  const map = { '0': 'o', '1': 'i', '3': 'e', '4': 'a', '5': 's', '7': 't', '8': 'b', '9': 'g', '@': 'a', '$': 's', '!': 'i', '|': 'i', '+': 't', '€': 'e', '£': 'l' };
+  const norm = raw.replace(/[0-9@$!|+€£]/g, c => map[c]).normalize('NFKD').replace(/[\u0300-\u036f]/g, '');
+  const words = norm.split(/[^a-z]+/).filter(Boolean);                       // whole words as typed
+  const letters = norm.replace(/[^a-z]/g, ''), one = letters.replace(/(.)\1+/g, '$1'), two = letters.replace(/(.)\1{2,}/g, '$1$1'); // "fuuuck" -> one: "fuck"; "niggger" -> two: "nigger"
+  const dbl = w => /(.)\1/.test(w), single = w => w.replace(/(.)\1+/g, '$1'), fix = (t, f) => BAD_ALLOW.reduce((x, w) => x.split(f(w)).join(''), t), two2 = w => w.replace(/(.)\1{2,}/g, '$1$1');   // allowlist ("assassin", "class") is cut out before matching
+  const o1 = fix(one, single), o2 = fix(two, two2);
+  if (BAD_STRONG.some(w => (dbl(w) ? o2 : o1).includes(w))) return true;
+  const w1 = words.map(single), w2 = words.map(two2);
+  if (BAD_WORDS.some(w => (dbl(w) ? w2 : w1).includes(w))) return true;
+  // CamelCase pieces ("BigDick") count as words too
+  const camel = String(name).replace(/[^A-Za-z]+/g, ' ').replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase().split(' ').filter(Boolean);
+  return BAD_WORDS.some(w => camel.includes(w));
+}
+
 // ---------------- profile / save ----------------
 const SAVE_KEY = 'coopquest.v1';
 const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
 const emptyPetUp = () => ({ wolf: { atk: 0, hp: 0 }, panther: { atk: 0, hp: 0 }, turtle: { atk: 0, hp: 0 } });
-const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null }, tv: TIER_VERSION });
+const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null }, tv: TIER_VERSION, chestBuys: 0, ageOk: false });
 const OLD_TIER_MAP = [0, 2, 3, 4]; // the old 4 tiers (Common, Rare, Epic, Legendary) sit at these places in the 7-tier list
 const cap = (v, m) => Math.min(m, Math.max(0, Math.floor(+v) || 0));
 // Turns anything (an old save, a pasted save code) into a valid profile: unknown keys dropped, numbers clamped, tiers converted. Returns { out, migrated }.
@@ -134,6 +156,8 @@ function sanitizeProfile(p) {
   const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
   for (const k of Object.keys(out)) if (!(k in defaultProfile())) delete out[k];
   out.name = String(out.name || '').replace(/[<>&"'`\u0000-\u001f]/g, '').slice(0, 12);
+  if (isBadName(out.name)) out.name = '';
+  out.chestBuys = cap(out.chestBuys, 1e6); out.ageOk = !!out.ageOk;
   out.cp = cap(out.cp, 1e9); out.gold = cap(out.gold, 1e9); out.pp = cap(out.pp, 1e9);
   out.best = { stage: Math.max(1, cap(out.best.stage, 999)), level: Math.max(1, cap(out.best.level, 10)) };
   out.sel = CHARS[out.sel] ? out.sel : 'warrior';
@@ -215,28 +239,48 @@ function mergeAllGear() { // merge every identical set in the inventory, rarest 
   }
   if (n) saveProfile(); return n;
 }
-// ---- chests: the only way to buy equipment. Each chest holds 2 random pieces; odds are per piece, one number per tier (Common .. Doomsday) ----
-const CHESTS = {
-  common: { name: 'Common Chest', icon: '📦', price: 2000, odds: [0.70, 0.22, 0.07, 0.01, 0, 0, 0] },
-  rare:   { name: 'Rare Chest',   icon: '🎁', price: 5000, odds: [0.35, 0.35, 0.22, 0.07, 0.01, 0, 0] },
+// ---- the Treasure Chest: the only way to buy equipment. One chest that levels up with every purchase: higher level = better odds, higher price ----
+// odds[level-1] = chance per piece of each tier (Common .. Doomsday); need[level-1] = chests to buy at that level to reach the next one. Tune freely.
+const CHEST = {
+  name: 'Treasure Chest', icon: '📦', basePrice: 1000, growth: 1.25, pieces: 2,
+  need: [8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 45],
+  odds: [
+    [0.80, 0.18, 0.02, 0, 0, 0, 0], [0.70, 0.25, 0.05, 0, 0, 0, 0], [0.58, 0.30, 0.11, 0.01, 0, 0, 0], [0.45, 0.33, 0.18, 0.04, 0, 0, 0],
+    [0.33, 0.34, 0.24, 0.08, 0.01, 0, 0], [0.22, 0.32, 0.29, 0.14, 0.03, 0, 0], [0.14, 0.27, 0.31, 0.20, 0.07, 0.01, 0], [0.08, 0.20, 0.31, 0.26, 0.12, 0.03, 0],
+    [0.04, 0.13, 0.28, 0.30, 0.18, 0.06, 0.01], [0.02, 0.08, 0.22, 0.32, 0.24, 0.10, 0.02], [0.01, 0.04, 0.15, 0.30, 0.30, 0.16, 0.04], [0, 0.02, 0.09, 0.25, 0.33, 0.23, 0.08]],
 };
-const CHEST_PIECES = 2;
+const CHEST_MAX = CHEST.odds.length;
+function chestLevel(buys = profile.chestBuys) { let lv = 1, left = buys | 0; while (lv < CHEST_MAX && left >= CHEST.need[lv - 1]) { left -= CHEST.need[lv - 1]; lv++; } return lv; }
+function chestProgress() { // chests bought toward the next level: { lv, have, need } (need 0 at max level)
+  let lv = 1, left = profile.chestBuys | 0; while (lv < CHEST_MAX && left >= CHEST.need[lv - 1]) { left -= CHEST.need[lv - 1]; lv++; }
+  return { lv, have: left, need: lv < CHEST_MAX ? CHEST.need[lv - 1] : 0 };
+}
+const chestPrice = lv => Math.round(CHEST.basePrice * Math.pow(CHEST.growth, lv - 1) / 50) * 50;
 function rollTier(odds) { let r = Math.random(), a = 0; for (let t = 0; t < odds.length; t++) { a += odds[t]; if (r < a) return t; } return 0; }
-function buyChest(kind) { // returns the pieces found, or null if it can't be afforded
-  const c = CHESTS[kind]; if (!c || profile.gold < c.price) return null;
-  profile.gold -= c.price; const out = [];
-  for (let i = 0; i < CHEST_PIECES; i++) { const k = EQUIP_KEYS[rnd(EQUIP_KEYS.length)], t = rollTier(c.odds); addGear(k, t); out.push({ k, t }); }
+function buyChest() { // returns the pieces found, or null if it can't be afforded
+  const lv = chestLevel(), price = chestPrice(lv); if (profile.gold < price) return null;
+  profile.gold -= price; profile.chestBuys++; const out = [];
+  for (let i = 0; i < CHEST.pieces; i++) { const k = EQUIP_KEYS[rnd(EQUIP_KEYS.length)], t = rollTier(CHEST.odds[lv - 1]); addGear(k, t); out.push({ k, t }); }
   saveProfile(); return out;
 }
 function sellEquipped(sl) { const it = profile.eq[sl]; if (!it) return 0; const p = sellPrice(it.k, it.t); profile.eq[sl] = null; profile.gold += p; saveProfile(); return p; }
 function sellGear(key, tier) { if (!EQUIP[key] || !takeGear(key, tier)) return false; profile.gold += sellPrice(key, tier); saveProfile(); return true; }
 
 // ---------------- screens / toast ----------------
-const SCREENS = ['scrName', 'scrMenu', 'scrSettings', 'scrSave', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
+const SCREENS = ['scrName', 'scrMenu', 'scrSettings', 'scrDev', 'scrSave', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
   if (id === 'scrMulti' || id === 'scrMenu') applyLock();
+}
+// Progress gates: these buttons do not exist until the player's best stage reaches the number (best stage N means "reached N-1").
+const UNLOCK = { pets: 2, shop: 2, gear: 5 };
+const unlocked = k => profile.best.stage >= UNLOCK[k];
+function applyGates() {
+  for (const [ids, k] of [[['btnPets', 'lbPets'], 'pets'], [['btnShop', 'lbShop'], 'shop'], [['btnGear', 'lbGear'], 'gear']]) for (const id of ids) $(id).classList.toggle('hidden', !unlocked(k));
+  $('tabEquip').classList.toggle('hidden', !unlocked('gear'));
+  if (!unlocked('gear')) shopTab = 'pets';
+  $('shopTabs').classList.toggle('hidden', !unlocked('gear'));
 }
 // A run you left or lost (guest side) can be rejoined for 2 minutes. Until you reconnect or leave it, nothing else in the menus is available,
 // so a run can't be dodged to upgrade heroes and then rejoined.
@@ -647,6 +691,7 @@ function maybeAutoStart() {
   }, 1000);
 }
 function renderLobby() {
+  applyGates();
   const showCode = !!lobby.code && !lobby.auto;
   $('lobbyCodeBox').classList.toggle('hidden', !showCode);
   $('lobbyCode').textContent = lobby.code || '-----';
@@ -681,7 +726,7 @@ function onRelay(d) {
     case 'prof': {
       const p = d.p || {};
       if (!CHARS[p.char]) return;
-      net.peer = { name: String(p.name || 'Friend').slice(0, 12), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
+      net.peer = { name: (nm => isBadName(nm) ? 'Player' : nm)(String(p.name || 'Friend').slice(0, 12)), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
         tok: String(p.tok || '').slice(0, 20), pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
       net.peer.ed = !!p.ed;
       if (!game) refreshLobby();
@@ -843,6 +888,7 @@ function leaveGame() {
 
 function bannerText(stage, level) { return `Stage ${stage}-${level}` + (level === levelsIn(stage) ? (isHell(stage) ? ' — DOOM BOSS' : ' — BOSS') : isHell(stage) ? ' — DOOM' : ''); }
 function loadLevel(g, first) {
+  if (!first && g.pickups) for (const k of g.pickups) { if (k.kind === 'cp') g.teamCp++; else if (k.kind === 'pp') g.teamPp++; } // points left on the ground are collected automatically
   const L = genLevel(g.stage, g.level, innerHeight > innerWidth);
   g.grid = L.grid; g.door = { c: L.door.c, r: L.door.r, ic: L.door.ic, ir: L.door.ir, open: false };
   g.enemies = []; g.proj = []; g.pickups = []; g.fields = {}; g.fieldT = 0; g.pets = []; g.cam = null;
@@ -881,10 +927,15 @@ function makeEnemy(g, type, x, y, summoned) {
     sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : type === 'cerberus' ? CERB.fire.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : type === 'cerberus' ? CERB.jump.first : 0, fbQ: 0, fbT: 0,
     ch: 0, cht: 0, sk: '', fear: 0, dashT: 0, summoned: !!summoned };
 }
+const DOOM = { sorcShare: 0.4, bossVoid: 8, maxSorc: 6 }; // Doom stage mix: share of sorcerers (rest voidlings); extras beside the boss
 function spawnEnemies(g, L) {
   const list = [], hell = isHell(g.stage), K = hell ? 2 : 1;      // Hell stages hold twice as many enemies
   const eff = hell ? g.level * 2 : g.level;                       // 5 Hell levels count as 10 for difficulty
-  if (g.level === levelsIn(g.stage)) {
+  if (hell) { // Doom stages: nothing but sorcerers and voidlings
+    const nS = Math.min(DOOM.maxSorc, 2 + Math.floor(g.stage / 5));
+    if (g.level === levelsIn(g.stage)) { list.push(bossFor(g.stage)); for (let i = 0; i < DOOM.bossVoid; i++) list.push('voidling'); for (let i = 0; i < nS; i++) list.push('sorcerer'); }
+    else { const n = K * Math.min(20, 2 + eff + (g.stage - 1) * 2); for (let i = 0; i < n; i++) list.push(Math.random() < DOOM.sorcShare ? 'sorcerer' : 'voidling'); }
+  } else if (g.level === levelsIn(g.stage)) {
     const boss = bossFor(g.stage); list.push(boss);
     if (boss === 'troll') {
       for (let i = 0; i < Math.min(6, 1 + g.stage) * K; i++) list.push('rat');
@@ -2365,6 +2416,7 @@ function render() {
 
 // ---------------- menus ----------------
 function updateMenu() {
+  applyGates();
   $('menuName').textContent = profile.name;
   $('menuCp').textContent = profile.cp;
   $('menuGold').textContent = profile.gold; $('menuPp').textContent = profile.pp;
@@ -2479,6 +2531,7 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
 }
 let shopTab = 'pets', shopSub = 'buy', chestResult = null;
 function renderShop() {
+  applyGates();
   $('shopGold').textContent = profile.gold;
   $('tabEquip').classList.toggle('on', shopTab === 'equip'); $('tabPets').classList.toggle('on', shopTab === 'pets');
   $('subTabs').classList.toggle('hidden', shopTab !== 'equip');
@@ -2498,12 +2551,11 @@ function renderShop() {
       r.innerHTML = `<b>${chestResult.name} opened!</b>` + chestResult.items.map(it => `<div>${EQUIP[it.k].icon} ${EQUIP[it.k].name} ${SHOW_TIER(it.t)} <small>${equipText(it.k, it.t)}</small></div>`).join('');
       box.appendChild(r);
     }
-    const h1 = document.createElement('h3'); h1.textContent = `Chests — ${CHEST_PIECES} random pieces each`; box.appendChild(h1);
-    for (const kind of Object.keys(CHESTS)) {
-      const c = CHESTS[kind], row = document.createElement('div'); row.className = 'gear';
-      row.innerHTML = `<span class="gi">${c.icon}</span><span class="gt"><b>${c.name}</b><br><small>Each piece: ${TIERS.map((n, t) => c.odds[t] > 0 ? `${n} ${+(c.odds[t] * 100).toFixed(1)}%` : '').filter(Boolean).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" data-c="${kind}" ${profile.gold < c.price ? 'disabled' : ''}>Buy · 🪙 ${c.price.toLocaleString()}</button></span>`;
-      box.appendChild(row);
-    }
+    const cp = chestProgress(), lv = cp.lv, price = chestPrice(lv), od = CHEST.odds[lv - 1];
+    const h1 = document.createElement('h3'); h1.textContent = `${CHEST.name} — ${CHEST.pieces} random pieces`; box.appendChild(h1);
+    const row = document.createElement('div'); row.className = 'gear';
+    row.innerHTML = `<span class="gi">${CHEST.icon}</span><span class="gt"><b>${CHEST.name} · Level ${lv}${lv >= CHEST_MAX ? ' (max)' : ''}</b><br><small>${cp.need ? `${cp.have}/${cp.need} chests to level ${lv + 1}` : 'Max level'}<br>Each piece: ${TIERS.map((n, t) => od[t] > 0 ? `${n} ${+(od[t] * 100).toFixed(1)}%` : '').filter(Boolean).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" ${profile.gold < price ? 'disabled' : ''}>Buy · 🪙 ${price.toLocaleString()}</button></span>`;
+    box.appendChild(row);
     return;
   }
   const h2 = document.createElement('h3'); h2.textContent = 'Sell (your equipment)'; box.appendChild(h2); // Sell: everything you own
@@ -2532,7 +2584,7 @@ $('shopCards').addEventListener('click', e => {
     if (!d || profile.pets.includes(k) || profile.gold < d.price) return;
     profile.gold -= d.price; profile.pets.push(k); if (!profile.pet) profile.pet = k;
     saveProfile(); renderShop(); toast(`${d.name} bought!`);
-  } else if (b.dataset.act === 'buy-chest') { const items = buyChest(b.dataset.c); if (items) { chestResult = { name: CHESTS[b.dataset.c].name, items }; renderShop(); } }
+  } else if (b.dataset.act === 'buy-chest') { const lv0 = chestLevel(), items = buyChest(); if (items) { chestResult = { name: CHEST.name, items }; renderShop(); if (chestLevel() > lv0) toast(`Chest leveled up to ${chestLevel()}!`); } }
   else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
   else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
 });
@@ -2555,6 +2607,16 @@ const openShop = () => { renderShop(); show('scrShop'); };
 $('btnSettings').addEventListener('click', () => show('scrSettings'));
 $('btnSound').addEventListener('click', () => toast('Sound settings are coming soon'));
 $('btnPrivacy').addEventListener('click', () => toast('Privacy Policy is coming soon'));
+$('btnDev').addEventListener('click', () => { // testing panel, behind a code; remove before release
+  const c = prompt('Enter developer code'); if (c === null) return;
+  if (c.trim().toLowerCase() !== 'dev') { toast('Wrong code'); return; }
+  renderDev(); show('scrDev');
+});
+function renderDev() { $('devBest').textContent = `${profile.best.stage}-${profile.best.level}`; $('devStage').value = profile.best.stage; }
+$('btnDevStage').addEventListener('click', () => { const n = Math.max(1, Math.min(999, Math.floor(+$('devStage').value) || 1)); profile.best = { stage: n, level: 1 }; saveProfile(); renderDev(); toast(`Best stage set to ${n}-1`); });
+$('btnDevCp').addEventListener('click', () => { profile.cp += 50; saveProfile(); updateMenu(); toast('+50 Character Points'); });
+$('btnDevPp').addEventListener('click', () => { profile.pp += 50; saveProfile(); updateMenu(); toast('+50 Pet Points'); });
+$('btnDevGold').addEventListener('click', () => { profile.gold += 10000; saveProfile(); updateMenu(); toast('+10000 Gold'); });
 $('btnSaveData').addEventListener('click', () => { $('saveOut').value = ''; $('saveIn').value = ''; $('saveMsg').textContent = ''; show('scrSave'); });
 $('btnExport').addEventListener('click', () => { $('saveOut').value = exportSave(); $('saveMsg').textContent = 'Save code created. Copy it or download it, and keep it somewhere safe.'; });
 $('btnCopy').addEventListener('click', async () => {
@@ -2584,10 +2646,13 @@ document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', 
   if (to === 'scrMenu') updateMenu();
   show(to);
 }));
+const MIN_AGE = 13; // age restriction; keep in step with the wording of the privacy policy / terms
 function submitName() {
-  const n = $('nameInput').value.trim().slice(0, 12);
-  if (!n) { $('nameInput').focus(); return; }
-  profile.name = n; saveProfile(); updateMenu(); afterName();
+  const n = $('nameInput').value.trim().replace(/[<>&"'`\u0000-\u001f]/g, '').slice(0, 12), err = m => { $('nameErr').textContent = m; };
+  if (!n) { err(''); $('nameInput').focus(); return; }
+  if (!$('ageOk').checked) { err(`You must be ${MIN_AGE} or older to play.`); return; }
+  if (isBadName(n)) { err('Please choose a friendly name. That one is not allowed.'); $('nameInput').focus(); return; }
+  err(''); profile.name = n; profile.ageOk = true; saveProfile(); updateMenu(); afterName();
 }
 let pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
 function afterName() { // an invite link (?room=CODE) jumps straight into joining
@@ -2599,7 +2664,7 @@ function afterName() { // an invite link (?room=CODE) jumps straight into joinin
 }
 $('btnNameOk').addEventListener('click', submitName);
 $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') submitName(); });
-$('menuName').addEventListener('click', () => { $('nameInput').value = profile.name; show('scrName'); });
+$('menuName').addEventListener('click', () => { $('nameInput').value = profile.name; $('ageOk').checked = !!profile.ageOk; $('nameErr').textContent = ''; show('scrName'); });
 $('btnStart').addEventListener('click', () => { if (lastGame()) show('scrMulti'); else show('scrMode'); });
 const openChars = () => { renderChars(); show('scrChar'); };
 $('btnChar').addEventListener('click', openChars);
@@ -2649,6 +2714,6 @@ $('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout
 
 // ---------------- boot ----------------
 resize();
-if (profile.name) { updateMenu(); afterName(); } else show('scrName');
+if (profile.name && profile.ageOk) { updateMenu(); afterName(); } else { $('nameInput').value = profile.name; show('scrName'); }
 requestAnimationFrame(frame);
 })();
