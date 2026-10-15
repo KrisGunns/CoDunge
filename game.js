@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-o'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -77,7 +77,7 @@ const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.45, step: 7
 // Cerberus: Fireballs (one per head, fired one after another, bounce off walls) and a Jump that lands on the target.
 const CERB = {
   fire: { cd: 25, first: 6, windup: 0.5, gap: 0.3, speed: 210, mult: 1.5, life: 10, spread: 0.3, range: 640 },
-  jump: { cd: 15, first: 4, up: 0.5, down: 1, r: 110, mult: 3, min: 70, max: 450 },
+  jump: { cd: 15, first: 4, up: 1.3, down: 0.3, lock: 0.45, r: 110, mult: 3, min: 70, max: 450 }, // up = whole flight (he leaps, travels over the floor and lands); the landing spot stops following you for the last `lock` seconds
 };
 const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
 const HEAL_RANGE = 200;
@@ -1273,7 +1273,13 @@ function startCharge(e, kind, t) { e.sk = kind; e.ch = e.cht = t; }
 function chargeLock(kind) { return kind === 'laser' ? LASER.lock : kind === 'dash' ? 0.25 : kind === 'cleave' ? 0.12 : kind === 'pillars' ? 0.1 : kind === 'fire' ? 0.15 : Infinity; } // aims until this many seconds are left
 function chargeStep(g, e, dt) {
   e.ch -= dt;
-  if (e.sk === 'jumpup') { const t = nearestTarget(g, e.x, e.y); if (t) e.land = { x: t.x, y: t.y }; } // the landing spot follows the target until he is in the air
+  if (e.sk === 'jumpup') { // flight: he travels from where he jumped to the marked spot; the mark follows the target until the last moments so the player can still dodge
+    if (!e.jfrom) e.jfrom = { x: e.x, y: e.y };
+    if (e.ch > CERB.jump.lock) { const t = nearestTarget(g, e.x, e.y); if (t) e.land = { x: t.x, y: t.y }; }
+    let L = e.land || e.jfrom; for (let i = 0; i <= 10 && hitsWall(g, L.x, L.y, e.r); i++) L = { x: L.x + (e.jfrom.x - L.x) * 0.1 * (i + 1), y: L.y + (e.jfrom.y - L.y) * 0.1 * (i + 1) };
+    e.land = L; const u = clamp(1 - Math.max(e.ch, 0) / CERB.jump.up, 0, 1), sp = 0.5 - 0.5 * Math.cos(Math.PI * u);
+    e.x = e.jfrom.x + (L.x - e.jfrom.x) * sp; e.y = e.jfrom.y + (L.y - e.jfrom.y) * sp; e.face = Math.atan2(L.y - e.jfrom.y, L.x - e.jfrom.x);
+  }
   if (e.ch > chargeLock(e.sk)) { const t = nearestTarget(g, e.x, e.y); if (t) e.face = Math.atan2(t.y - e.y, t.x - e.x); } // keeps aiming, so the player can still dodge at the end
   if (e.ch > 0) return;
   const k = e.sk; e.ch = 0; e.sk = '';
@@ -1282,10 +1288,11 @@ function chargeStep(g, e, dt) {
   else if (k === 'laser') { e.cd = ENEMIES[e.type].cd; fireLaser(g, e); }
   else if (k === 'pillars') { e.cd = ENEMIES[e.type].cd; castPillars(g, e); }
   else if (k === 'fire') { e.sm = CERB.fire.cd; e.fbQ = 3; e.fbT = 0; }
-  else if (k === 'jumpup') { // up for CERB.jump.up s, then he is over the marked spot and lands CERB.jump.down s later
-    let L = e.land || { x: e.x, y: e.y };
-    for (let i = 0; i <= 10 && hitsWall(g, L.x, L.y, e.r); i++) L = { x: L.x + (e.x - L.x) * 0.1 * (i + 1), y: L.y + (e.y - L.y) * 0.1 * (i + 1) };
-    e.x = L.x; e.y = L.y; startCharge(e, 'jumpdn', CERB.jump.down);
+  else if (k === 'jumpup') { // touchdown: the slam
+    e.jfrom = null; e.s2 = CERB.jump.cd; e.cd = Math.max(e.cd, 1);
+    const dmg = Math.max(1, Math.round(CERB.jump.mult * e.atk));
+    for (const t of targetsOf(g)) if (Math.hypot(t.x - e.x, t.y - e.y) <= CERB.jump.r + t.r) hurtT(g, t, dmg);
+    addFx(g, { type: 'smash', x: e.x, y: e.y, r: CERB.jump.r });
   }
   else if (k === 'jumpdn') { // slam
     e.s2 = CERB.jump.cd; e.cd = Math.max(e.cd, 1);
@@ -1343,7 +1350,7 @@ function fireTick(g, e, dt) { // Cerberus: its three heads spit one fireball eac
     life: CERB.fire.life, kind: 'fireball', hostile: true, bounce: true, rad: 7, dead: false });
 }
 function cerbAI(g, e, tgt, d) { // returns true when it started a skill this frame
-  if (e.s2 <= 0 && d >= CERB.jump.min && d <= CERB.jump.max) { startCharge(e, 'jumpup', CERB.jump.up); e.land = { x: tgt.x, y: tgt.y }; return true; }
+  if (e.s2 <= 0 && d >= CERB.jump.min && d <= CERB.jump.max) { startCharge(e, 'jumpup', CERB.jump.up); e.land = { x: tgt.x, y: tgt.y }; e.jfrom = { x: e.x, y: e.y }; return true; }
   if (e.sm <= 0 && d >= 60 && d <= CERB.fire.range) { startCharge(e, 'fire', CERB.fire.windup); return true; }
   return false;
 }
@@ -1629,7 +1636,7 @@ function snapshot(g) { // kept small on purpose: it goes out 20x a second over a
   const s = {
     k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
-    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0]),
+    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0]),
     q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
     j: g.proj.map(j => [j.id, ri(j.x), ri(j.y), j.kind, r2(Math.atan2(j.vy, j.vx))]),
     c: g.pickups.map(k => [k.id, ri(k.x), ri(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
@@ -1662,7 +1669,7 @@ function applySnap(g, s) {
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
     if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]] ? ENEMIES[a[1]].r : 10 };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12];
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12]; e.land = a[13] || a[14] ? { x: a[13], y: a[14] } : null;
     return e;
   });
   const oldQ = new Map(g.pets.map(q => [q.id, q]));
@@ -1930,7 +1937,7 @@ function drawPet(c, q) {
 }
 function airLift(e) { // Cerberus mid-jump: 0 on the ground .. 1 at the top of the leap
   const kind = e.sk || CHARGE_NAMES[e.skc] || '';
-  if (kind === 'jumpup') return Math.sin(clamp(1 - e.ch / CERB.jump.up, 0, 1) * Math.PI / 2);
+  if (kind === 'jumpup') return Math.sin(clamp(1 - e.ch / CERB.jump.up, 0, 1) * Math.PI);
   if (kind === 'jumpdn') { const u = clamp(e.ch / CERB.jump.down, 0, 1); return u * u; }
   return 0;
 }
@@ -1938,8 +1945,11 @@ const LIFT_PX = 80;
 const isBossT = e => !!(ENEMIES[e.type] && ENEMIES[e.type].boss);          // bosses are drawn twice as big
 function drawEnemy(c, e) {
   const lift = e.type === 'cerberus' ? airLift(e) : 0;
-  if (lift > 0) { c.fillStyle = `rgba(0,0,0,${0.28 * (1 - lift * 0.5)})`; c.beginPath(); c.ellipse(e.x, e.y + 2, e.r * 2.1 * (1 - lift * 0.3), e.r * 1.6 * (1 - lift * 0.3), 0, 0, 7); c.fill(); }
-  c.save(); c.translate(e.x, e.y - lift * LIFT_PX); c.rotate(e.face || 0);
+  if (lift > 0) { // his shadow stays on the floor and travels across the map under him; it shrinks and fades as he climbs
+    const sc = 1 - lift * 0.25; c.save(); c.translate(e.x, e.y + 3); c.rotate(e.face || 0); c.fillStyle = `rgba(0,0,0,${0.5 - lift * 0.18})`;
+    c.beginPath(); c.ellipse(0, 0, e.r * 3.3 * sc, e.r * 2.2 * sc, 0, 0, 7); c.fill();
+    for (const hy of [-1, 0, 1]) { c.beginPath(); c.ellipse(e.r * (hy ? 2.5 : 3.2) * sc, hy * e.r * 1.35 * sc, e.r * 0.8 * sc, e.r * 0.65 * sc, 0, 0, 7); c.fill(); } c.restore(); }
+  c.save(); c.translate(e.x, e.y - lift * LIFT_PX); c.rotate(e.face || 0); if (lift > 0) c.scale(1 + lift * 0.18, 1 + lift * 0.18);
   if (lift <= 0) { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(0, 2, isBossT(e) ? e.r * 2.1 : e.r + 3, isBossT(e) ? e.r * 1.6 : e.r, 0, 0, 7); c.fill(); }
   if (e.type === 'rat') {
     c.strokeStyle = '#e8a0a0'; c.lineWidth = 2; c.beginPath(); c.moveTo(-8, 0); c.quadraticCurveTo(-14, 6, -20, 2); c.stroke();
@@ -1998,26 +2008,46 @@ function drawEnemy(c, e) {
   } else if (e.type === 'cerberus') { // three-headed hound, seen from above
     const tt = performance.now() / 1000 + e.x * 0.01;
     c.scale(2.7, 2.7);
-    c.fillStyle = '#ff6d00'; c.strokeStyle = '#3b0d0d'; c.lineWidth = 3; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(-17, 0); c.quadraticCurveTo(-27, 4 * Math.sin(tt * 3), -30, -7 + 3 * Math.sin(tt * 3 + 1)); c.stroke();                           // tail
-    c.fillStyle = '#ff9100'; c.beginPath(); c.arc(-30, -7 + 3 * Math.sin(tt * 3 + 1), 3.2, 0, 7); c.fill(); c.lineCap = 'butt';                                // flame on the tail tip
-    c.fillStyle = '#2a0b0b'; c.strokeStyle = '#120404'; c.lineWidth = 1.6;
-    for (const [lx, ly] of [[9, -15], [9, 15], [-13, -14], [-13, 14]]) { c.beginPath(); c.ellipse(lx, ly, 6.5, 4.2, 0, 0, 7); c.fill(); c.stroke(); }                   // paws
-    c.fillStyle = '#4a1311'; c.strokeStyle = '#1a0606'; c.lineWidth = 2; c.beginPath(); c.ellipse(-4, 0, 21, 14.5, 0, 0, 7); c.fill(); c.stroke();                  // body
-    c.fillStyle = '#ff6d00'; for (let i = 0; i < 5; i++) { const fx = -14 + i * 5.5, fl = 4 + 1.6 * Math.sin(tt * 8 + i * 1.7); c.beginPath(); c.moveTo(fx - 3, 0); c.lineTo(fx, -fl); c.lineTo(fx + 3, 0); c.lineTo(fx, fl); c.closePath(); c.fill(); } // fire along the spine
-    const heads = [[23, 0, 8.4, 0], [15, -15, 7.2, -0.55 + 0.08 * Math.sin(tt * 2)], [15, 15, 7.2, 0.55 - 0.08 * Math.sin(tt * 2 + 1)]];                                 // [x, y, size, angle]
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    const dark = '#2a0b0b', fur = '#4a1311', furHi = '#6b1f17', ember = '#ff6d00', gold = '#d9a300';
+    const sway = Math.sin(tt * 2.2);
+    c.fillStyle = dark; c.strokeStyle = '#120404'; c.lineWidth = 1.6;
+    for (const [lx, ly, la] of [[10, -14, 0.25], [10, 14, -0.25], [-14, -14, -0.15], [-14, 14, 0.15]]) { // paws with claws
+      c.beginPath(); c.ellipse(lx, ly, 6.8, 4.4, la, 0, 7); c.fill(); c.stroke();
+      c.strokeStyle = '#e8d9c0'; c.lineWidth = 1.1; for (const k of [-1.6, 0, 1.6]) { c.beginPath(); c.moveTo(lx + 5.5, ly + k); c.lineTo(lx + 8.5, ly + k * 1.4); c.stroke(); } c.strokeStyle = '#120404'; c.lineWidth = 1.6; }
+    c.fillStyle = fur; c.strokeStyle = '#1a0606'; c.lineWidth = 2; c.beginPath(); c.ellipse(-5, 0, 21, 14, 0, 0, 7); c.fill(); c.stroke();      // body
+    c.fillStyle = furHi; c.beginPath(); c.ellipse(5, 0, 11, 12, 0, 0, 7); c.fill();                                                             // heavy shoulders
+    c.strokeStyle = `rgba(255,109,0,.75)`; c.lineWidth = 1.3; for (const [x1, y1, x2, y2] of [[-10, -8, -4, -3], [-14, 6, -7, 4], [-2, 8, 3, 5], [-18, -2, -12, 0]]) { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x2, y2); c.stroke(); } // glowing cracks
+    c.fillStyle = '#1c0707'; for (let i = 0; i < 6; i++) { const fx = -20 + i * 5, fl = 5.5 + 1.2 * Math.sin(tt * 6 + i * 1.7); c.beginPath(); c.moveTo(fx - 2.4, 0); c.lineTo(fx + 1, -fl); c.lineTo(fx + 2.4, 0); c.lineTo(fx + 1, fl); c.closePath(); c.fill(); c.fillStyle = ember; c.beginPath(); c.arc(fx + 1, -fl, 1, 0, 7); c.arc(fx + 1, fl, 1, 0, 7); c.fill(); c.fillStyle = '#1c0707'; } // spines, glowing at the tips
+    // a dog's tail: thick at the rump, tapering to a tip, held up and wagging
+    { const w = 3.2 * Math.sin(tt * 5), tx2 = -37, ty2 = -3 + w * 2.2;
+      c.strokeStyle = '#1a0606'; c.lineWidth = 7.4; c.beginPath(); c.moveTo(-20, 0); c.quadraticCurveTo(-30, 8 + w, tx2, ty2); c.stroke();
+      c.strokeStyle = fur; c.lineWidth = 5.4; c.beginPath(); c.moveTo(-20, 0); c.quadraticCurveTo(-30, 8 + w, tx2, ty2); c.stroke();
+      c.strokeStyle = furHi; c.lineWidth = 3; c.beginPath(); c.moveTo(-21, 0); c.quadraticCurveTo(-30, 8 + w, tx2 + 1, ty2); c.stroke(); }
+    // three heads on thick necks, each with a spiked gold collar; a chain hangs between the outer two
+    const heads = [[28, 0, 9, 0.05 * Math.sin(tt * 2.4)], [17, -20, 7.6, -0.6 + 0.1 * Math.sin(tt * 2)], [17, 20, 7.6, 0.6 - 0.1 * Math.sin(tt * 2 + 1)]]; // [x, y, size, angle]
+    for (const [hx, hy] of heads) { c.strokeStyle = '#1a0606'; c.lineWidth = 9.5; c.beginPath(); c.moveTo(6, hy * 0.15); c.lineTo(hx - 4, hy); c.stroke(); c.strokeStyle = fur; c.lineWidth = 7.5; c.beginPath(); c.moveTo(6, hy * 0.15); c.lineTo(hx - 4, hy); c.stroke(); }
+    for (const [hx, hy] of heads) { const cx = 6 + (hx - 4 - 6) * 0.55, cy = hy * 0.15 + (hy - hy * 0.15) * 0.55; // collar
+      c.strokeStyle = gold; c.lineWidth = 2.4; c.beginPath(); c.moveTo(cx - 1.5, cy - 5.2); c.lineTo(cx + 1.5, cy + 5.2); c.stroke();
+      c.fillStyle = '#ffe082'; for (const k of [-4, 0, 4]) { c.beginPath(); c.moveTo(cx + 0.4, cy + k - 1.2); c.lineTo(cx + 4.2, cy + k); c.lineTo(cx + 0.4, cy + k + 1.2); c.fill(); } }
+    c.strokeStyle = gold; c.lineWidth = 1.2; c.setLineDash([1.6, 1.6]); c.beginPath(); c.moveTo(13, -9); c.quadraticCurveTo(2, 0, 13, 9); c.stroke(); c.setLineDash([]); // chain across the chest
     for (const [hx, hy, hs, ha] of heads) {
       c.save(); c.translate(hx, hy); c.rotate(ha);
-      c.fillStyle = '#3a0e0c'; c.beginPath(); c.moveTo(-hs * 0.2, -hs * 0.9); c.lineTo(-hs * 0.9, -hs * 1.3); c.lineTo(-hs * 0.9, -hs * 0.3); c.closePath(); c.fill();
-      c.beginPath(); c.moveTo(-hs * 0.2, hs * 0.9); c.lineTo(-hs * 0.9, hs * 1.3); c.lineTo(-hs * 0.9, hs * 0.3); c.closePath(); c.fill();                           // ears
-      c.fillStyle = '#6b1f17'; c.strokeStyle = '#1a0606'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, hs, 0, 7); c.fill(); c.stroke();                           // skull
-      c.fillStyle = '#8a2e22'; c.beginPath(); c.ellipse(hs * 0.9, 0, hs * 0.75, hs * 0.5, 0, 0, 7); c.fill(); c.stroke();                                        // snout
-      c.fillStyle = '#111'; c.beginPath(); c.arc(hs * 1.55, 0, hs * 0.2, 0, 7); c.fill();                                                                         // nose
-      c.fillStyle = '#fff'; c.beginPath(); c.moveTo(hs * 1.2, -hs * 0.42); c.lineTo(hs * 1.35, -hs * 0.1); c.lineTo(hs * 1.05, -hs * 0.28); c.fill();
-      c.beginPath(); c.moveTo(hs * 1.2, hs * 0.42); c.lineTo(hs * 1.35, hs * 0.1); c.lineTo(hs * 1.05, hs * 0.28); c.fill();                                       // fangs
-      c.fillStyle = '#ffd740'; c.beginPath(); c.arc(hs * 0.35, -hs * 0.42, hs * 0.2, 0, 7); c.fill(); c.beginPath(); c.arc(hs * 0.35, hs * 0.42, hs * 0.2, 0, 7); c.fill(); // glowing eyes
+      c.fillStyle = '#3a0e0c'; c.strokeStyle = '#120404'; c.lineWidth = 1.2;
+      for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(-hs * 0.1, sd * hs * 0.8); c.lineTo(-hs * 1.0, sd * hs * 1.55); c.lineTo(-hs * 0.85, sd * hs * 0.25); c.closePath(); c.fill(); c.stroke(); } // pointed ears
+      c.fillStyle = '#4a0f0c'; c.beginPath(); c.moveTo(hs * 0.2, -hs * 0.35); c.lineTo(hs * 1.7, -hs * 0.5); c.lineTo(hs * 1.9, hs * 0.5); c.lineTo(hs * 0.2, hs * 0.35); c.closePath(); c.fill();                // open lower jaw
+      c.fillStyle = '#ff8f00'; c.beginPath(); c.ellipse(hs * 1.1, 0, hs * 0.65, hs * 0.3, 0, 0, 7); c.fill();                                                                                         // fire in the throat
+      c.fillStyle = furHi; c.strokeStyle = '#1a0606'; c.lineWidth = 1.5; c.beginPath(); c.arc(0, 0, hs, 0, 7); c.fill(); c.stroke();                                                                   // skull
+      c.fillStyle = '#8a2e22'; c.beginPath(); c.moveTo(hs * 0.5, -hs * 0.62); c.lineTo(hs * 1.9, -hs * 0.36); c.lineTo(hs * 1.95, -hs * 0.08); c.lineTo(hs * 0.5, 0); c.closePath(); c.fill(); c.stroke();      // upper snout, split by the open mouth
+      c.beginPath(); c.moveTo(hs * 0.5, hs * 0.62); c.lineTo(hs * 1.9, hs * 0.36); c.lineTo(hs * 1.95, hs * 0.08); c.lineTo(hs * 0.5, 0); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#111'; c.beginPath(); c.arc(hs * 1.9, -hs * 0.26, hs * 0.17, 0, 7); c.arc(hs * 1.9, hs * 0.26, hs * 0.17, 0, 7); c.fill();                                                          // nose
+      c.fillStyle = '#fff'; for (const sd of [-1, 1]) for (const k of [0.95, 1.3, 1.62]) { c.beginPath(); c.moveTo(hs * (k - 0.1), sd * hs * 0.07); c.lineTo(hs * k, sd * hs * 0.3); c.lineTo(hs * (k + 0.1), sd * hs * 0.07); c.fill(); } // fangs along both jaws
+      c.fillStyle = 'rgba(255,215,64,.35)'; c.beginPath(); c.arc(hs * 0.3, -hs * 0.45, hs * 0.38, 0, 7); c.arc(hs * 0.3, hs * 0.45, hs * 0.38, 0, 7); c.fill();                                           // eye glow
+      c.fillStyle = '#ffd740'; c.beginPath(); c.arc(hs * 0.3, -hs * 0.45, hs * 0.2, 0, 7); c.arc(hs * 0.3, hs * 0.45, hs * 0.2, 0, 7); c.fill();
+      c.strokeStyle = '#1a0606'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(hs * 0.05, -hs * 0.8); c.lineTo(hs * 0.65, -hs * 0.58); c.moveTo(hs * 0.05, hs * 0.8); c.lineTo(hs * 0.65, hs * 0.58); c.stroke(); // angry brows
       c.restore();
     }
+    c.lineCap = 'butt';
     c.scale(1 / 2.7, 1 / 2.7);
   } else {
     c.scale(3, 3);
@@ -2142,6 +2172,10 @@ function drawWorld(g) {
       const a = e.face || 0;
       ctx.strokeStyle = `rgba(255,145,0,${0.2 + 0.5 * k})`; ctx.lineWidth = 2; ctx.setLineDash([8, 8]);
       for (let h = -1; h <= 1; h++) { ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(a + h * CERB.fire.spread) * 230, e.y + Math.sin(a + h * CERB.fire.spread) * 230); ctx.stroke(); }
+    } else if (kind === 'jumpup' && e.land) { // flight: the landing zone is marked on the floor where he will come down
+      ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r * k, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,82,82,.95)'; ctx.lineWidth = 3; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.stroke();
     } else if (kind === 'jumpdn') { // landing zone
       ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, CERB.jump.r, 0, 7); ctx.fill();
       ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.beginPath(); ctx.arc(e.x, e.y, CERB.jump.r * k, 0, 7); ctx.fill();
