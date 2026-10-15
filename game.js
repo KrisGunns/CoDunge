@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.14-m'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.14-n'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -98,22 +98,24 @@ const PETS = {
 const WOLF = { r: 190, fear: 2, cd: 15, crowd: 3, engage: 85 }; // howls once 3 enemies (or all that are left) are within r and the nearest is within `engage` px
 const PANTHER = { hits: 3, gap: 0.14, mult: 1.5, r: 72, arc: 1.2, cd: 12 };
 const TURTLE = { mult: 0.75, dur: 5, heal: 0.2, cd: 25, r: 240 };
-// ---- equipment: 3 slots, 4 rarity tiers; two identical pieces of the same tier merge into one of the next tier ----
-const TIERS = ['Common', 'Rare', 'Epic', 'Legendary'], TIER_COLORS = ['#b0bec5', '#4fc3f7', '#ba68c8', '#ffb300'];
+// ---- equipment: 3 slots, 7 rarity tiers; MERGE_N identical pieces of the same tier merge into one of the next tier ----
+const TIERS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Doomsday'], TIER_COLORS = ['#b0bec5', '#81c784', '#4fc3f7', '#ba68c8', '#ffb300', '#ec407a', '#ff3d00'];
+const MERGE_N = 2;       // how many identical pieces make the next tier (2 now; 3 would make the top tiers far, far rarer)
+const TIER_VERSION = 7;  // saves from the 4-tier days (Common/Rare/Epic/Legendary) are converted on load
 const SLOTS = { head: 'Head', body: 'Body', weapon: 'Weapon' };
 const EQUIP = {
-  iron_helm:     { name: 'Iron Helm',     slot: 'head',   icon: '⛑️', price: 500,  eff: 'dr',   vals: [0.10, 0.15, 0.20, 0.25] },
-  scout_hood:    { name: "Scout's Hood",  slot: 'head',   icon: '🧢', price: 800,  eff: 'spd',  vals: [0.10, 0.15, 0.20, 0.25] },
-  vampire_crown: { name: 'Vampire Crown', slot: 'head',   icon: '👑', price: 1200, eff: 'vamp', vals: [1, 2, 4, 6] },
-  leather_vest:  { name: 'Leather Vest',  slot: 'body',   icon: '🦺', price: 400,  eff: 'hp',   vals: [15, 25, 40, 60] },
-  chainmail:     { name: 'Chainmail',     slot: 'body',   icon: '🛡️', price: 900,  eff: 'hp',   vals: [30, 50, 80, 120] },
-  dragon_plate:  { name: 'Dragon Plate',  slot: 'body',   icon: '🐉', price: 1800, eff: 'hp',   vals: [60, 100, 150, 220] },
-  iron_blade:    { name: 'Iron Blade',    slot: 'weapon', icon: '🗡️', price: 400,  eff: 'atk',  vals: [2, 3, 5, 7] },
-  runed_staff:   { name: 'Runed Staff',   slot: 'weapon', icon: '🪄', price: 900,  eff: 'atk',  vals: [4, 6, 9, 12] },
-  doom_edge:     { name: 'Doom Edge',     slot: 'weapon', icon: '⚔️', price: 1800, eff: 'atk',  vals: [7, 11, 16, 22] },
+  iron_helm:     { name: 'Iron Helm',     slot: 'head',   icon: '⛑️', price: 500,  eff: 'dr',   vals: [0.10, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35] },
+  scout_hood:    { name: "Scout's Hood",  slot: 'head',   icon: '🧢', price: 800,  eff: 'spd',  vals: [0.10, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35] },
+  vampire_crown: { name: 'Vampire Crown', slot: 'head',   icon: '👑', price: 1200, eff: 'vamp', vals: [1, 2, 3, 4, 6, 8, 10] },
+  leather_vest:  { name: 'Leather Vest',  slot: 'body',   icon: '🦺', price: 400,  eff: 'hp',   vals: [15, 20, 25, 40, 60, 85, 120] },
+  chainmail:     { name: 'Chainmail',     slot: 'body',   icon: '🛡️', price: 900,  eff: 'hp',   vals: [30, 40, 50, 80, 120, 170, 240] },
+  dragon_plate:  { name: 'Dragon Plate',  slot: 'body',   icon: '🐉', price: 1800, eff: 'hp',   vals: [60, 80, 100, 150, 220, 310, 440] },
+  iron_blade:    { name: 'Iron Blade',    slot: 'weapon', icon: '🗡️', price: 400,  eff: 'atk',  vals: [2, 3, 4, 5, 7, 10, 14] },
+  runed_staff:   { name: 'Runed Staff',   slot: 'weapon', icon: '🪄', price: 900,  eff: 'atk',  vals: [4, 5, 6, 9, 12, 17, 24] },
+  doom_edge:     { name: 'Doom Edge',     slot: 'weapon', icon: '⚔️', price: 1800, eff: 'atk',  vals: [7, 9, 11, 16, 22, 31, 43] },
 };
 const EQUIP_KEYS = Object.keys(EQUIP);
-const sellPrice = (key, tier) => Math.round(EQUIP[key].price / 2) * (1 << tier); // each tier is two pieces of the one below
+const sellPrice = (key, tier) => Math.round(EQUIP[key].price / 2) * Math.pow(MERGE_N, tier); // each tier is worth MERGE_N pieces of the one below
 function equipText(key, tier) {
   const d = EQUIP[key], v = d.vals[tier];
   return d.eff === 'dr' ? `Take ${Math.round(v * 100)}% less damage` : d.eff === 'spd' ? `Move ${Math.round(v * 100)}% faster` : d.eff === 'vamp' ? `Heal ${v} HP on each kill` : d.eff === 'hp' ? `+${v} HP` : `+${v} ATK`;
@@ -123,29 +125,46 @@ function equipText(key, tier) {
 const SAVE_KEY = 'coopquest.v1';
 const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
 const emptyPetUp = () => ({ wolf: { atk: 0, hp: 0 }, panther: { atk: 0, hp: 0 }, turtle: { atk: 0, hp: 0 } });
-const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null } });
+const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null }, tv: TIER_VERSION });
+const OLD_TIER_MAP = [0, 2, 3, 4]; // the old 4 tiers (Common, Rare, Epic, Legendary) sit at these places in the 7-tier list
+const cap = (v, m) => Math.min(m, Math.max(0, Math.floor(+v) || 0));
+// Turns anything (an old save, a pasted save code) into a valid profile: unknown keys dropped, numbers clamped, tiers converted. Returns { out, migrated }.
+function sanitizeProfile(p) {
+  const d = defaultProfile(); let migrated = false;
+  const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
+  for (const k of Object.keys(out)) if (!(k in defaultProfile())) delete out[k];
+  out.name = String(out.name || '').replace(/[<>&"'`\u0000-\u001f]/g, '').slice(0, 12);
+  out.cp = cap(out.cp, 1e9); out.gold = cap(out.gold, 1e9); out.pp = cap(out.pp, 1e9);
+  out.best = { stage: Math.max(1, cap(out.best.stage, 999)), level: Math.max(1, cap(out.best.level, 10)) };
+  out.sel = CHARS[out.sel] ? out.sel : 'warrior';
+  { const pu = emptyPetUp(); for (const k of Object.keys(pu)) { const v = p.petUp && p.petUp[k]; if (v && typeof v === 'object') pu[k] = { atk: cap(v.atk, 1e6), hp: cap(v.hp, 1e6) }; } out.petUp = pu; }
+  const oldTiers = (p.tv | 0) < TIER_VERSION, tierAt = t => oldTiers ? OLD_TIER_MAP[t] : t; // pre-7-tier saves: move each piece to its new tier slot
+  { const inv = {};
+    for (const k of EQUIP_KEYS) { const a = p.inv && p.inv[k]; if (Array.isArray(a)) { const row = TIERS.map(() => 0); a.forEach((n, t) => { const nt = tierAt(t); if (nt !== undefined && nt < TIERS.length) row[nt] += cap(n, 1e6); }); if (row.some(n => n)) inv[k] = row; } }
+    out.inv = inv;
+    const eq = { head: null, body: null, weapon: null };
+    for (const sl of Object.keys(eq)) { const v = p.eq && p.eq[sl]; if (v && EQUIP[v.k] && EQUIP[v.k].slot === sl) { const nt = tierAt(v.t | 0); if (nt !== undefined && nt >= 0 && nt < TIERS.length) eq[sl] = { k: v.k, t: nt }; } }
+    out.eq = eq; }
+  if (oldTiers) migrated = true;
+  out.tv = TIER_VERSION;
+  out.pets = (Array.isArray(out.pets) ? out.pets : []).filter((k, n, a) => PETS[k] && a.indexOf(k) === n);
+  if (!out.pets.includes(out.pet)) out.pet = '';
+  // Each point is now spent on ATK *or* HP. Old saves stored one number per character (a point gave both):
+  // refund those points so the player can re-spend them, and save right away so the refund happens only once.
+  const up = emptyUp();
+  for (const c of Object.keys(CHARS)) {
+    const v = p.up && p.up[c];
+    if (typeof v === 'number') { out.cp = cap(out.cp + Math.max(0, v | 0), 1e9); migrated = true; }
+    else if (v && typeof v === 'object') up[c] = { atk: cap(v.atk, 1e6), hp: cap(v.hp, 1e6) };
+  }
+  out.up = up;
+  return { out, migrated };
+}
 function loadProfile() {
   try {
     const p = JSON.parse(localStorage.getItem(SAVE_KEY));
     if (p && typeof p === 'object') {
-      const d = defaultProfile();
-      const out = Object.assign(d, p, { best: Object.assign(d.best, p.best || {}) });
-      out.cp = Math.max(0, out.cp | 0); out.gold = Math.max(0, out.gold | 0); out.pp = Math.max(0, out.pp | 0);
-      { const pu = emptyPetUp(); for (const k of Object.keys(pu)) { const v = p.petUp && p.petUp[k]; if (v && typeof v === 'object') pu[k] = { atk: Math.max(0, v.atk | 0), hp: Math.max(0, v.hp | 0) }; } out.petUp = pu; }
-      { const inv = {}; for (const k of EQUIP_KEYS) { const a = p.inv && p.inv[k]; if (Array.isArray(a)) { const row = TIERS.map((_, t) => Math.max(0, a[t] | 0)); if (row.some(n => n)) inv[k] = row; } } out.inv = inv;
-        const eq = { head: null, body: null, weapon: null };
-        for (const sl of Object.keys(eq)) { const v = p.eq && p.eq[sl]; if (v && EQUIP[v.k] && EQUIP[v.k].slot === sl && v.t >= 0 && v.t < TIERS.length) eq[sl] = { k: v.k, t: v.t | 0 }; } out.eq = eq; }
-      out.pets = (Array.isArray(out.pets) ? out.pets : []).filter((k, n, a) => PETS[k] && a.indexOf(k) === n);
-      if (!out.pets.includes(out.pet)) out.pet = '';
-      // Each point is now spent on ATK *or* HP. Old saves stored one number per character (a point gave both):
-      // refund those points so the player can re-spend them, and save right away so the refund happens only once.
-      let migrated = false; const up = emptyUp();
-      for (const c of Object.keys(CHARS)) {
-        const v = p.up && p.up[c];
-        if (typeof v === 'number') { out.cp += Math.max(0, v | 0); migrated = true; }
-        else if (v && typeof v === 'object') up[c] = { atk: Math.max(0, v.atk | 0), hp: Math.max(0, v.hp | 0) };
-      }
-      out.up = up;
+      const { out, migrated } = sanitizeProfile(p);
       if (migrated) { try { localStorage.setItem(SAVE_KEY, JSON.stringify(out)); } catch (e) {} }
       return out;
     }
@@ -153,6 +172,18 @@ function loadProfile() {
   return defaultProfile();
 }
 let profile = loadProfile();
+// ---- save codes: the whole profile as one line of text, so progress can be kept somewhere safe and loaded on another device ----
+// Format: DD1.<base64url JSON>.<8-hex checksum>. The checksum only catches typos and cut-off pastes; it is not anti-cheat (the save lives in the browser anyway).
+const fnv = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
+const b64u = { enc: t => btoa(unescape(encodeURIComponent(t))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''), dec: t => decodeURIComponent(escape(atob(t.replace(/-/g, '+').replace(/_/g, '/')))) };
+function exportSave() { const body = b64u.enc(JSON.stringify(profile)); return 'DD1.' + body + '.' + fnv(body); }
+function parseSave(code) { // returns { ok, profile } or { ok: false, msg }
+  const parts = String(code || '').replace(/\s+/g, '').split('.');
+  if (parts.length !== 3 || parts[0] !== 'DD1') return { ok: false, msg: 'That does not look like a Doom and Dungeons save code.' };
+  if (fnv(parts[1]) !== parts[2]) return { ok: false, msg: 'The code is damaged or cut off. Copy the whole code again.' };
+  try { const p = JSON.parse(b64u.dec(parts[1])); if (!p || typeof p !== 'object') throw 0; return { ok: true, profile: sanitizeProfile(p).out }; }
+  catch (e) { return { ok: false, msg: 'The code could not be read.' }; }
+}
 let onProfileSaved = null; // set by the lobby code: while a player customises from the lobby, every save is passed on to the other player
 function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} if (onProfileSaved) onProfileSaved(); }
 function gearBonus(eq) { // total of what the three equipped pieces give
@@ -171,23 +202,23 @@ function equipGear(key, tier) {
   profile.eq[sl] = { k: key, t: tier }; saveProfile(); return true;
 }
 function unequipGear(sl) { const old = profile.eq[sl]; if (!old) return; profile.eq[sl] = null; addGear(old.k, old.t); saveProfile(); }
-function mergeGear(key, tier) { // two identical pieces of one tier -> one piece of the next tier
-  const row = profile.inv[key]; if (!row || row[tier] < 2 || tier >= TIERS.length - 1) return false;
-  row[tier] -= 2; row[tier + 1]++; saveProfile(); return true;
+function mergeGear(key, tier) { // MERGE_N identical pieces of one tier -> one piece of the next tier
+  const row = profile.inv[key]; if (!row || row[tier] < MERGE_N || tier >= TIERS.length - 1) return false;
+  row[tier] -= MERGE_N; row[tier + 1]++; saveProfile(); return true;
 }
-function mergeAllGear() { // merge every identical pair in the inventory, rarest results cascading upward; returns how many merges happened
+function mergeAllGear() { // merge every identical set in the inventory, rarest results cascading upward; returns how many merges happened
   let n = 0;
   for (const key of EQUIP_KEYS) {
     const row = profile.inv[key]; if (!row) continue;
-    for (let t = 0; t < TIERS.length - 1; t++) { const m = row[t] >> 1; if (m) { row[t] -= 2 * m; row[t + 1] += m; n += m; } }
+    for (let t = 0; t < TIERS.length - 1; t++) { const m = Math.floor(row[t] / MERGE_N); if (m) { row[t] -= MERGE_N * m; row[t + 1] += m; n += m; } }
     if (!row.some(x => x)) delete profile.inv[key];
   }
   if (n) saveProfile(); return n;
 }
-// ---- chests: the only way to buy equipment. Each chest holds 2 random pieces; odds are per piece [Common, Rare, Epic, Legendary] ----
+// ---- chests: the only way to buy equipment. Each chest holds 2 random pieces; odds are per piece, one number per tier (Common .. Doomsday) ----
 const CHESTS = {
-  common: { name: 'Common Chest', icon: '📦', price: 2000, odds: [0.895, 0.10, 0.005, 0] },
-  rare:   { name: 'Rare Chest',   icon: '🎁', price: 5000, odds: [0.60, 0.38, 0.02, 0] },
+  common: { name: 'Common Chest', icon: '📦', price: 2000, odds: [0.70, 0.22, 0.07, 0.01, 0, 0, 0] },
+  rare:   { name: 'Rare Chest',   icon: '🎁', price: 5000, odds: [0.35, 0.35, 0.22, 0.07, 0.01, 0, 0] },
 };
 const CHEST_PIECES = 2;
 function rollTier(odds) { let r = Math.random(), a = 0; for (let t = 0; t < odds.length; t++) { a += odds[t]; if (r < a) return t; } return 0; }
@@ -201,7 +232,7 @@ function sellEquipped(sl) { const it = profile.eq[sl]; if (!it) return 0; const 
 function sellGear(key, tier) { if (!EQUIP[key] || !takeGear(key, tier)) return false; profile.gold += sellPrice(key, tier); saveProfile(); return true; }
 
 // ---------------- screens / toast ----------------
-const SCREENS = ['scrName', 'scrMenu', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
+const SCREENS = ['scrName', 'scrMenu', 'scrSettings', 'scrSave', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
@@ -212,7 +243,7 @@ function show(id) {
 function applyLock() {
   const l = !!lastGame();
   $('rejoinBox').classList.toggle('hidden', !l); $('multiMain').classList.toggle('hidden', l);
-  for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnShop']) $(id).disabled = l;
+  for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnShop', 'btnSettings']) $(id).disabled = l;
 }
 { const lt = setInterval(() => { if (!$('scrMenu').classList.contains('hidden') || !$('scrMulti').classList.contains('hidden')) applyLock(); }, 2000); if (lt && lt.unref) lt.unref(); }
 let toastTimer = 0;
@@ -2432,15 +2463,15 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
     if (it) box.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${sl}">Unequip</button>`));
     else { const e = document.createElement('div'); e.className = 'gear empty'; e.innerHTML = `<span class="gi">·</span><span class="gt">${SLOTS[sl]} — empty</span>`; box.appendChild(e); }
   }
-  let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < TIERS.length - 1; t++) pairs += r[t] >> 1; }
+  let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < TIERS.length - 1; t++) pairs += Math.floor(r[t] / MERGE_N); }
   const hd = document.createElement('div'); hd.className = 'gearhead';
-  hd.innerHTML = `<h3>Inventory — 2 identical pieces merge into the next rarity</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all pairs${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
+  hd.innerHTML = `<h3>Inventory — ${MERGE_N} identical pieces merge into the next rarity</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all pairs${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
   let any = false;
   for (const key of EQUIP_KEYS) {
     const r = profile.inv[key]; if (!r) continue;
     for (let t = TIERS.length - 1; t >= 0; t--) {
       if (!r[t]) continue; any = true;
-      const merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${key}" data-t="${t}" ${r[t] < 2 ? 'disabled' : ''}>Merge 2 → ${TIERS[t + 1]}</button>` : '';
+      const merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${key}" data-t="${t}" ${r[t] < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : '';
       box.appendChild(gearRow(key, t, r[t], `<button data-act="equip" data-k="${key}" data-t="${t}">Equip</button>${merge}`));
     }
   }
@@ -2470,7 +2501,7 @@ function renderShop() {
     const h1 = document.createElement('h3'); h1.textContent = `Chests — ${CHEST_PIECES} random pieces each`; box.appendChild(h1);
     for (const kind of Object.keys(CHESTS)) {
       const c = CHESTS[kind], row = document.createElement('div'); row.className = 'gear';
-      row.innerHTML = `<span class="gi">${c.icon}</span><span class="gt"><b>${c.name}</b><br><small>Each piece: ${TIERS.slice(0, 3).map((n, t) => `${n} ${+(c.odds[t] * 100).toFixed(1)}%`).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" data-c="${kind}" ${profile.gold < c.price ? 'disabled' : ''}>Buy · 🪙 ${c.price.toLocaleString()}</button></span>`;
+      row.innerHTML = `<span class="gi">${c.icon}</span><span class="gt"><b>${c.name}</b><br><small>Each piece: ${TIERS.map((n, t) => c.odds[t] > 0 ? `${n} ${+(c.odds[t] * 100).toFixed(1)}%` : '').filter(Boolean).join(' · ')}</small></span><span class="gb"><button data-act="buy-chest" data-c="${kind}" ${profile.gold < c.price ? 'disabled' : ''}>Buy · 🪙 ${c.price.toLocaleString()}</button></span>`;
       box.appendChild(row);
     }
     return;
@@ -2521,6 +2552,29 @@ $('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); }
 const openPets = () => { renderPets(); show('scrPets'); };
 $('btnPets').addEventListener('click', openPets);
 const openShop = () => { renderShop(); show('scrShop'); };
+$('btnSettings').addEventListener('click', () => show('scrSettings'));
+$('btnSound').addEventListener('click', () => toast('Sound settings are coming soon'));
+$('btnPrivacy').addEventListener('click', () => toast('Privacy Policy is coming soon'));
+$('btnSaveData').addEventListener('click', () => { $('saveOut').value = ''; $('saveIn').value = ''; $('saveMsg').textContent = ''; show('scrSave'); });
+$('btnExport').addEventListener('click', () => { $('saveOut').value = exportSave(); $('saveMsg').textContent = 'Save code created. Copy it or download it, and keep it somewhere safe.'; });
+$('btnCopy').addEventListener('click', async () => {
+  if (!$('saveOut').value) $('saveOut').value = exportSave();
+  try { await navigator.clipboard.writeText($('saveOut').value); $('saveMsg').textContent = 'Copied! Paste it somewhere safe (notes app, email to yourself).'; }
+  catch (e) { $('saveOut').focus(); $('saveOut').select(); $('saveMsg').textContent = 'Select the code above and copy it.'; }
+});
+$('btnDownload').addEventListener('click', () => {
+  if (!$('saveOut').value) $('saveOut').value = exportSave();
+  try { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([$('saveOut').value], { type: 'text/plain' })); a.download = 'doom-and-dungeons-save.txt'; document.body.appendChild(a); a.click(); a.remove(); $('saveMsg').textContent = 'Downloaded as doom-and-dungeons-save.txt'; }
+  catch (e) { $('saveMsg').textContent = 'Could not download. Copy the code instead.'; }
+});
+$('btnImport').addEventListener('click', () => {
+  const r = parseSave($('saveIn').value);
+  if (!r.ok) { $('saveMsg').textContent = r.msg; return; }
+  const p = r.profile, sum = `${p.name || 'Unnamed'} · best ${p.best.stage}-${p.best.level} · 🟡${p.cp} 🐾${p.pp} 🪙${p.gold}`;
+  if (!confirm(`Load this save?\n${sum}\n\nIt REPLACES the progress on this device.`)) return;
+  profile = p; saveProfile(); updateMenu(); $('saveIn').value = ''; $('saveMsg').textContent = 'Save loaded: ' + sum;
+  toast('Save loaded!');
+});
 $('btnShop').addEventListener('click', openShop);
 const openGear = () => { renderGear(); show('scrGear'); };
 $('btnGear').addEventListener('click', openGear);

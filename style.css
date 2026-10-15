@@ -111,3 +111,6 @@ button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
 .multimain,#rejoinBox{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
 .toolrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%}
 .toolrow button{padding:10px 6px}
+textarea.code{width:100%;font:12px/1.35 ui-monospace,Menlo,Consolas,monospace;padding:8px;border-radius:10px;border:2px solid #3949ab;background:#151a2e;color:#fff;resize:vertical;word-break:break-all;-webkit-user-select:text;user-select:text;outline:none}
+textarea.code:focus{border-color:#ffd54f}
+.row3{display:flex;gap:8px;width:100%}.row3 button{flex:1;padding:10px 6px}

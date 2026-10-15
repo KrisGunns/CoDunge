@@ -38,6 +38,7 @@
     <button id="btnPets" class="big alt">Pets</button>
     <button id="btnGear" class="big alt">Equipment</button>
     <button id="btnShop" class="big gold">Shop</button>
+    <button id="btnSettings" class="big back">⚙ Settings</button>
     <p class="ver" id="menuVer"></p>
   </section>
 
@@ -90,6 +91,28 @@
     <p id="lobbyStatus" class="status"></p>
     <button id="btnLobbyStart" class="big hidden">Start</button>
     <button id="btnLobbyLeave" class="back">Leave</button>
+  </section>
+
+  <!-- Settings -->
+  <section id="scrSettings" class="screen hidden">
+    <h2>Settings</h2>
+    <button id="btnSound" class="big alt" type="button">Sound</button>
+    <button id="btnPrivacy" class="big alt" type="button">Privacy Policy</button>
+    <button id="btnSaveData" class="big alt" type="button">Save Data</button>
+    <button class="back" data-go="scrMenu">Back</button>
+  </section>
+
+  <!-- Save data: export / import -->
+  <section id="scrSave" class="screen hidden">
+    <h2>Save Data</h2>
+    <p class="sub">Your progress is stored in this browser only. Make a save code and keep it somewhere safe, so you can load it on another device or after clearing your browser.</p>
+    <textarea id="saveOut" class="code" readonly rows="4" placeholder="Your save code appears here"></textarea>
+    <div class="row3"><button id="btnExport" type="button">Create code</button><button id="btnCopy" type="button">Copy</button><button id="btnDownload" type="button">Download</button></div>
+    <p class="sub">Load a save code</p>
+    <textarea id="saveIn" class="code" rows="4" placeholder="Paste a save code here" autocomplete="off" spellcheck="false"></textarea>
+    <button id="btnImport" class="big warn" type="button">Load save code</button>
+    <p id="saveMsg" class="status"></p>
+    <button class="back" data-go="scrSettings">Back</button>
   </section>
 
   <!-- Characters -->
