@@ -9,7 +9,7 @@
 <body>
 <canvas id="game"></canvas>
 
-<button id="btnQuit" class="hidden">✕</button>
+<button id="btnQuit" class="hidden" aria-label="Menu">☰</button>
 <div id="netInfo" class="hidden"></div>
 <div id="controls" class="hidden">
   <button id="btnSp" class="act sp"><i id="spCd"></i><span id="spTxt">★</span></button>
@@ -173,6 +173,16 @@
 </div>
 
 <div id="reconn" class="hidden"><span id="reconnTxt">Reconnecting…</span><button id="btnReconn" type="button">Reconnect now</button><button id="btnReconnLeave" type="button" class="back">Leave</button></div>
+<div id="pauseMenu" class="hidden"><div class="pbox">
+  <div id="pmMain"><h2>Menu</h2>
+    <button id="pmSound" class="big alt" type="button">Sound</button>
+    <button id="pmRun" class="big alt" type="button">Current run</button>
+    <button id="pmQuit" class="big warn" type="button">Quit run</button>
+    <button id="pmClose" class="back" type="button">Resume</button>
+    <p id="pmNote" class="sub hidden">Co-op: the game keeps running while this menu is open.</p></div>
+  <div id="pmRunBox" class="hidden"><h2>Current run</h2><div id="pmStats"></div><button id="pmRunBack" class="back" type="button">Back</button></div>
+  <div id="pmConfirm" class="hidden"><h2>End this run?</h2><p id="pmConfirmTxt" class="sub"></p><div class="row"><button id="pmYes" class="warn" type="button">Yes</button><button id="pmNo" type="button">No</button></div></div>
+</div></div>
 <div id="toast"></div>
 <!-- PeerJS (WebRTC) for multiplayer; the second tag only loads if the first CDN is unreachable -->
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>

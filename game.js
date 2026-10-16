@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-j'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.16-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -89,7 +89,7 @@ const ARROW = { speed: 240, life: 1.3, range: 250, keep: 110, hold: 210 };
 const PET_SIGHT = 230;    // a pet only fights once it sees an enemy within this distance
 const PETS = {
   wolf: { name: 'Wolf', kind: 'Attacker', atk: 5, hp: 55, speed: 185, r: 9, cd: 0.8, price: 5000,
-    ability: 'Howl: when enemies are gathered around it, they run away in fear and cannot attack for 2 seconds. (15 s cooldown)' },
+    ability: 'Howl: when enemies are gathered around it, they run away in fear and cannot attack for 2 seconds (bosses are immune). (15 s cooldown)' },
   panther: { name: 'Panther', kind: 'Attacker', atk: 6, hp: 60, speed: 215, r: 9, cd: 0.7, price: 5000,
     ability: 'Triple Slash: slashes the area in front of it 3 times rapidly. (12 s cooldown)' },
   turtle: { name: 'Turtle', kind: 'Defender', atk: 2, hp: 90, speed: 130, r: 11, cd: 1.2, price: 5000,
@@ -346,7 +346,7 @@ function applyLock() {
   for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnShop', 'btnSettings']) $(id).disabled = l;
 }
 { const lt = setInterval(() => { if (!$('scrMenu').classList.contains('hidden') || !$('scrMulti').classList.contains('hidden')) applyLock(); }, 2000); if (lt && lt.unref) lt.unref(); }
-let toastTimer = 0;
+let toastTimer = 0, pauseOpen = false;
 function toast(msg) {
   const t = $('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
@@ -888,7 +888,7 @@ function makePlayer(d, id) {
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
-    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, seenPp: 0, teamPp: 0, lootBy: [[], []], seenLoot: 0, pets: [], bossRoom: false, banner: null, hz: [] };
+    inputs: {}, fields: {}, fieldT: 0, nid: 1, acc: 0, snapT: 0, sendT: 0, time: 0, over: false, seenCp: 0, teamCp: 0, seenGold: 0, teamGold: 0, seenPp: 0, teamPp: 0, lootBy: [[], []], seenLoot: 0, kills: 0, bossKills: 0, runT: 0, pets: [], bossRoom: false, banner: null, hz: [] };
 }
 // Where a new run begins. Solo: one stage below your best (never below 1). Co-op: the lowest best stage of the two players.
 function startStage(multi, otherBest) {
@@ -934,7 +934,7 @@ function leaveGame() {
   if (g && g.multi && !g.over) { // the host ending the run ends it for the partner; a guest leaving can rejoin from the menu for 2 minutes
     if (g.isHost) relay({ k: 'bye' }); else saveLast();
   }
-  game = null;
+  game = null; closePause();
   ctl.sp = false; ui.atk = false; joy.active = false; joy.id = null;
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   document.body.classList.remove('playing');
@@ -944,6 +944,7 @@ function leaveGame() {
 
 function bannerText(stage, level) { return `Stage ${stage}-${level}` + (level === levelsIn(stage) ? (isHell(stage) ? ' — DOOM BOSS' : ' — BOSS') : isHell(stage) ? ' — DOOM' : ''); }
 function loadLevel(g, first) {
+  const oldPets = new Map((g.pets || []).map(q => [q.owner, q]));   // pets come along with the health they had; a KO'd one keeps counting down
   if (!first && g.pickups) for (const k of g.pickups) { if (k.kind === 'cp') g.teamCp++; else if (k.kind === 'pp') g.teamPp++; } // points left on the ground are collected automatically
   const L = genLevel(g.stage, g.level, innerHeight > innerWidth);
   g.grid = L.grid; g.door = { c: L.door.c, r: L.door.r, ic: L.door.ic, ir: L.door.ir, open: false };
@@ -958,7 +959,16 @@ function loadLevel(g, first) {
     const inp = g.inputs[p.id]; if (inp) inp.sp = false;
   });
   spawnEnemies(g, L);
-  g.players.forEach(p => { if (!p.gone && p.pet) g.pets.push(makePet(g, p)); }); // each player's pet comes along, at full health
+  g.players.forEach(p => {
+    if (p.gone || !p.pet) return;
+    const q = makePet(g, p), o = oldPets.get(p.id);   // the pet appears at its owner's side
+    if (!first && o && o.type === p.pet) {
+      q.abCd = o.abCd || 0;
+      if (o.alive) q.hp = Math.min(q.maxhp, Math.max(1, o.hp));
+      else { q.alive = false; q.hp = 0; q.respT = Math.max(0.1, o.respT || 0); }   // still KO'd: the countdown carries on and shows beside its body
+    }
+    g.pets.push(q);
+  });
   g.banner = { text: bannerText(g.stage, g.level), t: 0 };
   noteProgress(g);
   if (g.multi) relay(lvlMsg(g));
@@ -1104,6 +1114,7 @@ function hitEnemy(g, e, dmg, src) {
     e.dead = true;
     addFx(g, { type: 'poof', x: e.x, y: e.y });
     const def = ENEMIES[e.type];
+    if (def.boss) g.bossKills++; else g.kills++;
     if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, src.vamp); // Vampire Crown
     if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
       const gd = goldFor(e.type, g.stage);
@@ -1457,10 +1468,10 @@ function makePet(g, p) {
 function petAbility(g, q, o, foe, fd) {
   if (q.abCd > 0) return;
   if (q.type === 'wolf') {
-    const near = g.enemies.filter(e => !e.dead && !(e.fear > 0) && !isAir(e) && Math.hypot(e.x - q.x, e.y - q.y) <= WOLF.r);
+    const near = g.enemies.filter(e => !e.dead && !isBossT(e) && !(e.fear > 0) && !isAir(e) && Math.hypot(e.x - q.x, e.y - q.y) <= WOLF.r);
     if (!near.length) return;
     // wait until the howl is worth it: the enemy crowd is as big as it is going to get (up to 3) and the nearest one is already on top of the wolf; low health forces it
-    const alive = g.enemies.reduce((n, e) => n + (e.dead ? 0 : 1), 0), need = Math.min(WOLF.crowd, alive);
+    const alive = g.enemies.reduce((n, e) => n + (e.dead || isBossT(e) ? 0 : 1), 0), need = Math.min(WOLF.crowd, alive);
     let nd = Infinity; for (const e of near) nd = Math.min(nd, Math.hypot(e.x - q.x, e.y - q.y));
     const crowded = near.length >= need && nd <= WOLF.engage, desperate = q.hp < q.maxhp * 0.5 && nd <= WOLF.engage * 1.5;
     if (!crowded && !desperate) return;
@@ -1698,7 +1709,7 @@ function showOver(g) {
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
   $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: 🐾 ${g.teamPp}  ·  ` : '') + `Gold: 🪙 ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
-  $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
+  $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden'); closePause();
   show('scrOver');
 }
 
@@ -1707,7 +1718,7 @@ const r1 = v => Math.round(v * 10) / 10;
 const ri = v => Math.round(v), r2 = v => Math.round(v * 100) / 100;
 function snapshot(g) { // kept small on purpose: it goes out 20x a second over a relayed WebRTC link
   const s = {
-    k: 's', d: g.door.open ? 1 : 0, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
+    k: 's', d: g.door.open ? 1 : 0, kl: g.kills, bk: g.bossKills, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
     e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0]),
     q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
@@ -1730,6 +1741,8 @@ function applyLevel(g, m) {
 }
 function applySnap(g, s) {
   g.door.open = !!s.d;
+  if (s.kl > g.kills) g.kills = s.kl;
+  if (s.bk > g.bossKills) g.bossKills = s.bk;
   if (s.t > g.teamCp) g.teamCp = s.t;
   if (s.gd > g.teamGold) g.teamGold = s.gd;
   if (s.pp > g.teamPp) g.teamPp = s.pp;
@@ -1861,13 +1874,16 @@ function hostLinkTick(g, dt) { // is the partner still there? (a closed tab ofte
 }
 function update(dt) {
   const g = game; if (!g) return;
+  const frozen = pauseOpen && !g.multi;               // solo: the run stands still while the menu is open (co-op can't stop the host)
+  if (g.grid && !g.over && !pauseOpen) g.runT += dt;  // elapsed time ignores the time spent in the menu
+  if (frozen) { ctl.sp = false; ctl.rev = false; }
   const inp = readInput();
   if (g.isHost) {
     const i0 = g.inputs[0] || (g.inputs[0] = { mx: 0, my: 0, atk: false, sp: false });
     i0.mx = inp.mx; i0.my = inp.my; i0.atk = inp.atk;
     if (ctl.sp) { i0.sp = true; ctl.sp = false; }
     if (ctl.rev) { i0.rev = true; ctl.rev = false; }
-    if (!g.over && g.grid) {
+    if (!g.over && g.grid && !frozen) {
       g.acc += dt; let n = 0;
       while (g.acc >= STEP && n < 5) { step(g, STEP); g.acc -= STEP; n++; if (!game || g.over) break; }
       if (g.acc > STEP) g.acc = 0;
@@ -2203,7 +2219,6 @@ function drawEnemy(c, e) {
     c.font = 'bold 15px system-ui,sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; c.fillStyle = '#ff5252';
     c.strokeText('!', e.x, by - 3); c.fillText('!', e.x, by - 3);
   }
-  if (e.fear > 0 || e.fearing) { c.font = '15px system-ui,sans-serif'; c.textAlign = 'center'; c.fillText('😱', e.x + 14, by - 4); }
 }
 
 const tileHash = (c, r) => (Math.imul(c + 1, 73856093) ^ Math.imul(r + 1, 19349663)) >>> 0;
@@ -2678,7 +2693,7 @@ function petTile(key, mode, viewed) { // mode: 'pets' (equip + upgrade) or 'shop
   let btn;
   if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`;
   else if (!owned) btn = `<button disabled>Not owned</button>`;
-  else btn = on ? `<button data-act="unsel" data-p="${key}">Equipped ✕</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
+  else btn = on ? `<button data-act="unsel" data-p="${key}">Equipped</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
   return ptile(key, viewed, on, d.name, `<span class="tag ${d.kind.toLowerCase()}">${d.kind}</span>`, `ATK <b>${st.atk}</b> · HP <b>${st.hp}</b>`, btn,
     c2 => { c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX); c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore(); });
 }
@@ -2905,10 +2920,30 @@ $('btnShare').addEventListener('click', async () => {
 $('btnLobbyLeave').addEventListener('click', () => { closeNet(); $('multiStatus').textContent = ''; show('scrMulti'); });
 window.addEventListener('beforeunload', closeNet);
 $('btnOverMenu').addEventListener('click', leaveGame);
-$('btnQuit').addEventListener('click', () => {
-  const g = game, msg = g && g.multi ? (g.isHost ? 'Quit? This ends the run for your friend too.' : 'Leave this run? For 2 minutes you can only reconnect to it or leave it for good (Start Game > Multiplayer).') : 'Quit this run?';
-  if (confirm(msg)) leaveGame();
+// ---- in-run menu (the ☰ button): sound, current run details, quit run ----
+let pauseTimer = 0;
+const fmtTime = t => { t = Math.floor(t); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), sc = t % 60; return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(sc).padStart(2, '0'); };
+function pmView(v) { for (const id of ['pmMain', 'pmRunBox', 'pmConfirm']) $(id).classList.toggle('hidden', id !== v); if (v === 'pmRunBox') pmStats(); }
+function pmStats() {
+  const g = game; if (!g) return;
+  const rows = [['Mobs defeated', g.kills], ['Bosses killed', g.bossKills], ['Character Points earned', '🟡 ' + g.teamCp]];
+  if (unlocked('pets') || g.teamPp) rows.push(['Pet Points earned', '🐾 ' + g.teamPp]);
+  rows.push(['Gold earned', '🪙 ' + g.teamGold], ['Equipment collected', (g.lootBy[g.pid] || []).length], ['Time in this run', fmtTime(g.runT)]);
+  $('pmStats').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('');
+}
+function openPause() { if (!game) return; pauseOpen = true; $('pauseMenu').classList.remove('hidden'); $('pmNote').classList.toggle('hidden', !game.multi); pmView('pmMain'); clearInterval(pauseTimer); pauseTimer = setInterval(() => { if (!$('pmRunBox').classList.contains('hidden')) pmStats(); }, 500); }
+function closePause() { pauseOpen = false; clearInterval(pauseTimer); const el = $('pauseMenu'); if (el) el.classList.add('hidden'); }
+$('btnQuit').addEventListener('click', openPause);
+$('pmClose').addEventListener('click', closePause);
+$('pmSound').addEventListener('click', () => toast('Sound settings are coming soon'));
+$('pmRun').addEventListener('click', () => pmView('pmRunBox'));
+$('pmRunBack').addEventListener('click', () => pmView('pmMain'));
+$('pmQuit').addEventListener('click', () => {
+  const g = game; $('pmConfirmTxt').textContent = g && g.multi ? (g.isHost ? 'This ends the run for your friend too.' : 'For 2 minutes you can only reconnect to it or leave it for good (Start Game > Multiplayer).') : 'Your progress so far in this run is kept.';
+  pmView('pmConfirm');
 });
+$('pmNo').addEventListener('click', () => pmView('pmMain'));
+$('pmYes').addEventListener('click', () => { closePause(); leaveGame(); });
 $('btnRejoin').addEventListener('click', rejoinLast);
 $('btnRejoinLeave').addEventListener('click', () => {
   if (!confirm('Leave this run for good? You will not be able to rejoin it.')) return;
