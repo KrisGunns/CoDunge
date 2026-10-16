@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -65,10 +65,10 @@ const bossFor = stage => BOSS_ORDER[(stage - 1) % BOSS_ORDER.length];
 const GOLD_PER_STAGE = 0.15;
 const goldFor = (type, stage) => Math.round(Math.round(ENEMIES[type].gold * (1 + GOLD_PER_STAGE * (stage - 1)) * 1e6) / 1e6);
 // Troll Smash: stops and charges for 1 s (red circle shows the area), then hits everyone inside for 3x ATK. 10 s cooldown.
-const SMASH = { cd: 10, charge: 1, mult: 3, r: 120 }; // r is bigger than the warrior's spin (85)
+const SMASH = { cd: 10, charge: 1, mult: 3, r: 120, trigger: 0.9 }; // r is bigger than the warrior's spin (85)
 // Skeleton King: big mace cleave in front of him; summons archers; charges forward for a x3 cleave.
 const KING = {
-  cleave: { r: 95, arc: 1.1, windup: 0.4, cd: 1.6 },          // radius px, half-angle rad
+  cleave: { r: 150, arc: 1.1, windup: 0.5, cd: 1.6 },          // radius px, half-angle rad
   summon: { cd: 30, n: 3, first: 3, cap: 6 },                 // skill 1: 3 archers every 30 s (max 6 alive)
   dash: { charge: 1, mult: 3, cd: 12, first: 6, speed: 520, range: 420 }, // skill 2: charge cleave
 };
@@ -1056,8 +1056,13 @@ function clearLine(g, x1, y1, x2, y2, r) {
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------------- effects ----------------
-const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7 };
-function pushFx(g, f) { if (g.fx.length > 160) g.fx.splice(0, 40); g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
+const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7, bash: 0.25, dust: 0.4 };
+function pushFx(g, f) {
+  if (f.type === 'cleave' || f.type === 'smash' || f.type === 'summon' || f.type === 'bash') { // tell the boss it just used a skill, so it can play the matching animation (host and guest)
+    const bx = f.bx !== undefined ? f.bx : f.x, by = f.by !== undefined ? f.by : f.y, want = f.type === 'cleave' || f.type === 'summon' ? 'skeleton_king' : f.type === 'smash' ? 'troll' : null;
+    for (const e of g.enemies) if (!e.dead && ENEMIES[e.type] && ENEMIES[e.type].boss && (!want || e.type === want) && Math.hypot(e.x - bx, e.y - by) < 8) { if (f.type === 'summon') e.suAt = performance.now(); else e.swAt = performance.now(); }
+  }
+  if (g.fx.length > 160) g.fx.splice(0, 40); g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
 function addFx(g, f) { pushFx(g, f); if (g.multi && g.isHost) g.fxq.push(f); }
 
 // ---------------- simulation (host) ----------------
@@ -1119,6 +1124,11 @@ function heal(g, t, v) {
   t.hp += n;
   addFx(g, { type: 'heal', x: t.x, y: t.y });
   if (n > 0) addFx(g, { type: 'txt', x: t.x, y: t.y - 18, s: '+' + n, c: '#69f0ae' });
+}
+const AUTO_ATTACK = true; // heroes attack on their own when an enemy is in reach (the attack button is hidden); false brings the button back
+function autoTarget(g, p) { // is an enemy close enough that this hero should swing / shoot by itself?
+  if (p.char === 'warrior') { for (const e of g.enemies) if (!e.dead && !isAir(e) && Math.hypot(e.x - p.x, e.y - p.y) <= 58 + bodyR(e) - 4) return true; return false; }
+  const t = nearestEnemy(g, p.x, p.y, 300); return !!t && clearLine(g, p.x, p.y, t.x, t.y, 3);
 }
 function doAttack(g, p) {
   const t = nearestEnemy(g, p.x, p.y, p.char === 'warrior' ? 120 : 300);
@@ -1362,6 +1372,7 @@ function chargeStep(g, e, dt) {
 }
 function dashStep(g, e, dt) {
   const step = Math.min(KING.dash.speed * dt, e.dashLeft), ox = e.x, oy = e.y;
+  e.dustT = (e.dustT || 0) - dt; if (e.dustT <= 0) { e.dustT = 0.04; addFx(g, { type: 'dust', x: e.x - Math.cos(e.face) * 30, y: e.y - Math.sin(e.face) * 30, a: e.face }); }
   moveEnt(g, e, Math.cos(e.face) * step, Math.sin(e.face) * step);
   const moved = Math.hypot(e.x - ox, e.y - oy); e.dashLeft -= step;
   for (const t of targetsOf(g)) {
@@ -1532,7 +1543,7 @@ function step(g, dt) {
     if (len > 1) { mx /= len; my /= len; }
     if (len > 0.08) { moveEnt(g, p, mx * p.speed * dt, my * p.speed * dt); p.face = Math.atan2(my, mx); p.still = 0; } else p.still += dt;
     p.atkCd -= dt; p.spCd = Math.max(0, p.spCd - dt);
-    if (inp.atk && p.atkCd <= 0) { doAttack(g, p); p.atkCd = CHARS[p.char].cd; }
+    if ((inp.atk || (AUTO_ATTACK && autoTarget(g, p))) && p.atkCd <= 0) { doAttack(g, p); p.atkCd = CHARS[p.char].cd; }
     if (inp.sp) { inp.sp = false; if (p.spCd <= 0 && doSpecial(g, p)) p.spCd = SPECIAL_CD; }
     if (inp.rev) { inp.rev = false; tryRevive(g, p); }
     reviveTick(g, p, dt);
@@ -1565,7 +1576,7 @@ function step(g, dt) {
     if (!tgt) { e.alert = 0; continue; }
     const d = Math.hypot(tgt.x - e.x, tgt.y - e.y), fk = tgt.isPet ? tgt.owner : tgt.id;
     e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x);
-    if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r + 40) { startCharge(e, 'smash', SMASH.charge); continue; }
+    if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r * SMASH.trigger) { startCharge(e, 'smash', SMASH.charge); continue; }
     if (e.type === 'skeleton_king' && kingAI(g, e, tgt, seen, d)) continue;
     if (e.type === 'cerberus' && cerbAI(g, e, tgt, d)) continue;
     if (def.caster) { // Sorcerer: keeps its distance and calls up a chain of fire pillars
@@ -1596,7 +1607,7 @@ function step(g, dt) {
         g.proj.push({ id: g.nid++, x: e.x, y: e.y, vx: Math.cos(a) * ARROW.speed, vy: Math.sin(a) * ARROW.speed,
           dmg: Math.max(1, Math.round(e.atk)), life: ARROW.life, kind: 'arrow', hostile: true, dead: false });
       }
-    } else if (e.type !== 'skeleton_king' && d <= bodyR(e) + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); }
+    } else if (e.type !== 'skeleton_king' && d <= bodyR(e) + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); if (def.boss) addFx(g, { type: 'bash', x: tgt.x, y: tgt.y, bx: e.x, by: e.y, a: e.face }); }
   }
   // enemy separation
   for (let i = 0; i < g.enemies.length; i++) for (let j = i + 1; j < g.enemies.length; j++) {
@@ -1793,6 +1804,7 @@ cv.addEventListener('pointerup', endJoy);
 cv.addEventListener('pointercancel', endJoy);
 
 const btnAtk = $('btnAtk'), btnSp = $('btnSp'), btnRev = $('btnRev');
+$('controls').classList.toggle('auto', AUTO_ATTACK); btnAtk.classList.toggle('hidden', AUTO_ATTACK); // auto-attack: no attack button, the special button moves into its spot
 let atkPtr = null;
 btnAtk.addEventListener('pointerdown', e => { ui.atk = true; atkPtr = e.pointerId; btnAtk.classList.add('down'); try { btnAtk.setPointerCapture(e.pointerId); } catch (err) {} e.preventDefault(); });
 const atkUp = e => { if (e.pointerId === atkPtr) { ui.atk = false; atkPtr = null; btnAtk.classList.remove('down'); } };
@@ -2039,9 +2051,20 @@ function drawEnemy(c, e) {
     c.fillStyle = '#fff'; c.beginPath(); c.arc(5.2, -0.8, 1.2, 0, 7); c.fill();
   } else if (e.type === 'skeleton_king') {
     c.scale(3.2, 3.2);
-    c.strokeStyle = '#6d4c2f'; c.lineWidth = 3; c.beginPath(); c.moveTo(6, 11); c.lineTo(22, 11); c.stroke();      // mace handle
-    c.fillStyle = '#78909c'; c.strokeStyle = '#37474f'; c.lineWidth = 1.5; c.beginPath(); c.arc(24, 11, 6, 0, 7); c.fill(); c.stroke(); // mace head
-    c.fillStyle = '#b0bec5'; for (let i = 0; i < 6; i++) { const a = i * 1.047; c.beginPath(); c.arc(24 + Math.cos(a) * 6.5, 11 + Math.sin(a) * 6.5, 1.6, 0, 7); c.fill(); }
+    // summon aura: purple glow and the mace held high
+    const now = performance.now(), su = e.suAt ? (now - e.suAt) / 1000 : 9;
+    if (su < 0.8) { c.fillStyle = `rgba(179,157,219,${0.35 * (1 - su / 0.8)})`; c.beginPath(); c.arc(0, 0, 16 + su * 14, 0, 7); c.fill(); c.strokeStyle = `rgba(206,147,216,${0.8 * (1 - su / 0.8)})`; c.lineWidth = 0.8; c.beginPath(); c.arc(0, 0, 12 + su * 22, 0, 7); c.stroke(); }
+    // mace: raised during the wind-up, sweeps across the cone on the hit, then drifts back to rest
+    const kind = e.sk || CHARGE_NAMES[e.skc] || '', arc = KING.cleave.arc, sw = e.swAt ? (now - e.swAt) / 1000 : 9;
+    let ma = su < 0.8 ? 1.5 * Math.sin(Math.min(1, su / 0.25) * Math.PI / 2) * (su < 0.55 ? 1 : (0.8 - su) / 0.25) : 0;
+    if (kind === 'cleave') { const k = clamp(1 - e.ch / (e.cht || chargeTotal('cleave')), 0, 1); ma = arc * 1.15 * (k * k * (3 - 2 * k)); }
+    else if (sw < 0.16) ma = arc * 1.15 - 2.3 * arc * (sw / 0.16);
+    else if (sw < 0.6) ma = -arc * 1.15 * (1 - (sw - 0.16) / 0.44);
+    c.save(); c.translate(4, 11); c.rotate(ma);
+    c.strokeStyle = '#6d4c2f'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(34, 0); c.stroke();                                // mace handle
+    c.fillStyle = '#78909c'; c.strokeStyle = '#37474f'; c.lineWidth = 1.5; c.beginPath(); c.arc(38, 0, 7.5, 0, 7); c.fill(); c.stroke();   // mace head
+    c.fillStyle = '#b0bec5'; for (let i = 0; i < 6; i++) { const a = i * 1.047; c.beginPath(); c.arc(38 + Math.cos(a) * 8, Math.sin(a) * 8, 1.8, 0, 7); c.fill(); }
+    c.restore();
     c.fillStyle = '#cfd8dc'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(-1, 0, 8, 11, 0, 0, 7); c.fill(); c.stroke();
     c.strokeStyle = '#78909c'; c.lineWidth = 1; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(-6, i * 3.6); c.lineTo(4, i * 3.6); c.stroke(); }
     c.fillStyle = '#eceff1'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.arc(3, 0, 7, 0, 7); c.fill(); c.stroke();
@@ -2061,8 +2084,8 @@ function drawEnemy(c, e) {
     c.fillStyle = '#ffab40'; c.beginPath(); c.arc(6, -2.2, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(6, 2.2, 1.4, 0, 7); c.fill();                          // eyes in the shadow
     c.strokeStyle = '#ffca28'; c.lineWidth = 1; c.beginPath(); c.arc(-1, 0, 10, 2.2, 4.1); c.stroke();                                                     // golden trim
   } else if (e.type === 'cerberus') { // three-headed hound, seen from above
-    const tt = performance.now() / 1000 + e.x * 0.01;
-    c.scale(2.7, 2.7);
+    const tt = performance.now() / 1000 + e.x * 0.01, bs = e.swAt ? (performance.now() - e.swAt) / 1000 : 9, ck = e.sk || CHARGE_NAMES[e.skc] || '';
+    c.scale(2.7, 2.7); if (bs < 0.25) c.translate(7 * Math.sin(bs / 0.25 * Math.PI), 0); // bite: lunges forward
     c.lineCap = 'round'; c.lineJoin = 'round';
     const dark = '#2a0b0b', fur = '#4a1311', furHi = '#6b1f17', ember = '#ff6d00', gold = '#d9a300';
     const sway = Math.sin(tt * 2.2);
@@ -2102,14 +2125,24 @@ function drawEnemy(c, e) {
       c.strokeStyle = '#1a0606'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(hs * 0.05, -hs * 0.8); c.lineTo(hs * 0.65, -hs * 0.58); c.moveTo(hs * 0.05, hs * 0.8); c.lineTo(hs * 0.65, hs * 0.58); c.stroke(); // angry brows
       c.restore();
     }
+    if (ck === 'fire') { const fk = clamp(1 - e.ch / (e.cht || CERB.fire.windup), 0, 1); for (const [hx, hy, hs, ha] of heads) { const fx = hx + Math.cos(ha) * hs * 1.9, fy = hy + Math.sin(ha) * hs * 1.9; c.fillStyle = `rgba(255,150,0,${0.35 + 0.4 * fk})`; c.beginPath(); c.arc(fx, fy, hs * (0.35 + 0.6 * fk), 0, 7); c.fill(); c.fillStyle = `rgba(255,238,88,${0.9 * fk})`; c.beginPath(); c.arc(fx, fy, hs * 0.3 * fk, 0, 7); c.fill(); } } // fire gathers in the mouths
     c.lineCap = 'butt';
     c.scale(1 / 2.7, 1 / 2.7);
   } else {
     c.scale(3, 3);
+    const kind = e.sk || CHARGE_NAMES[e.skc] || '', sw = e.swAt ? (performance.now() - e.swAt) / 1000 : 9;
+    let ca = 0, lift = 0; // club angle: raised high while the smash charges, slammed down on the hit, then back to rest
+    if (kind === 'smash') { const k = clamp(1 - e.ch / (e.cht || chargeTotal('smash')), 0, 1); ca = -2.0 * (k * k * (3 - 2 * k)); lift = k; }
+    else if (sw < 0.14) { ca = -2.0 + 2.5 * (sw / 0.14); lift = 1 - sw / 0.14; }
+    else if (sw < 0.5) ca = 0.5 * (1 - (sw - 0.14) / 0.36);
+    if (lift > 0) { c.fillStyle = `rgba(255,255,255,${0.12 * lift})`; c.beginPath(); c.arc(0, 0, 16 + lift * 4, 0, 7); c.fill(); }
     c.fillStyle = '#7b8f4a'; c.strokeStyle = '#4e5d2c'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); c.stroke();
     c.fillStyle = '#8fa35c'; c.beginPath(); c.arc(6, -14, 6, 0, 7); c.fill(); c.beginPath(); c.arc(6, 14, 6, 0, 7); c.fill();
-    c.strokeStyle = '#6d4c2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(8, 14); c.lineTo(26, 14); c.stroke();
-    c.fillStyle = '#5d4037'; c.beginPath(); c.arc(28, 14, 6, 0, 7); c.fill();
+    c.save(); c.translate(8, 14); c.rotate(ca);
+    c.strokeStyle = '#6d4c2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, 0); c.lineTo(18, 0); c.stroke();
+    c.fillStyle = '#5d4037'; c.beginPath(); c.arc(20, 0, 6, 0, 7); c.fill();
+    c.fillStyle = '#8d6e63'; for (const [px, py] of [[20, -5], [25, 0], [20, 5]]) { c.beginPath(); c.arc(px, py, 1.4, 0, 7); c.fill(); }
+    c.restore();
     c.fillStyle = '#9aae63'; c.beginPath(); c.arc(4, 0, 8, 0, 7); c.fill();
     c.fillStyle = '#fff'; c.beginPath(); c.moveTo(11, -3); c.lineTo(15, -4); c.lineTo(12, -1); c.fill(); c.beginPath(); c.moveTo(11, 3); c.lineTo(15, 4); c.lineTo(12, 1); c.fill();
     c.fillStyle = '#d50000'; c.beginPath(); c.arc(8, -3, 1.3, 0, 7); c.fill(); c.beginPath(); c.arc(8, 3, 1.3, 0, 7); c.fill();
@@ -2278,10 +2311,19 @@ function drawWorld(g) {
       ctx.fillStyle = '#ffee58'; ctx.beginPath(); ctx.arc(j.x, j.y, 3.5, 0, 7); ctx.fill();
       continue;
     }
-    const col = j.kind === 'mage' ? '#4dd0e1' : '#69f0ae';
-    ctx.fillStyle = col + '55'; ctx.beginPath(); ctx.arc(j.x - Math.cos(a) * 6, j.y - Math.sin(a) * 6, 6, 0, 7); ctx.fill();
-    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(j.x, j.y, 4, 0, 7); ctx.fill();
-    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(j.x, j.y, 1.8, 0, 7); ctx.fill();
+    if (j.kind === 'mage') { // Mage: a blazing fireball with a flickering tail, a bit bigger than the healer's bolt
+      const t = performance.now() / 70 + j.x * 0.05;
+      for (let i = 4; i >= 1; i--) { ctx.fillStyle = `rgba(255,${90 + i * 25},20,${0.13 * (5 - i)})`; ctx.beginPath(); ctx.arc(j.x - Math.cos(a) * i * 6.5, j.y - Math.sin(a) * i * 6.5, 9 - i * 1.3 + Math.sin(t + i) * 0.8, 0, 7); ctx.fill(); }
+      ctx.fillStyle = 'rgba(255,110,30,.35)'; ctx.beginPath(); ctx.arc(j.x, j.y, 13 + Math.sin(t) * 1.2, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ff6d00'; ctx.beginPath(); ctx.arc(j.x, j.y, 8, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffca28'; ctx.beginPath(); ctx.arc(j.x + Math.cos(a) * 1.5, j.y + Math.sin(a) * 1.5, 5, 0, 7); ctx.fill();
+      ctx.fillStyle = '#fffde7'; ctx.beginPath(); ctx.arc(j.x + Math.cos(a) * 2, j.y + Math.sin(a) * 2, 2.4, 0, 7); ctx.fill();
+      continue;
+    }
+    const col = '#1b8a3a'; // Healer: dark green bolt
+    ctx.fillStyle = col + '66'; ctx.beginPath(); ctx.arc(j.x - Math.cos(a) * 6, j.y - Math.sin(a) * 6, 6, 0, 7); ctx.fill();
+    ctx.fillStyle = col; ctx.beginPath(); ctx.arc(j.x, j.y, 4.2, 0, 7); ctx.fill();
+    ctx.fillStyle = '#7bd88f'; ctx.beginPath(); ctx.arc(j.x, j.y, 1.8, 0, 7); ctx.fill();
   }
   drawFx(g);
 }
@@ -2328,6 +2370,13 @@ function drawFx(g) {
         ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke(); break;
       case 'cleave':
         ctx.globalAlpha = (1 - k) * 0.7; ctx.fillStyle = '#ffccbc'; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.arc(f.x, f.y, f.r, f.a - f.arc, f.a + f.arc); ctx.closePath(); ctx.fill(); break;
+      case 'bash': { // a boss's melee hit: impact star where it lands
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+        for (let i = 0; i < 8; i++) { const a = i * 0.785 + f.a, r0 = 6 + k * 8, r1 = 14 + k * 16; ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * r0, f.y + Math.sin(a) * r0); ctx.lineTo(f.x + Math.cos(a) * r1, f.y + Math.sin(a) * r1); ctx.stroke(); }
+        ctx.fillStyle = '#ffab91'; ctx.beginPath(); ctx.arc(f.x, f.y, 10 * (1 - k * 0.5), 0, 7); ctx.fill(); break; }
+      case 'dust': // the Skeleton King's charge kicks up dust behind him
+        ctx.globalAlpha = (1 - k) * 0.55; ctx.fillStyle = '#b0a79b'; ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 22, 0, 7); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.globalAlpha = (1 - k) * 0.5; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x - Math.cos(f.a) * 40, f.y - Math.sin(f.a) * 40); ctx.stroke(); break;
       case 'summon':
         ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#b39ddb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + k * 70, 0, 7); ctx.stroke(); break;
       case 'pillar': { // Sorcerer's pillar of fire: a warning ring until it is its turn, then flames rise

@@ -143,3 +143,7 @@ textarea.code:focus{border-color:#ffd54f}
 .gdetail{width:100%;background:#1b2140;border:2px solid #2b3366;border-radius:12px;padding:6px;text-align:center}.gdetail small{color:#9fa8da}.gdetail .gear{border:0;padding:2px 4px;background:none}
 .gdetail .gear{flex-wrap:wrap;justify-content:center}.gdetail .gear .gt{flex:1 1 150px}.gdetail .gear .gb{flex:1 1 100%;justify-content:center}
 .gtile .geq{position:absolute;top:3px;left:4px;font-size:8px;font-weight:800;background:#ffd54f;color:#1a1a1a;border-radius:4px;padding:1px 3px}
+
+/* auto-attack mode: the special button takes the attack button's place */
+#controls.auto .act.sp{width:84px;height:84px;font-size:30px;right:calc(16px + env(safe-area-inset-right));bottom:calc(var(--lift,0px) + 14px + env(safe-area-inset-bottom))}
+#controls.auto .act.rev{right:calc(16px + 84px + 12px + env(safe-area-inset-right))}
