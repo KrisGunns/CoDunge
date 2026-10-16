@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-g'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-h'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -336,6 +336,7 @@ function applyGates() {
   $('tabEquip').classList.toggle('hidden', !unlocked('gear'));
   if (!unlocked('gear')) shopTab = 'pets';
   $('shopTabs').classList.toggle('hidden', !unlocked('gear'));
+  $('menuPpBox').classList.toggle('hidden', !unlocked('pets')); // no Pet Points anywhere until pets are unlocked
 }
 // A run you left or lost (guest side) can be rejoined for 2 minutes. Until you reconnect or leave it, nothing else in the menus is available,
 // so a run can't be dodged to upgrade heroes and then rejoined.
@@ -1112,7 +1113,7 @@ function hitEnemy(g, e, dmg, src) {
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 Loot!', c: '#ffd54f' });
       } else {
         if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'cp');
-        if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'pp');
+        if (unlocked('pets') && Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'pp');
         if (Math.random() < POTION.chance) dropAt(g, e.x, e.y, 'pot');
       }
     }
@@ -1690,7 +1691,7 @@ function showOver(g) {
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  Pet Points: 🐾 ${g.teamPp}  ·  Gold: 🪙 ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
+  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: 🐾 ${g.teamPp}  ·  ` : '') + `Gold: 🪙 ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden');
   show('scrOver');
 }
@@ -2630,27 +2631,35 @@ function spendPoints(pool, up, stat, n) { // moves up to n points from the pool 
   profile[pool] -= n; up[stat] += n; return n;
 }
 function enterToSpend(e) { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('amt')) { const ok = e.target.parentElement.querySelector('button[data-n="in"]'); if (ok) ok.click(); } }
+let charView = '', petView = '', shopView = '';     // the tile whose details are showing under the grid
+function ptile(key, viewed, chosen, name, tag, stats, btn, paint) { // one big tile: portrait, name, tag, stats and the action button; tapping the tile shows its details
+  const t = document.createElement('div'); t.className = 'ptile' + (chosen ? ' sel' : '') + (viewed ? ' view' : ''); t.dataset.act = 'pick'; t.dataset.k = key;
+  t.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><h3>${name}</h3><div class="tagrow">${tag || '&nbsp;'}</div><div class="stats">${stats}</div><div class="lact">${btn}</div>`;
+  const c2 = t.querySelector('canvas').getContext('2d'); paint(c2); return t;
+}
+function pgrid(box, tiles, detailHtml) { // grid of tiles with a detail panel under it
+  box.innerHTML = ''; box.className = 'pgrid';
+  const g = document.createElement('div'); g.className = 'pg2'; tiles.forEach(t => g.appendChild(t)); box.appendChild(g);
+  if (detailHtml) { const d = document.createElement('div'); d.className = 'pdetail'; d.innerHTML = detailHtml; box.appendChild(d); }
+}
 function renderChars() {
   $('cpCount').textContent = profile.cp;
-  const box = $('charCards'); box.innerHTML = ''; box.className = 'list';
-  for (const key of Object.keys(CHARS)) {
-    const def = CHARS[key], u = profile.up[key], st = statsFor(key);
-    const card = document.createElement('div'); card.className = 'lrow' + (profile.sel === key ? ' sel' : '');
-    card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><div class="linfo"><h3>${def.name}</h3>
-      <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div></div>
-      <div class="lact"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
-      ${spendRows('c', key, profile.cp, '🟡')}`;
-    box.appendChild(card);
-    const c2 = card.querySelector('canvas').getContext('2d');
-    c2.fillStyle = '#232838'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX);
-    c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); drawChar(c2, key, 44, 62, 0, 1.8, false); c2.restore();
-  }
+  const keys = Object.keys(CHARS); if (!CHARS[charView]) charView = profile.sel;
+  const tiles = keys.map(key => {
+    const def = CHARS[key], st = statsFor(key), chosen = profile.sel === key;
+    return ptile(key, charView === key, chosen, def.name, '', `ATK <b>${st.atk}</b> · HP <b>${st.hp}</b>`, `<button data-act="sel" data-c="${key}" ${chosen ? 'disabled' : ''}>${chosen ? 'Selected' : 'Select'}</button>`,
+      c2 => { c2.fillStyle = '#232838'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX); c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); drawChar(c2, key, 44, 62, 0, 1.8, false); c2.restore(); });
+  });
+  const v = CHARS[charView];
+  pgrid($('charCards'), tiles, `<h3>${v.name}</h3><div class="desc">${v.desc}</div>${profile.up[charView] ? spendRows('c', charView, profile.cp, '🟡') : ''}`);
 }
 $('charCards').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const b = e.target.closest('button');
+  if (!b) { const t = e.target.closest('.ptile'); if (t) { charView = t.dataset.k; renderChars(); } return; }
+  if (b.disabled) return;
   const c = b.dataset.c;
   if (b.dataset.act === 'open') { toggleSpend('c', c, b.dataset.s); renderChars(); return; }
-  if (b.dataset.act === 'sel') profile.sel = c;
+  if (b.dataset.act === 'sel') { profile.sel = c; charView = c; }
   else if (b.dataset.act === 'spend' && profile.up[c]) spendPoints('cp', profile.up[c], b.dataset.s, spendAmount(b, 'cp'));
   saveProfile(); renderChars();
 });
@@ -2658,25 +2667,20 @@ $('charCards').addEventListener('keydown', enterToSpend);
 // ---- pets, equipment & shop ----
 const PET_KEYS = Object.keys(PETS);
 const SHOW_TIER = t => `<span class="tier" style="color:${TIER_COLORS[t]}">${TIERS[t]}</span>`;
-function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
-  const d = PETS[key], owned = profile.pets.includes(key), st = petStatsFor(key), u = profile.petUp[key], card = document.createElement('div');
-  card.className = 'lrow' + (mode === 'pets' && profile.pet === key ? ' sel' : '');
-  let btns;
-  if (mode === 'shop') btns = `<div class="lact">${owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`}</div>`;
-  else if (!owned) btns = `<div class="lact"><button disabled>Not owned</button></div>`;
-  else btns = `<div class="lact">${profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped ✕</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`}</div>
-      ${spendRows('p', key, profile.pp, '🐾')}`;
-  const [btnHtml, spendHtml] = btns.split('<div class="pts">'); // the action button sits on the right of the row, the point buttons underneath
-  card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><div class="linfo"><h3>${d.name} <span class="tag ${d.kind.toLowerCase()}">${d.kind}</span></h3>
-    <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${d.ability}</div></div>${btnHtml}${spendHtml ? '<div class="pts">' + spendHtml : ''}`;
-  const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX);
-  c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
-  return card;
+function petTile(key, mode, viewed) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
+  const d = PETS[key], owned = profile.pets.includes(key), st = petStatsFor(key), on = mode === 'pets' && profile.pet === key;
+  let btn;
+  if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`;
+  else if (!owned) btn = `<button disabled>Not owned</button>`;
+  else btn = on ? `<button data-act="unsel" data-p="${key}">Equipped ✕</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
+  return ptile(key, viewed, on, d.name, `<span class="tag ${d.kind.toLowerCase()}">${d.kind}</span>`, `ATK <b>${st.atk}</b> · HP <b>${st.hp}</b>`, btn,
+    c2 => { c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX); c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore(); });
 }
+const petDetail = (key, spend) => `<h3>${PETS[key].name} <span class="tag ${PETS[key].kind.toLowerCase()}">${PETS[key].kind}</span></h3><div class="desc">${PETS[key].ability}</div>${spend ? spendRows('p', key, profile.pp, '🐾') : ''}`;
 function renderPets() {
   $('petPp').textContent = profile.pp;
-  const box = $('petCards'); box.innerHTML = ''; box.className = 'list';
-  PET_KEYS.forEach(k => box.appendChild(petCard(k, 'pets')));
+  if (!PETS[petView]) petView = profile.pet || PET_KEYS[0];
+  pgrid($('petCards'), PET_KEYS.map(k => petTile(k, 'pets', petView === k)), petDetail(petView, profile.pets.includes(petView)));
 }
 function gearRow(key, tier, count, buttons) { // one line of an equipment list
   const d = EQUIP[key], row = document.createElement('div'); row.className = 'gear';
@@ -2718,11 +2722,10 @@ function renderShop() {
   $('subBuy').classList.toggle('on', shopSub === 'buy'); $('subSell').classList.toggle('on', shopSub === 'sell');
   const box = $('shopCards'); box.innerHTML = '';
   if (shopTab === 'pets') {
-    box.className = 'cards';
     const avail = PET_KEYS.filter(k => !profile.pets.includes(k));
-    if (!avail.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No available pets.'; box.appendChild(e); }
-    avail.forEach(k => box.appendChild(petCard(k, 'shop')));
-    box.className = 'list';
+    if (!avail.length) { box.className = 'list'; const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No available pets.'; box.appendChild(e); return; }
+    if (!avail.includes(shopView)) shopView = avail[0];
+    pgrid(box, avail.map(k => petTile(k, 'shop', shopView === k)), petDetail(shopView, false));
     return;
   }
   box.className = 'list';
@@ -2757,17 +2760,21 @@ function renderShop() {
   g.innerHTML = items.map(i => gearTile(i.k, i.t, i.n, same(i, sellSel), `data-k="${i.k}" data-t="${i.t}"${i.s ? ` data-s="${i.s}"` : ''}`, '', 'sell-pick') + '').join(''); box.appendChild(g);
 }
 $('petCards').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const b = e.target.closest('button');
+  if (!b) { const t = e.target.closest('.ptile'); if (t) { petView = t.dataset.k; renderPets(); } return; }
+  if (b.disabled) return;
   const k = b.dataset.p;
   if (b.dataset.act === 'open') { toggleSpend('p', k, b.dataset.s); renderPets(); return; }
-  if (b.dataset.act === 'sel' && profile.pets.includes(k)) profile.pet = k;
+  if (b.dataset.act === 'sel' && profile.pets.includes(k)) { profile.pet = k; petView = k; }
   else if (b.dataset.act === 'unsel') profile.pet = '';
   else if (b.dataset.act === 'spend' && profile.pets.includes(k)) spendPoints('pp', profile.petUp[k], b.dataset.s, spendAmount(b, 'pp'));
   saveProfile(); renderPets();
 });
 $('petCards').addEventListener('keydown', enterToSpend);
 $('shopCards').addEventListener('click', e => {
-  const b = e.target.closest('button'); if (!b || b.disabled) return;
+  const b = e.target.closest('button');
+  if (!b) { const t = e.target.closest('.ptile'); if (t) { shopView = t.dataset.k; renderShop(); } return; }
+  if (b.disabled) return;
   if (b.dataset.act === 'buy') {
     const k = b.dataset.p, d = PETS[k];
     if (!d || profile.pets.includes(k) || profile.gold < d.price) return;

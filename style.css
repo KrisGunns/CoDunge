@@ -158,3 +158,18 @@ textarea.code:focus{border-color:#ffd54f}
 .lrow .tag{font-size:11px;vertical-align:middle;margin-left:4px}
 .lrow .pts{flex:1 1 100%}
 .lrow .pts .po button{flex:1 1 0;min-width:0;padding:7px 2px;font-size:13px}
+
+/* big tiles for characters and pets */
+.pgrid{width:100%}
+.pg2{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%}
+.ptile{background:#1b2140;border:2px solid #2b3366;border-radius:12px;padding:8px;display:flex;flex-direction:column;gap:4px;align-items:stretch;text-align:center;cursor:pointer;min-width:0}
+.ptile.sel{border-color:#ffd54f;box-shadow:0 0 12px rgba(255,213,79,.3)}
+.ptile.view{outline:2px solid #80d8ff;outline-offset:1px}
+.ptile canvas{width:100%;height:auto;aspect-ratio:1;border-radius:10px;background:#232838}
+.ptile h3{margin:2px 0 0;font-size:17px;color:#fff}
+.ptile .tagrow{min-height:20px}.ptile .tag{font-size:11px}
+.ptile .stats{font-size:14px;color:#cfd8ff}
+.ptile .lact button{width:100%;white-space:nowrap;padding:8px 6px;font-size:14px;line-height:1.2}
+.pdetail{width:100%;background:#1b2140;border:2px solid #80d8ff;border-radius:12px;padding:10px;text-align:left;margin-top:10px}
+.pdetail h3{margin:0 0 4px;color:#fff;text-align:left}.pdetail .desc{font-size:13px;color:#cfd8ff;margin-bottom:8px}
+.pdetail .pts .po button{flex:1 1 0;min-width:0;padding:7px 2px;font-size:13px}
