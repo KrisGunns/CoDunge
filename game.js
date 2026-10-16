@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-h'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-i'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -1112,9 +1112,12 @@ function hitEnemy(g, e, dmg, src) {
         for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(EQUIP_KEYS[rnd(EQUIP_KEYS.length)]); // each player rolls their own piece
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 Loot!', c: '#ffd54f' });
       } else {
-        if (Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'cp');
-        if (unlocked('pets') && Math.random() < DROP_CHANCE) dropAt(g, e.x, e.y, 'pp');
-        if (Math.random() < POTION.chance) dropAt(g, e.x, e.y, 'pot');
+        // one roll per kill, so an enemy drops at most ONE item: Character Point, Pet Point (once pets are unlocked) or a potion
+        const r = Math.random(); let kind = '';
+        if (r < DROP_CHANCE) kind = 'cp';
+        else if (r < DROP_CHANCE * 2) kind = unlocked('pets') ? 'pp' : '';
+        else if (r < DROP_CHANCE * 2 + POTION.chance) kind = 'pot';
+        if (kind) dropAt(g, e.x, e.y, kind);
       }
     }
     if (def.boss) for (const o of g.enemies) if (o.summoned && !o.dead) { o.dead = true; addFx(g, { type: 'poof', x: o.x, y: o.y }); } // the King's minions fall with him
