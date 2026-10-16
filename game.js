@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-e'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-f'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -2593,13 +2593,13 @@ function spendPoints(pool, up, stat, n) { // moves up to n points from the pool 
 function enterToSpend(e) { if (e.key === 'Enter' && e.target.classList && e.target.classList.contains('amt')) { const ok = e.target.parentElement.querySelector('button[data-n="in"]'); if (ok) ok.click(); } }
 function renderChars() {
   $('cpCount').textContent = profile.cp;
-  const box = $('charCards'); box.innerHTML = '';
+  const box = $('charCards'); box.innerHTML = ''; box.className = 'list';
   for (const key of Object.keys(CHARS)) {
     const def = CHARS[key], u = profile.up[key], st = statsFor(key);
-    const card = document.createElement('div'); card.className = 'card' + (profile.sel === key ? ' sel' : '');
-    card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><h3>${def.name}</h3>
-      <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div>
-      <div class="btns"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
+    const card = document.createElement('div'); card.className = 'lrow' + (profile.sel === key ? ' sel' : '');
+    card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><div class="linfo"><h3>${def.name}</h3>
+      <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${def.desc}</div></div>
+      <div class="lact"><button data-act="sel" data-c="${key}" ${profile.sel === key ? 'disabled' : ''}>${profile.sel === key ? 'Selected' : 'Select'}</button></div>
       ${spendRows('c', key, profile.cp, '🟡')}`;
     box.appendChild(card);
     const c2 = card.querySelector('canvas').getContext('2d');
@@ -2621,21 +2621,22 @@ const PET_KEYS = Object.keys(PETS);
 const SHOW_TIER = t => `<span class="tier" style="color:${TIER_COLORS[t]}">${TIERS[t]}</span>`;
 function petCard(key, mode) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
   const d = PETS[key], owned = profile.pets.includes(key), st = petStatsFor(key), u = profile.petUp[key], card = document.createElement('div');
-  card.className = 'card' + (mode === 'pets' && profile.pet === key ? ' sel' : '');
+  card.className = 'lrow' + (mode === 'pets' && profile.pet === key ? ' sel' : '');
   let btns;
-  if (mode === 'shop') btns = `<div class="btns">${owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`}</div>`;
-  else if (!owned) btns = `<div class="btns"><button disabled>Not owned — buy in Shop</button></div>`;
-  else btns = `<div class="btns">${profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped (tap to remove)</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`}</div>
+  if (mode === 'shop') btns = `<div class="lact">${owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`}</div>`;
+  else if (!owned) btns = `<div class="lact"><button disabled>Not owned</button></div>`;
+  else btns = `<div class="lact">${profile.pet === key ? `<button data-act="unsel" data-p="${key}">Equipped ✕</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`}</div>
       ${spendRows('p', key, profile.pp, '🐾')}`;
-  card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><h3>${d.name}</h3><div class="tag ${d.kind.toLowerCase()}">${d.kind}</div>
-    <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${d.ability}</div>${btns}`;
+  const [btnHtml, spendHtml] = btns.split('<div class="pts">'); // the action button sits on the right of the row, the point buttons underneath
+  card.innerHTML = `<canvas width="${PORTRAIT_PX}" height="${PORTRAIT_PX}"></canvas><div class="linfo"><h3>${d.name} <span class="tag ${d.kind.toLowerCase()}">${d.kind}</span></h3>
+    <div class="stats">ATK <b>${st.atk}</b> · HP <b>${st.hp}</b></div><div class="desc">${d.ability}</div></div>${btnHtml}${spendHtml ? '<div class="pts">' + spendHtml : ''}`;
   const c2 = card.querySelector('canvas').getContext('2d'); c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX);
   c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore();
   return card;
 }
 function renderPets() {
   $('petPp').textContent = profile.pp;
-  const box = $('petCards'); box.innerHTML = '';
+  const box = $('petCards'); box.innerHTML = ''; box.className = 'list';
   PET_KEYS.forEach(k => box.appendChild(petCard(k, 'pets')));
 }
 function gearRow(key, tier, count, buttons) { // one line of an equipment list
@@ -2682,6 +2683,7 @@ function renderShop() {
     const avail = PET_KEYS.filter(k => !profile.pets.includes(k));
     if (!avail.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'No available pets.'; box.appendChild(e); }
     avail.forEach(k => box.appendChild(petCard(k, 'shop')));
+    box.className = 'list';
     return;
   }
   box.className = 'list';

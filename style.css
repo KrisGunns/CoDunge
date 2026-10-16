@@ -147,3 +147,14 @@ textarea.code:focus{border-color:#ffd54f}
 /* auto-attack mode: the special button takes the attack button's place */
 #controls.auto .act.sp{width:84px;height:84px;font-size:30px;right:calc(16px + env(safe-area-inset-right));bottom:calc(var(--lift,0px) + 14px + env(safe-area-inset-bottom))}
 #controls.auto .act.rev{right:calc(16px + 84px + 12px + env(safe-area-inset-right))}
+
+/* characters / pets as list rows */
+.lrow{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;background:#1b2140;border:2px solid #2b3366;border-radius:12px;padding:8px 10px;text-align:left}
+.lrow.sel{border-color:#ffd54f;box-shadow:0 0 12px rgba(255,213,79,.3)}
+.lrow canvas{width:76px;height:76px;border-radius:10px;background:#232838;flex:none}
+.lrow .linfo{flex:1;min-width:100px}.lrow .linfo h3{margin:0;font-size:17px;color:#fff;text-align:left}
+.lrow .stats{font-size:14px;color:#cfd8ff}.lrow .desc{font-size:12px;color:#9fa8da;min-height:0}
+.lrow .lact{flex:none}.lrow .lact button{white-space:nowrap;padding:8px 12px;font-size:14px;line-height:1.2}
+.lrow .tag{font-size:11px;vertical-align:middle;margin-left:4px}
+.lrow .pts{flex:1 1 100%}
+.lrow .pts .po button{flex:1 1 0;min-width:0;padding:7px 2px;font-size:13px}
