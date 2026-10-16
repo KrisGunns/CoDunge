@@ -185,3 +185,7 @@ textarea.code:focus{border-color:#ffd54f}
 #pmStats{display:flex;flex-direction:column;gap:6px}
 #pmStats div{display:flex;justify-content:space-between;gap:10px;background:#1b2140;border-radius:8px;padding:8px 12px;text-align:left}
 #pmStats span{color:#cfd8ff}#pmStats b{color:#fff}
+
+/* icons */
+i[data-ic]{font-style:normal}
+.ic{width:1.2em;height:1.2em;vertical-align:-.25em;display:inline-block}

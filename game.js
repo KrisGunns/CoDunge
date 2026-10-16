@@ -47,7 +47,18 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.16-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.16-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+// ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
+const ICON_SVG = {
+  gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
+  gear: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"s\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"0\"><stop offset=\"0\" stop-color=\"#8d939c\"/><stop offset=\".35\" stop-color=\"#f1f3f6\"/><stop offset=\"1\" stop-color=\"#7d838c\"/></linearGradient><linearGradient id=\"y\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#e6c26a\"/><stop offset=\"1\" stop-color=\"#a47c25\"/></linearGradient></defs>\n<path d=\"M9 47 L32 60 L55 47 L51 40 H13 Z\" fill=\"url(#s)\" stroke=\"#555a62\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/><path d=\"M9 47 L32 60 L55 47\" fill=\"none\" stroke=\"url(#y)\" stroke-width=\"3\" stroke-linejoin=\"round\"/>\n<path d=\"M14 44 V27 C14 14 22 7 32 7 C42 7 50 14 50 27 V44 L32 54 Z\" fill=\"url(#s)\" stroke=\"#555a62\" stroke-width=\"1.2\" stroke-linejoin=\"round\"/>\n<path d=\"M14 23 Q32 15 50 23 V28 Q32 20 14 28 Z\" fill=\"url(#y)\" stroke=\"#7a5a14\" stroke-width=\".8\"/>\n<path d=\"M18 31 L46 31 L44 37 L20 37 Z\" fill=\"#14161a\"/>\n<path d=\"M29 30 L35 30 L36 47 L32 52 L28 47 Z\" fill=\"url(#y)\" stroke=\"#7a5a14\" stroke-width=\".8\"/>\n<g fill=\"#2a2d33\"><rect x=\"19\" y=\"40\" width=\"3\" height=\"5\" rx=\"1.2\"/><rect x=\"24\" y=\"40\" width=\"3\" height=\"5\" rx=\"1.2\"/><rect x=\"37\" y=\"40\" width=\"3\" height=\"5\" rx=\"1.2\"/><rect x=\"42\" y=\"40\" width=\"3\" height=\"5\" rx=\"1.2\"/></g>\n<path d=\"M32 1 L37 8 L32 14 L27 8 Z\" fill=\"url(#y)\" stroke=\"#7a5a14\" stroke-width=\".8\" stroke-linejoin=\"round\"/>\n<g fill=\"#cfd3d9\" stroke=\"#555a62\" stroke-width=\".5\"><circle cx=\"19\" cy=\"25\" r=\"1.3\"/><circle cx=\"45\" cy=\"25\" r=\"1.3\"/><circle cx=\"32\" cy=\"24\" r=\"1.4\"/></g></svg>",
+  paw: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"p\" x1=\"0\" y1=\"0\" x2=\"0\" y2=\"1\"><stop offset=\"0\" stop-color=\"#7be34f\"/><stop offset=\"1\" stop-color=\"#1f9a2b\"/></linearGradient></defs>\n<g fill=\"url(#p)\" stroke=\"#b6ff7a\" stroke-width=\"1.2\"><ellipse cx=\"15\" cy=\"29\" rx=\"5.3\" ry=\"7.5\" transform=\"rotate(-18 15 29)\"/><ellipse cx=\"25.5\" cy=\"17.5\" rx=\"5.8\" ry=\"8\" transform=\"rotate(-8 25.5 17.5)\"/><ellipse cx=\"38.5\" cy=\"17.5\" rx=\"5.8\" ry=\"8\" transform=\"rotate(8 38.5 17.5)\"/><ellipse cx=\"49\" cy=\"29\" rx=\"5.3\" ry=\"7.5\" transform=\"rotate(18 49 29)\"/>\n<path d=\"M32 29 C44 29 53 40 50 49 C48 56 40 55 32 57 C24 55 16 56 14 49 C11 40 20 29 32 29 Z\"/></g>\n<g fill=\"none\" stroke=\"#0e5a17\" stroke-width=\"2.2\" stroke-linecap=\"round\"><path d=\"M38 38 C44 40 48 46 47 52\"/><path d=\"M33 42 C39 43 42 48 41 53\"/><path d=\"M43 34 C48 37 51 42 51 47\"/></g></svg>"
+};
+const ICON_URI = {}; for (const k of Object.keys(ICON_SVG)) ICON_URI[k] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(ICON_SVG[k]);
+const ic = n => `<img class="ic" src="${ICON_URI[n]}" alt="">`;                // for HTML text
+const iconImgs = {};
+function iconImg(n) { let im = iconImgs[n]; if (!im) { im = iconImgs[n] = new Image(); im.src = ICON_URI[n]; } return im; }   // for the canvas
+function fillIcons() { document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = ic(el.dataset.ic); }); }
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -1118,13 +1129,13 @@ function hitEnemy(g, e, dmg, src) {
     if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, src.vamp); // Vampire Crown
     if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
       const gd = goldFor(e.type, g.stage);
-      if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd + '🪙', c: '#ffd54f' }); }
+      if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd, ic: 'gold', c: '#ffd54f' }); }
       if (def.boss) { // bosses: one point (Character OR Pet, never both) and one random piece of equipment
         const cp = Math.random() < 0.5;
         if (cp) g.teamCp++; else g.teamPp++;
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 34, s: cp ? '+1 CP' : '+1 PP', c: cp ? '#ffd600' : '#f48fb1' });
         for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(EQUIP_KEYS[rnd(EQUIP_KEYS.length)]); // each player rolls their own piece
-        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: '🎁 Loot!', c: '#ffd54f' });
+        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: 'Loot!', ic: 'gear', c: '#ffd54f' });
       } else {
         // one roll per kill, so an enemy drops at most ONE item: Character Point, Pet Point (once pets are unlocked) or a potion
         const r = Math.random(); let kind = '';
@@ -1708,7 +1719,7 @@ function showOver(g) {
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').textContent = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: 🐾 ${g.teamPp}  ·  ` : '') + `Gold: 🪙 ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
+  $('overCp').innerHTML = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: ${ic('paw')} ${g.teamPp}  ·  ` : '') + `Gold: ${ic('gold')} ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden'); closePause();
   show('scrOver');
 }
@@ -2464,7 +2475,9 @@ function drawFx(g) {
       case 'txt':
         ctx.globalAlpha = 1 - k * k; ctx.font = 'bold 14px system-ui,sans-serif'; ctx.textAlign = 'center';
         ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(0,0,0,.85)'; ctx.fillStyle = f.c || '#fff';
-        ctx.strokeText(f.s, f.x, f.y - k * 26); ctx.fillText(f.s, f.x, f.y - k * 26); break;
+        ctx.strokeText(f.s, f.x, f.y - k * 26); ctx.fillText(f.s, f.x, f.y - k * 26);
+        if (f.ic) { const im = iconImg(f.ic), w = ctx.measureText(f.s).width; if (im.complete && im.naturalWidth) ctx.drawImage(im, f.x + w / 2 + 3, f.y - k * 26 - 13, 16, 16); }
+        break;
     }
     ctx.restore();
   }
@@ -2493,7 +2506,9 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   { // points collected so far this run (shared by both players)
     const y = 12 + g.players.length * 34 + 8;
     ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
-    const txt = `🟡 CP ${g.teamCp || 0}   🐾 PP ${g.teamPp || 0}   🪙 ${g.teamGold || 0}` + (g.lootBy && (g.lootBy[g.pid] || []).length ? `   🎁 ${g.lootBy[g.pid].length}` : ''); ctx.strokeText(txt, 12, y + 10); ctx.fillText(txt, 12, y + 10);
+    const parts = [{ t: `🟡 CP ${g.teamCp || 0}   ` }, { ic: 'paw' }, { t: ` PP ${g.teamPp || 0}   ` }, { ic: 'gold' }, { t: ` ${g.teamGold || 0}` }];
+    if (g.lootBy && (g.lootBy[g.pid] || []).length) parts.push({ t: '   ' }, { ic: 'gear' }, { t: ` ${g.lootBy[g.pid].length}` });
+    let hx = 12; for (const q of parts) { if (q.ic) { const im = iconImg(q.ic); if (im.complete && im.naturalWidth) ctx.drawImage(im, hx, y - 3, 15, 15); hx += 17; } else { ctx.strokeText(q.t, hx, y + 10); ctx.fillText(q.t, hx, y + 10); hx += ctx.measureText(q.t).width; } }
   }
   if (g.isHost && g.multi) for (const p of g.players) if (p.away && !p.gone) {
     const y = 12 + g.players.length * 34 + 30; ctx.font = 'bold 12px system-ui,sans-serif'; ctx.fillStyle = '#ffab91'; ctx.textAlign = 'left';
@@ -2691,13 +2706,13 @@ const SHOW_TIER = t => `<span class="tier" style="color:${TIER_COLORS[t]}">${TIE
 function petTile(key, mode, viewed) { // mode: 'pets' (equip + upgrade) or 'shop' (buy)
   const d = PETS[key], owned = profile.pets.includes(key), st = petStatsFor(key), on = mode === 'pets' && profile.pet === key;
   let btn;
-  if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · 🪙 ${d.price.toLocaleString()}</button>`;
+  if (mode === 'shop') btn = owned ? `<button disabled>Owned</button>` : `<button data-act="buy" data-p="${key}" ${profile.gold < d.price ? 'disabled' : ''}>Buy · ${ic('gold')} ${d.price.toLocaleString()}</button>`;
   else if (!owned) btn = `<button disabled>Not owned</button>`;
   else btn = on ? `<button data-act="unsel" data-p="${key}">Equipped</button>` : `<button data-act="sel" data-p="${key}">Equip</button>`;
   return ptile(key, viewed, on, d.name, `<span class="tag ${d.kind.toLowerCase()}">${d.kind}</span>`, `ATK <b>${st.atk}</b> · HP <b>${st.hp}</b>`, btn,
     c2 => { c2.fillStyle = '#4a5275'; c2.fillRect(0, 0, PORTRAIT_PX, PORTRAIT_PX); c2.save(); c2.scale(PORTRAIT_K, PORTRAIT_K); c2.translate(60, 62); c2.scale(2.3, 2.3); drawPet(c2, { x: 0, y: 0, face: 0, r: d.r, type: key, alive: true, hurt: 0, shield: 0 }); c2.restore(); });
 }
-const petDetail = (key, spend) => `<h3>${PETS[key].name} <span class="tag ${PETS[key].kind.toLowerCase()}">${PETS[key].kind}</span></h3><div class="desc">${PETS[key].ability}</div>${spend ? spendRows('p', key, profile.pp, '🐾') : ''}`;
+const petDetail = (key, spend) => `<h3>${PETS[key].name} <span class="tag ${PETS[key].kind.toLowerCase()}">${PETS[key].kind}</span></h3><div class="desc">${PETS[key].ability}</div>${spend ? spendRows('p', key, profile.pp, ic('paw')) : ''}`;
 function renderPets() {
   $('petPp').textContent = profile.pp;
   if (!PETS[petView]) petView = profile.pet || PET_KEYS[0];
@@ -2762,7 +2777,7 @@ function renderShop() {
       <div class="cname">${CHEST.name} · Level ${lv}${lv >= CHEST_MAX ? ' (max)' : ''}</div>
       <div class="cbar"><i style="width:${pct}%"></i><span>${cp.need ? `${cp.have} / ${cp.need}` : 'MAX'}</span></div>
       ${chestOdds ? `<div class="codds">${TIERS.map((n, t) => od[t] > 0 ? `<div><span style="color:${TIER_COLORS[t]}">● ${n}</span><b>${+(od[t] * 100).toFixed(1)}%</b></div>` : '').join('')}</div>` : '<div class="chint">Tap the chest to see the chances</div>'}
-      <button class="chestbuy" data-act="buy-chest" ${profile.gold < price ? 'disabled' : ''}>Buy · 🪙 ${price.toLocaleString()}</button>`;
+      <button class="chestbuy" data-act="buy-chest" ${profile.gold < price ? 'disabled' : ''}>Buy · ${ic('gold')} ${price.toLocaleString()}</button>`;
     box.appendChild(card);
     return;
   }
@@ -2775,7 +2790,7 @@ function renderShop() {
   if (!items.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'You have no equipment to sell.'; box.appendChild(e); return; }
   const det = document.createElement('div'); det.className = 'gdetail';
   if (!sellSel) det.innerHTML = '<small>Tap a piece to sell it</small>';
-  else { const i = sellSel, price = sellPrice(i.k, i.t); det.appendChild(gearRow(i.k, i.t, i.s ? 1 : i.n, i.s ? `<small>equipped</small><button data-act="sell-eq" data-s="${i.s}">Sell · 🪙 ${price.toLocaleString()}</button>` : `<button data-act="sell" data-k="${i.k}" data-t="${i.t}">Sell · 🪙 ${price.toLocaleString()}</button>`)); }
+  else { const i = sellSel, price = sellPrice(i.k, i.t); det.appendChild(gearRow(i.k, i.t, i.s ? 1 : i.n, i.s ? `<small>equipped</small><button data-act="sell-eq" data-s="${i.s}">Sell · ${ic('gold')} ${price.toLocaleString()}</button>` : `<button data-act="sell" data-k="${i.k}" data-t="${i.t}">Sell · ${ic('gold')} ${price.toLocaleString()}</button>`)); }
   box.appendChild(det);
   const g = document.createElement('div'); g.className = 'ggrid';
   g.innerHTML = items.map(i => gearTile(i.k, i.t, i.n, same(i, sellSel), `data-k="${i.k}" data-t="${i.t}"${i.s ? ` data-s="${i.s}"` : ''}`, '', 'sell-pick') + '').join(''); box.appendChild(g);
@@ -2804,8 +2819,8 @@ $('shopCards').addEventListener('click', e => {
   } else if (b.dataset.act === 'chest-odds') { chestOdds = !chestOdds; renderShop(); }
   else if (b.dataset.act === 'buy-chest') { const lv0 = chestLevel(), items = buyChest(); if (items) { chestResult = { name: CHEST.name, items }; renderShop(); if (chestLevel() > lv0) toast(`Chest leveled up to ${chestLevel()}!`); } }
   else if (b.dataset.act === 'sell-pick') { sellSel = { k: b.dataset.k, t: +b.dataset.t, s: b.dataset.s || '' }; renderShop(); }
-  else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); sellSel = null; if (p) { renderShop(); toast(`Sold for 🪙 ${p}`); } }
-  else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { if (!profile.inv[k] || !profile.inv[k][t]) sellSel = null; renderShop(); toast(`Sold for 🪙 ${p}`); } }
+  else if (b.dataset.act === 'sell-eq') { const p = sellEquipped(b.dataset.s); sellSel = null; if (p) { renderShop(); toast(`Sold for ${p} gold`); } }
+  else if (b.dataset.act === 'sell') { const k = b.dataset.k, t = +b.dataset.t, p = sellPrice(k, t); if (sellGear(k, t)) { if (!profile.inv[k] || !profile.inv[k][t]) sellSel = null; renderShop(); toast(`Sold for ${p} gold`); } }
 });
 $('gearBox').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
@@ -2852,7 +2867,7 @@ $('btnDownload').addEventListener('click', () => {
 $('btnImport').addEventListener('click', () => {
   const r = parseSave($('saveIn').value);
   if (!r.ok) { $('saveMsg').textContent = r.msg; return; }
-  const p = r.profile, sum = `${p.name || 'Unnamed'} · best ${p.best.stage}-${p.best.level} · 🟡${p.cp} 🐾${p.pp} 🪙${p.gold}`;
+  const p = r.profile, sum = `${p.name || 'Unnamed'} · best ${p.best.stage}-${p.best.level} · 🟡${p.cp} · PP ${p.pp} · gold ${p.gold}`;
   if (!confirm(`Load this save?\n${sum}\n\nIt REPLACES the progress on this device.`)) return;
   profile = p; saveProfile(); updateMenu(); $('saveIn').value = ''; $('saveMsg').textContent = 'Save loaded: ' + sum;
   toast('Save loaded!');
@@ -2927,8 +2942,8 @@ function pmView(v) { for (const id of ['pmMain', 'pmRunBox', 'pmConfirm']) $(id)
 function pmStats() {
   const g = game; if (!g) return;
   const rows = [['Mobs defeated', g.kills], ['Bosses killed', g.bossKills], ['Character Points earned', '🟡 ' + g.teamCp]];
-  if (unlocked('pets') || g.teamPp) rows.push(['Pet Points earned', '🐾 ' + g.teamPp]);
-  rows.push(['Gold earned', '🪙 ' + g.teamGold], ['Equipment collected', (g.lootBy[g.pid] || []).length], ['Time in this run', fmtTime(g.runT)]);
+  if (unlocked('pets') || g.teamPp) rows.push(['Pet Points earned', ic('paw') + ' ' + g.teamPp]);
+  rows.push(['Gold earned', ic('gold') + ' ' + g.teamGold], ['Equipment collected', (g.lootBy[g.pid] || []).length], ['Time in this run', fmtTime(g.runT)]);
   $('pmStats').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('');
 }
 function openPause() { if (!game) return; pauseOpen = true; $('pauseMenu').classList.remove('hidden'); $('pmNote').classList.toggle('hidden', !game.multi); pmView('pmMain'); clearInterval(pauseTimer); pauseTimer = setInterval(() => { if (!$('pmRunBox').classList.contains('hidden')) pmStats(); }, 500); }
@@ -2953,6 +2968,7 @@ $('btnReconn').addEventListener('click', () => { if (net.rc) rcAttempt(); });
 $('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); leaveGame(); });
 
 // ---------------- boot ----------------
+fillIcons();
 resize();
 if (profile.name && profile.ageOk) { updateMenu(); afterName(); } else { $('nameInput').value = profile.name; show('scrName'); }
 requestAnimationFrame(frame);
