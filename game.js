@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-i'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-j'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -975,8 +975,11 @@ function resyncGuest(rejoined) { // host: (re)send the whole game state to the p
   relay(lvlMsg(g));
   const gp = g.players[1]; if (gp && !gp.gone && gp.away) { gp.away = false; toast('Your friend is back!'); }
 }
+// Difficulty per stage: HP and ATK of every enemy x (1 + 0.20 per stage + 0.01 x stage^2, counting from stage 1); bosses also start with BOSS_HP_MULT x their base HP
+const STAGE_LIN = 0.2, STAGE_QUAD = 0.01, BOSS_HP_MULT = 3;
+const stageMult = stage => 1 + STAGE_LIN * (stage - 1) + STAGE_QUAD * (stage - 1) * (stage - 1);
 function makeEnemy(g, type, x, y, summoned) {
-  const def = ENEMIES[type], m = 1 + 0.2 * (g.stage - 1), hp = Math.ceil(def.hp * m - 1e-9);
+  const def = ENEMIES[type], m = stageMult(g.stage), hp = Math.ceil(def.hp * (def.boss ? BOSS_HP_MULT : 1) * m - 1e-9);
   return { id: g.nid++, type, x, y, r: def.r, hp, maxhp: hp, atk: def.atk * m,
     speed: def.speed * (def.boss ? 1 : 0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
     alert: 0, home: { x, y }, wp: null, wt: 0, pause: Math.random() * 2,
