@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.15-f'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.15-g'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -2060,17 +2060,38 @@ function drawEnemy(c, e) {
     if (kind === 'cleave') { const k = clamp(1 - e.ch / (e.cht || chargeTotal('cleave')), 0, 1); ma = arc * 1.15 * (k * k * (3 - 2 * k)); }
     else if (sw < 0.16) ma = arc * 1.15 - 2.3 * arc * (sw / 0.16);
     else if (sw < 0.6) ma = -arc * 1.15 * (1 - (sw - 0.16) / 0.44);
-    c.save(); c.translate(4, 11); c.rotate(ma);
-    c.strokeStyle = '#6d4c2f'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, 0); c.lineTo(34, 0); c.stroke();                                // mace handle
-    c.fillStyle = '#78909c'; c.strokeStyle = '#37474f'; c.lineWidth = 1.5; c.beginPath(); c.arc(38, 0, 7.5, 0, 7); c.fill(); c.stroke();   // mace head
-    c.fillStyle = '#b0bec5'; for (let i = 0; i < 6; i++) { const a = i * 1.047; c.beginPath(); c.arc(38 + Math.cos(a) * 8, Math.sin(a) * 8, 1.8, 0, 7); c.fill(); }
+    // tattered red cape trailing behind him
+    c.fillStyle = '#8e1b1b'; c.strokeStyle = '#4a0a0a'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(-3, -9); c.lineTo(-12, -11); c.lineTo(-18, -7); c.lineTo(-15, -3.5); c.lineTo(-21, 0); c.lineTo(-16, 3.2); c.lineTo(-19, 7); c.lineTo(-12, 11); c.lineTo(-3, 9); c.closePath(); c.fill(); c.stroke();
+    c.strokeStyle = 'rgba(40,0,0,.55)'; c.lineWidth = 0.8; c.beginPath(); c.moveTo(-4, -4); c.lineTo(-16, -5); c.moveTo(-4, 0); c.lineTo(-19, 0); c.moveTo(-4, 4); c.lineTo(-16, 5); c.stroke();
+    // dark plate armour with bronze trim and a cold glow underneath
+    c.fillStyle = '#3b3340'; c.strokeStyle = '#17121b'; c.lineWidth = 1.4; c.beginPath(); c.ellipse(-1, 0, 8.5, 10.5, 0, 0, 7); c.fill(); c.stroke();
+    c.fillStyle = 'rgba(77,208,225,.45)'; c.beginPath(); c.ellipse(1, 0, 3, 6.5, 0, 0, 7); c.fill();
+    c.strokeStyle = '#a46a3c'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(-6, -7); c.lineTo(2, -2); c.lineTo(2, 2); c.lineTo(-6, 7); c.stroke();
+    // war-mace: held in the cyan-glowing right hand; short haft, bronze flanged head with a spike
+    c.save(); c.translate(5, 11); c.rotate(ma);
+    c.strokeStyle = '#2d2a2e'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(-4, 0); c.lineTo(21, 0); c.stroke();                                             // haft
+    c.strokeStyle = '#6b6068'; c.lineWidth = 1; for (let i = 0; i < 4; i++) { c.beginPath(); c.moveTo(3 + i * 3.5, -1.4); c.lineTo(5 + i * 3.5, 1.4); c.stroke(); } // grip wrap
+    c.fillStyle = '#a46a3c'; c.strokeStyle = '#3b2410'; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-4, -1.8); c.lineTo(-8, 0); c.lineTo(-4, 1.8); c.closePath(); c.fill(); c.stroke();                                                  // butt spike
+    c.beginPath(); c.moveTo(19, -3.4); c.lineTo(26, -5); c.lineTo(31, -2.6); c.lineTo(31, 2.6); c.lineTo(26, 5); c.lineTo(19, 3.4); c.closePath(); c.fill(); c.stroke(); // head
+    c.fillStyle = '#26222a'; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(21, sd * 3.6); c.lineTo(25, sd * 8.6); c.lineTo(28, sd * 4); c.closePath(); c.fill(); c.stroke(); } // dark side flanges
+    c.fillStyle = '#cfd2d6'; c.beginPath(); c.moveTo(31, -1.2); c.lineTo(37, 0); c.lineTo(31, 1.2); c.closePath(); c.fill(); c.stroke();                         // tip spike
+    c.fillStyle = '#4dd0e1'; c.beginPath(); c.arc(25.5, 0, 1.3, 0, 7); c.fill();                                                                                   // glow gem
     c.restore();
-    c.fillStyle = '#cfd8dc'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.ellipse(-1, 0, 8, 11, 0, 0, 7); c.fill(); c.stroke();
-    c.strokeStyle = '#78909c'; c.lineWidth = 1; for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(-6, i * 3.6); c.lineTo(4, i * 3.6); c.stroke(); }
-    c.fillStyle = '#eceff1'; c.strokeStyle = '#78909c'; c.lineWidth = 1.5; c.beginPath(); c.arc(3, 0, 7, 0, 7); c.fill(); c.stroke();
-    c.fillStyle = '#ffca28'; c.strokeStyle = '#b8860b'; c.lineWidth = 1; c.beginPath(); // crown
-    c.moveTo(-3, -6); c.lineTo(-1, -12); c.lineTo(2, -7); c.lineTo(5, -12); c.lineTo(8, -6); c.closePath(); c.fill(); c.stroke();
-    c.fillStyle = '#d50000'; c.beginPath(); c.arc(6, -2.6, 1.8, 0, 7); c.fill(); c.beginPath(); c.arc(6, 2.6, 1.8, 0, 7); c.fill();
+    // big bronze pauldrons with spikes
+    for (const sd of [-1, 1]) { c.fillStyle = '#a46a3c'; c.strokeStyle = '#3b2410'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(-5, sd * 14); c.lineTo(-1, sd * 21); c.lineTo(3, sd * 14); c.closePath(); c.fill(); c.stroke();
+      c.beginPath(); c.ellipse(-1, sd * 11, 6.8, 5.6, 0, 0, 7); c.fill(); c.stroke(); c.strokeStyle = '#d4a060'; c.lineWidth = 0.8; c.beginPath(); c.arc(-1, sd * 11, 3.6, 0, 7); c.stroke(); }
+    c.fillStyle = '#4dd0e1'; c.fillStyle = 'rgba(77,208,225,.35)'; c.beginPath(); c.arc(5, 11, 4.6, 0, 7); c.arc(8, -9, 4, 0, 7); c.fill();
+    c.fillStyle = '#80deea'; c.beginPath(); c.arc(5, 11, 2.4, 0, 7); c.arc(8, -9, 2.1, 0, 7); c.fill();                                                           // glowing hands
+    // helm, long white hair, crown spikes and a skull face with cyan eyes
+    c.strokeStyle = '#d9dcdf'; c.lineWidth = 1; for (const sd of [-1, 1]) for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(0, sd * (3 + i * 1.6)); c.quadraticCurveTo(-6, sd * (4.5 + i * 2), -10 - i, sd * (6 + i * 1.5)); c.stroke(); }
+    c.fillStyle = '#e6e2d8'; c.strokeStyle = '#78716a'; c.lineWidth = 1.2; c.beginPath(); c.arc(3.5, 0, 7.4, 0, 7); c.fill(); c.stroke();                               // skull
+    c.fillStyle = '#a46a3c'; c.strokeStyle = '#3b2410'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, 5.6, 1.5, 4.78); c.lineTo(2, 0); c.closePath(); c.fill(); c.stroke(); // bronze helm over the back of the head
+    for (const a of [2.1, 2.62, 3.14, 3.66, 4.18]) { const ca2 = Math.cos(a), sa2 = Math.sin(a); c.beginPath(); c.moveTo(ca2 * 5.2 - sa2 * 1.2, sa2 * 5.2 + ca2 * 1.2); c.lineTo(ca2 * 10, sa2 * 10); c.lineTo(ca2 * 5.2 + sa2 * 1.2, sa2 * 5.2 - ca2 * 1.2); c.closePath(); c.fill(); c.stroke(); } // crown spikes
+    c.fillStyle = '#d4a060'; c.beginPath(); c.moveTo(-3, -0.7); c.lineTo(4, -0.5); c.lineTo(6, 0); c.lineTo(4, 0.5); c.lineTo(-3, 0.7); c.closePath(); c.fill();     // central crest blade
+    c.fillStyle = '#1b161d'; c.beginPath(); c.ellipse(8, 0, 1.6, 2.6, 0, 0, 7); c.fill();                                                                         // jaw shadow
+    c.fillStyle = 'rgba(77,208,225,.55)'; c.beginPath(); c.arc(7, -2.6, 2.6, 0, 7); c.arc(7, 2.6, 2.6, 0, 7); c.fill();
+    c.fillStyle = '#b2ebf2'; c.beginPath(); c.arc(7, -2.6, 1.3, 0, 7); c.arc(7, 2.6, 1.3, 0, 7); c.fill();                                                        // glowing eyes
     c.scale(1 / 3.2, 1 / 3.2);
   } else if (e.type === 'sorcerer') { // hooded fire mage: crimson robe, glowing eyes, staff with a flame orb
     const casting = e.ch > 0 || e.al;
@@ -2136,16 +2157,34 @@ function drawEnemy(c, e) {
     else if (sw < 0.14) { ca = -2.0 + 2.5 * (sw / 0.14); lift = 1 - sw / 0.14; }
     else if (sw < 0.5) ca = 0.5 * (1 - (sw - 0.14) / 0.36);
     if (lift > 0) { c.fillStyle = `rgba(255,255,255,${0.12 * lift})`; c.beginPath(); c.arc(0, 0, 16 + lift * 4, 0, 7); c.fill(); }
-    c.fillStyle = '#7b8f4a'; c.strokeStyle = '#4e5d2c'; c.lineWidth = 2; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); c.stroke();
-    c.fillStyle = '#8fa35c'; c.beginPath(); c.arc(6, -14, 6, 0, 7); c.fill(); c.beginPath(); c.arc(6, 14, 6, 0, 7); c.fill();
-    c.save(); c.translate(8, 14); c.rotate(ca);
-    c.strokeStyle = '#6d4c2f'; c.lineWidth = 5; c.beginPath(); c.moveTo(0, 0); c.lineTo(18, 0); c.stroke();
-    c.fillStyle = '#5d4037'; c.beginPath(); c.arc(20, 0, 6, 0, 7); c.fill();
-    c.fillStyle = '#8d6e63'; for (const [px, py] of [[20, -5], [25, 0], [20, 5]]) { c.beginPath(); c.arc(px, py, 1.4, 0, 7); c.fill(); }
-    c.restore();
-    c.fillStyle = '#9aae63'; c.beginPath(); c.arc(4, 0, 8, 0, 7); c.fill();
-    c.fillStyle = '#fff'; c.beginPath(); c.moveTo(11, -3); c.lineTo(15, -4); c.lineTo(12, -1); c.fill(); c.beginPath(); c.moveTo(11, 3); c.lineTo(15, 4); c.lineTo(12, 1); c.fill();
-    c.fillStyle = '#d50000'; c.beginPath(); c.arc(8, -3, 1.3, 0, 7); c.fill(); c.beginPath(); c.arc(8, 3, 1.3, 0, 7); c.fill();
+    // a hunched mountain of mossy stone: broad rocky back, long hairy beard, glowing yellow eyes, and an uprooted tree for a club
+    c.fillStyle = '#4f564a'; c.strokeStyle = '#23271f'; c.lineWidth = 2; c.beginPath(); c.ellipse(-2, 0, 15.5, 16.5, 0, 0, 7); c.fill(); c.stroke();                 // hunched back
+    for (const [px, py, pr, pc] of [[-8, -7, 5.5, '#646c5d'], [-4, 6, 6, '#3d4338'], [-11, 3, 4.5, '#6b7363'], [0, -9, 4, '#3d4338'], [-6, -1, 3.6, '#4b5245'], [2, 8, 3.4, '#646c5d']]) { c.fillStyle = pc; c.strokeStyle = '#23271f'; c.lineWidth = 1; c.beginPath(); c.arc(px, py, pr, 0, 7); c.fill(); c.stroke(); } // stone plates
+    c.fillStyle = 'rgba(96,130,54,.75)'; for (const [px, py, pr] of [[-9, -6, 3], [-3, 8, 2.6], [-12, 2, 2.2], [1, -10, 1.8]]) { c.beginPath(); c.arc(px, py, pr, 0, 7); c.fill(); }          // moss
+    c.strokeStyle = '#1f2119'; c.lineWidth = 1; for (let i = 0; i < 12; i++) { const a = 1.7 + i * 0.4, rx = Math.cos(a) * 15.5 - 2, ry = Math.sin(a) * 16.5; c.beginPath(); c.moveTo(rx, ry); c.lineTo(rx + Math.cos(a) * 4, ry + Math.sin(a) * 4); c.stroke(); } // shaggy hair along the back
+    c.fillStyle = '#6a7263'; c.strokeStyle = '#23271f'; c.lineWidth = 1.6; c.beginPath(); c.arc(6, -14, 7, 0, 7); c.fill(); c.stroke(); c.beginPath(); c.arc(7, 14, 7, 0, 7); c.fill(); c.stroke(); // shoulders
+    c.fillStyle = '#7b8470'; c.beginPath(); c.arc(15, -12, 5.2, 0, 7); c.fill(); c.stroke();                                                                         // left fist
+    c.strokeStyle = '#23271f'; c.lineWidth = 0.9; for (const k of [-2, 0, 2]) { c.beginPath(); c.moveTo(17, -12 + k); c.lineTo(19.5, -12 + k * 1.3); c.stroke(); }
+    c.save(); c.translate(8, 14); c.rotate(ca);                                                                                                                       // the club
+    c.strokeStyle = '#2a2018'; c.lineWidth = 8.6; c.lineCap = 'round'; c.beginPath(); c.moveTo(-2, 0); c.lineTo(26, 0); c.stroke();
+    c.strokeStyle = '#5a4630'; c.lineWidth = 6.6; c.beginPath(); c.moveTo(-2, 0); c.lineTo(26, 0); c.stroke();
+    c.strokeStyle = '#3a2d1f'; c.lineWidth = 0.9; for (const [x1, y1] of [[2, -2], [8, 1.5], [14, -2.5], [20, 1.5]]) { c.beginPath(); c.moveTo(x1, y1); c.lineTo(x1 + 3, y1 + 1); c.stroke(); } // bark
+    c.fillStyle = 'rgba(96,130,54,.8)'; c.beginPath(); c.ellipse(13, -1.6, 4, 1.6, 0, 0, 7); c.fill();
+    c.strokeStyle = '#4a3825'; c.lineWidth = 2; for (const [bx, by] of [[34, -9], [38, -3], [37, 5], [33, 10], [30, -11]]) { c.beginPath(); c.moveTo(25, 0); c.lineTo(bx, by); c.stroke(); } // root / branch tangle at the heavy end
+    c.lineWidth = 1.2; for (const [bx, by, bx2, by2] of [[34, -9, 38, -12], [38, -3, 42, -4], [37, 5, 41, 8], [33, 10, 35, 14]]) { c.beginPath(); c.moveTo(bx, by); c.lineTo(bx2, by2); c.stroke(); }
+    c.lineCap = 'butt'; c.restore();
+    c.fillStyle = '#7b8470'; c.strokeStyle = '#23271f'; c.lineWidth = 1.6; c.beginPath(); c.arc(8, 14, 5.2, 0, 7); c.fill(); c.stroke();                           // right fist on the club
+    c.fillStyle = '#6f7867'; c.beginPath(); c.moveTo(2, -7); c.lineTo(0, -11.5); c.lineTo(5, -9); c.fill(); c.beginPath(); c.moveTo(2, 7); c.lineTo(0, 11.5); c.lineTo(5, 9); c.fill(); // pointed ears
+    c.fillStyle = '#34362c'; c.strokeStyle = '#15160f'; c.lineWidth = 0.8;                                                                                            // long stringy beard hanging forward off the chin
+    for (const [by2, bl] of [[-5.5, 8], [-2.8, 12], [0, 15], [2.8, 12], [5.5, 8]]) { c.beginPath(); c.moveTo(8, by2 - 1.8); c.quadraticCurveTo(8 + bl * 0.6, by2 * 1.5, 9 + bl, by2 * 1.2); c.quadraticCurveTo(8 + bl * 0.6, by2 * 1.5 + 2.4, 8, by2 + 1.8); c.closePath(); c.fill(); c.stroke(); }
+    c.strokeStyle = '#6b6e60'; c.lineWidth = 0.6; for (const [by2, bl] of [[-3.4, 9], [0, 12], [3.4, 9]]) { c.beginPath(); c.moveTo(9, by2); c.lineTo(8 + bl, by2 * 1.15); c.stroke(); }
+    c.fillStyle = '#7b8470'; c.strokeStyle = '#23271f'; c.lineWidth = 1.5; c.beginPath(); c.arc(4, 0, 8.4, 0, 7); c.fill(); c.stroke();                               // head
+    c.fillStyle = 'rgba(96,130,54,.8)'; c.beginPath(); c.arc(0.5, -3, 2.4, 0, 7); c.arc(1, 4, 1.8, 0, 7); c.fill();
+    c.fillStyle = '#2a2d24'; c.beginPath(); c.moveTo(3, -8.2); c.lineTo(11.5, -5); c.lineTo(11, -2.2); c.lineTo(3, -4.2); c.closePath(); c.fill();                    // heavy brow ridge
+    c.beginPath(); c.moveTo(3, 8.2); c.lineTo(11.5, 5); c.lineTo(11, 2.2); c.lineTo(3, 4.2); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,196,0,.45)'; c.beginPath(); c.arc(8.6, -3.3, 3.4, 0, 7); c.arc(8.6, 3.3, 3.4, 0, 7); c.fill();
+    c.fillStyle = '#ffd21a'; c.beginPath(); c.arc(8.6, -3.3, 1.7, 0, 7); c.arc(8.6, 3.3, 1.7, 0, 7); c.fill();                                                       // glowing eyes
+    c.fillStyle = '#69715f'; c.beginPath(); c.ellipse(13, 0, 3, 2.4, 0, 0, 7); c.fill(); c.stroke();                                                                // big knobbly nose
     c.scale(1 / 3, 1 / 3);
   }
   if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, isBossT(e) ? e.r * 3.1 : e.r + 2, 0, 7); c.fill(); }
