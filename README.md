@@ -31,7 +31,7 @@ Clearing site data resets progress.
 
 ## Gold, pets, equipment and shop
 
-* Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 2.5 / Goblin 5 / Skeleton Archer 5 / Voidling 7.5 / Sorcerer 10 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
+* Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 2.5 / Goblin 5 / Skeleton Archer 5 / Voidling 7.5 / Sorcerer 10 / Hellguard 12 / Assassin 12 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
 * Each normal kill rolls once and drops at most ONE item: Character Point 3%, **Pet Point** 3% (only once pets are unlocked), **health potion** 8% (walk over it to heal 20% of max HP). Bosses give exactly one point (Character or Pet) plus one random piece of equipment.
 * **Difficulty:** every enemy's HP and ATK are multiplied by 1 + 0.20·(stage−1) + 0.01·(stage−1)² (`stageMult`); bosses also start with 3× their base HP (`BOSS_HP_MULT`).
 * **In-run menu (☰, top right):** Sound (placeholder), **Current run** (mobs defeated, bosses killed, CP/PP and gold earned, equipment collected, elapsed time without menu time) and **Quit run** (Yes/No). Solo runs pause while it is open; in co-op the game keeps running (the clock still skips the menu time). Pets keep their health between rooms, and a KO'd pet's respawn countdown carries on into the next room.
@@ -52,8 +52,10 @@ Keyboard: WASD / arrows, Space or J = attack, K / L / Shift = special.
 
 * Rat, Goblin — melee. **Skeleton Archer** (from stage 2-1) — arrows from range, backs away if you get close. **Voidling** (from stage 3-1) — a red laser with very long range that ignores walls.
 * **Sorcerer** (from stage 5-1, 20 ATK / 40 HP) — keeps its distance and calls up 3 pillars of fire that erupt one after another in a line toward you (rings on the floor warn you first).
+* **Hellguard** (Doom stages only, 15 ATK / 60 HP) — **Target Lock:** once it spots you it never stops chasing, and while locked it wears a barrier worth 50% of its max HP (orange ring + bar). A Wolf's Howl breaks the lock and removes the barrier; it can lock on again the next time it spots you. In a Doom boss room the Hellguards are locked on from the start.
+* **Assassin** (from stage 6-1, 25 ATK / 55 HP) — **Teleport Strike:** once it has spotted you it may vanish and reappear right next to you (10 s cooldown). Half a second after landing it strikes once for 2× ATK inside a red circle — step out of it to dodge (`TP` in game.js).
 * The last level of a stage is a boss room (everyone in it is hostile the moment you enter). Bosses rotate: **Troll** (stages 1, 4, 7…), **Skeleton King** (2, 5, 8…) and **Cerberus** (3, 6, 9…); new bosses are appended to `BOSS_ORDER` in `game.js`.
-* **Hell stages** — every 5th stage (5, 10, 15…) has only 5 levels, a much bigger scrolling room with a hellish look, and twice as many enemies (max 40). An arrow points to the exit once it opens. Doom stages hold only Sorcerers and Voidlings (`DOOM` in game.js).
+* **Hell stages** — every 5th stage (5, 10, 15…) has only 5 levels, a much bigger scrolling room with a hellish look, and twice as many enemies (max 40). An arrow points to the exit once it opens. Doom stages hold only Sorcerers (40%), Hellguards (25%) and Voidlings (`DOOM` in game.js). The Doom boss room holds the boss plus 10 escorts: 60% Sorcerers, 40% Hellguards (no Voidlings).
 * **Unlocks:** Pets and Shop appear at best stage 2-1, Equipment at 5-1 (`UNLOCK` in game.js). Points left on the floor are collected automatically when the next level loads.
 * **Names & age:** names are checked by a profanity filter (`isBadName`) and players must tick that they are 13+ (`MIN_AGE`). Settings → Developer (code `dev`) is a testing panel; remove its button before release.
 * **Controls:** heroes attack automatically when an enemy is in reach (Warrior: sword range; Mage and Healer: a clear shot within 300 px). The button on the right is the special skill (`AUTO_ATTACK` in game.js turns the attack button back on). Mage shoots fireballs, Healer dark-green bolts.

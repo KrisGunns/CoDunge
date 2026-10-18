@@ -31,7 +31,7 @@ const POTION = { chance: 0.08, heal: 0.2 };       // potion drop chance per kill
 const PET_RESPAWN = 20;                           // seconds until a KO'd pet comes back
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
-const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, sorcerer: 220, skeleton_king: 240, cerberus: 300 }; // px
+const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, sorcerer: 220, hellguard: 200, assassin: 200, skeleton_king: 240, cerberus: 300 }; // px
 const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
 const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
 let SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.16-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.18-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -65,6 +65,8 @@ const ENEMIES = {
   skeleton: { name: 'Skeleton Archer', atk: 5, hp: 20, speed: 60, r: 10, cd: 1.6, ranged: true, gold: 5 }, // from stage 2
   voidling: { name: 'Voidling', atk: 10, hp: 30, speed: 65, r: 10, cd: 3, laser: true, gold: 7.5 },          // from stage 3
   sorcerer: { name: 'Sorcerer', atk: 20, hp: 40, speed: 58, r: 10, cd: 3.5, caster: true, gold: 10 },             // from stage 5-1
+  hellguard: { name: 'Hellguard', atk: 15, hp: 60, speed: 70, r: 11, cd: 1, gold: 12 },                       // Doom stages only (target lock + barrier)
+  assassin: { name: 'Assassin', atk: 25, hp: 55, speed: 75, r: 11, cd: 1, gold: 12 },                         // from stage 6-1 (teleport strike)
   troll: { name: 'Troll', atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true, gold: 0 },
   skeleton_king: { name: 'Skeleton King', atk: 15, hp: 150, speed: 58, r: 15, cd: 1.6, boss: true, gold: 0, reach: 70 },
   cerberus: { name: 'Cerberus', atk: 20, hp: 200, speed: 66, r: 15, cd: 1.2, boss: true, gold: 0 },             // 3-headed hound; boss of every 3rd stage (3, 6, 9, ...)
@@ -91,6 +93,10 @@ const CERB = {
   jump: { cd: 15, first: 4, up: 1.3, down: 0.3, lock: 0.45, r: 110, mult: 3, min: 70, max: 450 }, // up = whole flight (he leaps, travels over the floor and lands); the landing spot stops following you for the last `lock` seconds
 };
 const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
+// Hellguard: once it spots you it locks on and never stops chasing (only a wolf's howl breaks the lock); while locked it wears a barrier of 50% of its max HP.
+const LOCK = { barrier: 0.5 };
+// Assassin: once it has spotted you it may blink next to you (10 s cooldown); half a second after it lands it strikes once, so you can step out of the red circle.
+const TP = { cd: 10, first: 3, chance: 1, vanish: 0.3, windup: 0.5, r: 46, mult: 2, near: 30, minDist: 80, maxDist: 560 }; // chance = per second once ready
 const HEAL_RANGE = 200;
 const HEALER = { maxPct: 0.2, curPct: 0.1 };   // the healer's ray only reaches allies this close
 const REVIVE_TIME = 5;   // seconds the reviver must stay put and unhurt
@@ -1004,17 +1010,20 @@ function makeEnemy(g, type, x, y, summoned) {
   return { id: g.nid++, type, x, y, r: def.r, hp, maxhp: hp, atk: def.atk * m,
     speed: def.speed * (def.boss ? 1 : 0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
     alert: 0, home: { x, y }, wp: null, wt: 0, pause: Math.random() * 2,
-    sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : type === 'cerberus' ? CERB.fire.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : type === 'cerberus' ? CERB.jump.first : 0, fbQ: 0, fbT: 0,
+    sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : type === 'cerberus' ? CERB.fire.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : type === 'cerberus' ? CERB.jump.first : type === 'assassin' ? TP.first : 0, fbQ: 0, fbT: 0, shield: 0, lock: false, hadLock: false,
     ch: 0, cht: 0, sk: '', fear: 0, dashT: 0, summoned: !!summoned };
 }
-const DOOM = { sorcShare: 0.4, bossVoid: 8, maxSorc: 6 }; // Doom stage mix: share of sorcerers (rest voidlings); extras beside the boss
+const DOOM = { sorcShare: 0.4, hellShare: 0.25, bossAdds: 10, bossSorcShare: 0.6 }; // Doom rooms: shares of sorcerers / hellguards (rest voidlings); boss room: bossAdds escorts, 60% sorcerers + 40% hellguards
+const ASSASSIN_SPAWN = { from: 6, base: 0.05, perLevel: 0.01, perStage: 0.01, cap: 0.15 };
 function spawnEnemies(g, L) {
   const list = [], hell = isHell(g.stage), K = hell ? 2 : 1;      // Hell stages hold twice as many enemies
   const eff = hell ? g.level * 2 : g.level;                       // 5 Hell levels count as 10 for difficulty
-  if (hell) { // Doom stages: nothing but sorcerers and voidlings
-    const nS = Math.min(DOOM.maxSorc, 2 + Math.floor(g.stage / 5));
-    if (g.level === levelsIn(g.stage)) { list.push(bossFor(g.stage)); for (let i = 0; i < DOOM.bossVoid; i++) list.push('voidling'); for (let i = 0; i < nS; i++) list.push('sorcerer'); }
-    else { const n = K * Math.min(20, 2 + eff + (g.stage - 1) * 2); for (let i = 0; i < n; i++) list.push(Math.random() < DOOM.sorcShare ? 'sorcerer' : 'voidling'); }
+  if (hell) { // Doom stages: nothing but sorcerers, hellguards and voidlings (the boss room: sorcerers and hellguards only)
+    if (g.level === levelsIn(g.stage)) {
+      list.push(bossFor(g.stage));
+      const nS = Math.round(DOOM.bossAdds * DOOM.bossSorcShare);
+      for (let i = 0; i < DOOM.bossAdds; i++) list.push(i < nS ? 'sorcerer' : 'hellguard');
+    } else { const n = K * Math.min(20, 2 + eff + (g.stage - 1) * 2); for (let i = 0; i < n; i++) { const r = Math.random(); list.push(r < DOOM.sorcShare ? 'sorcerer' : r < DOOM.sorcShare + DOOM.hellShare ? 'hellguard' : 'voidling'); } }
   } else if (g.level === levelsIn(g.stage)) {
     const boss = bossFor(g.stage); list.push(boss);
     if (boss === 'troll') {
@@ -1029,7 +1038,8 @@ function spawnEnemies(g, L) {
     const pSk = g.stage >= 2 ? Math.min(0.35, 0.12 + eff * 0.02 + (g.stage - 2) * 0.03) : 0;   // skeleton archers appear from stage 2-1
     const pVd = g.stage >= 3 ? Math.min(0.2, 0.06 + eff * 0.01 + (g.stage - 3) * 0.02) : 0;     // voidlings from stage 3-1
     const pSo = g.stage >= 5 ? Math.min(0.2, 0.08 + eff * 0.01 + (g.stage - 5) * 0.015) : 0;    // sorcerers from stage 5-1
-    for (let i = 0; i < n; i++) { const r = Math.random(); list.push(r < pSo ? 'sorcerer' : r < pSo + pVd ? 'voidling' : r < pSo + pVd + pSk ? 'skeleton' : Math.random() < pg ? 'goblin' : 'rat'); }
+    const A = ASSASSIN_SPAWN, pAs = g.stage >= A.from ? Math.min(A.cap, A.base + eff * A.perLevel + (g.stage - A.from) * A.perStage) : 0; // assassins from stage 6-1
+    for (let i = 0; i < n; i++) { const r = Math.random(); list.push(r < pSo ? 'sorcerer' : r < pSo + pAs ? 'assassin' : r < pSo + pAs + pVd ? 'voidling' : r < pSo + pAs + pVd + pSk ? 'skeleton' : Math.random() < pg ? 'goblin' : 'rat'); }
     const ensure = (type, count, fromEnd) => { let have = list.filter(t => t === type).length; for (let i = 0; have < count && i < list.length; i++) { const k = list.length - fromEnd - i; if (k >= 0 && list[k] !== type) { list[k] = type; have++; } } };
     if (g.stage >= 2) ensure('skeleton', 1, 1);
     if (g.stage >= 3) ensure('voidling', 1, 2);
@@ -1116,7 +1126,12 @@ function noteFocus(g, src, e) { // an owner attacking something pulls their idle
 }
 function hitEnemy(g, e, dmg, src) {
   if (e.dead || isAir(e)) return;
-  const d = Math.max(1, Math.round(dmg));
+  let d = Math.max(1, Math.round(dmg));
+  if (e.shield > 0) { // Hellguard's target-lock barrier soaks damage first
+    const ab = Math.min(e.shield, d); e.shield -= ab; d -= ab;
+    addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 8, s: '🛡' + ab, c: '#ffab91' });
+    if (d <= 0) { e.hurt = 0.12; noteFocus(g, src, e); return; }
+  }
   e.hp -= d; e.hurt = 0.12;
   noteFocus(g, src, e);
   if (e.hp > 0) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = Math.max(e.alert, 6); } // getting shot wakes it up
@@ -1361,8 +1376,8 @@ function stepTo(g, e, tgt, fk, dt, mult) {
     else { moveEnt(g, e, (dx >= 0 ? 1 : -1) * sp, 0); if (e.x === ox) moveEnt(g, e, 0, Math.sign(dy) * sp); }
   }
 }
-const CHARGE_KINDS = { smash: 1, dash: 2, laser: 3, cleave: 4, pillars: 5, fire: 6, jumpup: 7, jumpdn: 8 };
-const isAir = e => e.sk === 'jumpup' || e.sk === 'jumpdn'; // Cerberus mid-jump: can't be hit
+const CHARGE_KINDS = { smash: 1, dash: 2, laser: 3, cleave: 4, pillars: 5, fire: 6, jumpup: 7, jumpdn: 8, tpout: 9, tpstrike: 10 };
+const isAir = e => e.sk === 'jumpup' || e.sk === 'jumpdn' || e.sk === 'tpout'; // Cerberus mid-jump / Assassin mid-teleport: can't be hit
 function startCharge(e, kind, t) { e.sk = kind; e.ch = e.cht = t; }
 function chargeLock(kind) { return kind === 'laser' ? LASER.lock : kind === 'dash' ? 0.25 : kind === 'cleave' ? 0.12 : kind === 'pillars' ? 0.1 : kind === 'fire' ? 0.15 : Infinity; } // aims until this many seconds are left
 function chargeStep(g, e, dt) {
@@ -1382,6 +1397,24 @@ function chargeStep(g, e, dt) {
   else if (k === 'laser') { e.cd = ENEMIES[e.type].cd; fireLaser(g, e); }
   else if (k === 'pillars') { e.cd = ENEMIES[e.type].cd; castPillars(g, e); }
   else if (k === 'fire') { e.sm = CERB.fire.cd; e.fbQ = 3; e.fbT = 0; }
+  else if (k === 'tpout') { // Assassin lands beside its target, then strikes half a second later
+    const t = (e.tpTgt && e.tpTgt.alive !== false && !e.tpTgt.gone && !e.tpTgt.away) ? e.tpTgt : nearestTarget(g, e.x, e.y); e.tpTgt = null;
+    if (t) {
+      const a0 = Math.random() * Math.PI * 2, dist = t.r + e.r + TP.near;
+      for (let i = 0; i < 12; i++) {
+        const a = a0 + i * Math.PI / 6, x = t.x + Math.cos(a) * dist, y = t.y + Math.sin(a) * dist;
+        if (!hitsWall(g, x, y, e.r) && clearLine(g, t.x, t.y, x, y, 2)) { e.x = x; e.y = y; break; }
+      }
+      e.face = Math.atan2(t.y - e.y, t.x - e.x);
+    }
+    addFx(g, { type: 'poof', x: e.x, y: e.y }); startCharge(e, 'tpstrike', TP.windup);
+  }
+  else if (k === 'tpstrike') { // one quick strike on whoever is still standing in the circle
+    e.cd = Math.max(e.cd, ENEMIES[e.type].cd);
+    const dmg = Math.max(1, Math.round(TP.mult * e.atk));
+    for (const t of targetsOf(g)) if (Math.hypot(t.x - e.x, t.y - e.y) <= TP.r + t.r) hurtT(g, t, dmg);
+    addFx(g, { type: 'slash', x: e.x, y: e.y, a: e.face }); addFx(g, { type: 'slash', x: e.x, y: e.y, a: e.face + Math.PI });
+  }
   else if (k === 'jumpup') { // touchdown: the slam
     e.jfrom = null; e.s2 = CERB.jump.cd; e.cd = Math.max(e.cd, 1);
     const dmg = Math.max(1, Math.round(CERB.jump.mult * e.atk));
@@ -1413,6 +1446,7 @@ function dashStep(g, e, dt) {
 }
 function fearStep(g, e, dt) {
   e.fear -= dt; e.ch = 0; e.sk = ''; e.dashT = 0; e.fbQ = 0;
+  if (e.lock) { e.lock = false; e.shield = 0; }   // a howl breaks a Hellguard's target lock (and its barrier)
   const f = e.fearFrom || { x: e.x - 1, y: e.y }, a = Math.atan2(e.y - f.y, e.x - f.x), sp = e.speed * 1.2 * dt;
   e.face = a;
   const ox = e.x, oy = e.y; moveEnt(g, e, Math.cos(a) * sp, Math.sin(a) * sp);
@@ -1600,14 +1634,21 @@ function step(g, dt) {
     const seen = playerInSight(g, e);
     if (seen) { if (e.alert <= 0) alertAllies(g, e, 3); e.alert = 4; } // spotted: hostile, and keeps hunting a few seconds after losing sight
     else e.alert = Math.max(0, e.alert - dt);
+    if (e.type === 'hellguard') { // target lock: once it has spotted you it never stops chasing (until howled at), wrapped in a barrier of 50% max HP
+      if (!e.lock && (seen || (g.bossRoom && !e.hadLock))) { e.lock = true; e.hadLock = true; e.shield = Math.ceil(e.maxhp * LOCK.barrier); addFx(g, { type: 'barrier', x: e.x, y: e.y }); }
+      if (e.lock) e.alert = Math.max(e.alert, 6);
+    }
     if (e.alert <= 0) { wander(g, e, dt); continue; }
     const tgt = nearestTarget(g, e.x, e.y);                // players, or a pet that is closer (so a Defender can tank)
-    if (!tgt) { e.alert = 0; continue; }
+    if (!tgt) { e.alert = 0; if (e.lock) { e.lock = false; e.shield = 0; } continue; }
     const d = Math.hypot(tgt.x - e.x, tgt.y - e.y), fk = tgt.isPet ? tgt.owner : tgt.id;
     e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x);
     if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r * SMASH.trigger) { startCharge(e, 'smash', SMASH.charge); continue; }
     if (e.type === 'skeleton_king' && kingAI(g, e, tgt, seen, d)) continue;
     if (e.type === 'cerberus' && cerbAI(g, e, tgt, d)) continue;
+    if (e.type === 'assassin' && e.s2 <= 0 && d >= TP.minDist && d <= TP.maxDist && Math.random() < TP.chance * dt) { // teleport strike: only once it has spotted you
+      e.s2 = TP.cd; e.tpTgt = tgt; addFx(g, { type: 'poof', x: e.x, y: e.y }); startCharge(e, 'tpout', TP.vanish); continue;
+    }
     if (def.caster) { // Sorcerer: keeps its distance and calls up a chain of fire pillars
       const los = clearLine(g, e.x, e.y, tgt.x, tgt.y, 3);
       if (e.cd <= 0 && los && d <= SORC.range) { startCharge(e, 'pillars', SORC.windup); continue; }
@@ -1731,7 +1772,7 @@ function snapshot(g) { // kept small on purpose: it goes out 20x a second over a
   const s = {
     k: 's', d: g.door.open ? 1 : 0, kl: g.kills, bk: g.bossKills, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
-    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0]),
+    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0, Math.round(e.shield || 0)]),
     q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
     j: g.proj.map(j => [j.id, ri(j.x), ri(j.y), j.kind, r2(Math.atan2(j.vy, j.vx))]),
     c: g.pickups.map(k => [k.id, ri(k.x), ri(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
@@ -1766,7 +1807,7 @@ function applySnap(g, s) {
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
     if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]] ? ENEMIES[a[1]].r : 10 };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12]; e.land = a[13] || a[14] ? { x: a[13], y: a[14] } : null;
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12]; e.land = a[13] || a[14] ? { x: a[13], y: a[14] } : null; e.shield = a[15] || 0;
     return e;
   });
   const oldQ = new Map(g.pets.map(q => [q.id, q]));
@@ -1991,8 +2032,8 @@ function drawChar(c, type, x, y, a, sc, hurt) {
   if (hurt) { c.fillStyle = 'rgba(255,255,255,.65)'; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); }
   c.restore();
 }
-const CHARGE_NAMES = ['', 'smash', 'dash', 'laser', 'cleave', 'pillars', 'fire', 'jumpup', 'jumpdn'];
-const chargeTotal = k => k === 'smash' ? SMASH.charge : k === 'dash' ? KING.dash.charge : k === 'laser' ? LASER.charge : k === 'cleave' ? KING.cleave.windup : k === 'pillars' ? SORC.windup : k === 'fire' ? CERB.fire.windup : k === 'jumpup' ? CERB.jump.up : k === 'jumpdn' ? CERB.jump.down : 1;
+const CHARGE_NAMES = ['', 'smash', 'dash', 'laser', 'cleave', 'pillars', 'fire', 'jumpup', 'jumpdn', 'tpout', 'tpstrike'];
+const chargeTotal = k => k === 'smash' ? SMASH.charge : k === 'dash' ? KING.dash.charge : k === 'laser' ? LASER.charge : k === 'cleave' ? KING.cleave.windup : k === 'pillars' ? SORC.windup : k === 'fire' ? CERB.fire.windup : k === 'jumpup' ? CERB.jump.up : k === 'jumpdn' ? CERB.jump.down : k === 'tpout' ? TP.vanish : k === 'tpstrike' ? TP.windup : 1;
 function drawPet(c, q) {
   c.save(); c.translate(q.x, q.y);
   if (!q.alive) c.globalAlpha = 0.3;
@@ -2045,6 +2086,7 @@ function airLift(e) { // Cerberus mid-jump: 0 on the ground .. 1 at the top of t
 const LIFT_PX = 80;
 const isBossT = e => !!(ENEMIES[e.type] && ENEMIES[e.type].boss);          // bosses are drawn twice as big
 function drawEnemy(c, e) {
+  if (e.type === 'assassin' && (e.sk || CHARGE_NAMES[e.skc] || '') === 'tpout') return;   // mid-teleport: gone for a moment
   const lift = e.type === 'cerberus' ? airLift(e) : 0;
   if (lift > 0) { // his shadow stays on the floor and travels across the map under him; it shrinks and fades as he climbs
     const sc = 1 - lift * 0.25; c.save(); c.translate(e.x, e.y + 3); c.rotate(e.face || 0); c.fillStyle = `rgba(0,0,0,${0.5 - lift * 0.18})`;
@@ -2138,6 +2180,35 @@ function drawEnemy(c, e) {
     c.fillStyle = '#4a1230'; c.strokeStyle = '#240812'; c.beginPath(); c.arc(2, 0, 7, 0, 7); c.fill(); c.stroke();                                          // hood
     c.fillStyle = '#ffab40'; c.beginPath(); c.arc(6, -2.2, 1.4, 0, 7); c.fill(); c.beginPath(); c.arc(6, 2.2, 1.4, 0, 7); c.fill();                          // eyes in the shadow
     c.strokeStyle = '#ffca28'; c.lineWidth = 1; c.beginPath(); c.arc(-1, 0, 10, 2.2, 4.1); c.stroke();                                                     // golden trim
+  } else if (e.type === 'hellguard') { // heavy infernal knight: black plate, curled horns, burning visor, halberd; wears a red barrier while locked on
+    const now = performance.now(), lk = e.shield > 0, sw = e.swAt ? (now - e.swAt) / 1000 : 9;
+    if (lk) { const pr = 1 + 0.12 * Math.sin(now / 110 + e.x); c.fillStyle = 'rgba(255,61,0,.16)'; c.beginPath(); c.arc(0, 0, 17 * pr, 0, 7); c.fill(); }
+    c.save(); c.translate(6, 11); if (sw < 0.25) c.rotate(-0.9 * Math.sin(sw / 0.25 * Math.PI));
+    c.strokeStyle = '#4e342e'; c.lineWidth = 2.6; c.beginPath(); c.moveTo(-6, 0); c.lineTo(26, 0); c.stroke();                                              // halberd shaft
+    c.fillStyle = '#546e7a'; c.strokeStyle = '#1c2429'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(22, 0); c.lineTo(28, -7); c.lineTo(34, -2); c.lineTo(34, 2); c.lineTo(28, 5); c.closePath(); c.fill(); c.stroke(); // axe blade
+    c.strokeStyle = '#ff3d00'; c.lineWidth = 1; c.beginPath(); c.moveTo(29, -5.5); c.lineTo(33, -1.5); c.stroke();                                       // glowing edge
+    c.restore();
+    c.fillStyle = '#2b2d36'; c.strokeStyle = '#0e0f13'; c.lineWidth = 1.8; c.beginPath(); c.ellipse(-1, 0, 8.5, 12, 0, 0, 7); c.fill(); c.stroke();           // breastplate
+    c.strokeStyle = 'rgba(255,61,0,.85)'; c.lineWidth = 1.1; c.beginPath(); c.moveTo(-5, -6); c.lineTo(1, 0); c.lineTo(-5, 6); c.stroke();                     // glowing seam
+    for (const sy of [-1, 1]) { c.fillStyle = '#3c3f4c'; c.strokeStyle = '#0e0f13'; c.beginPath(); c.arc(1, sy * 10.5, 5, 0, 7); c.fill(); c.stroke();     // pauldrons with spikes
+      c.fillStyle = '#b71c1c'; c.beginPath(); c.moveTo(3, sy * 13.5); c.lineTo(7, sy * 17.5); c.lineTo(0, sy * 15.5); c.closePath(); c.fill(); }
+    c.fillStyle = '#e57373'; c.beginPath(); c.arc(6, 11, 2.3, 0, 7); c.fill();                                                                              // hand on the haft
+    c.fillStyle = '#353845'; c.strokeStyle = '#0e0f13'; c.beginPath(); c.arc(3, 0, 7, 0, 7); c.fill(); c.stroke();                                           // helm
+    c.strokeStyle = '#d7ccc8'; c.lineWidth = 2.2; c.lineCap = 'round'; for (const sy of [-1, 1]) { c.beginPath(); c.moveTo(1, sy * 6); c.quadraticCurveTo(7, sy * 14, 14, sy * 11); c.stroke(); } c.lineCap = 'butt'; // curled horns
+    c.fillStyle = '#ff1744'; c.fillRect(6.5, -3.2, 3, 6.4); c.fillStyle = '#ffd180'; c.fillRect(7.6, -1.4, 1.2, 2.8);                                        // burning visor slit
+  } else if (e.type === 'assassin') { // slim hooded blade-dancer: violet cloak, scarf, twin daggers
+    const now = performance.now(), st = (e.sk || CHARGE_NAMES[e.skc] || '') === 'tpstrike', sw = e.swAt ? (now - e.swAt) / 1000 : 9;
+    if (st) { c.fillStyle = 'rgba(179,136,255,.22)'; c.beginPath(); c.arc(0, 0, 15 + 2 * Math.sin(now / 50), 0, 7); c.fill(); }
+    const wave = Math.sin(now / 120 + e.x * 0.05) * 2.5;
+    c.fillStyle = '#4a2a78'; c.strokeStyle = '#1a0d2e'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(-6, -3); c.quadraticCurveTo(-15, -4 + wave, -21, -2 + wave); c.lineTo(-15, 1 + wave); c.quadraticCurveTo(-11, 3, -6, 3); c.closePath(); c.fill(); c.stroke(); // scarf tail
+    for (const sy of [-1, 1]) { c.save(); c.translate(7, sy * 8); c.rotate(sy * (st ? -0.2 : 0.35) + (sw < 0.2 ? sy * 0.8 * Math.sin(sw / 0.2 * Math.PI) : 0));
+      c.strokeStyle = '#eceff1'; c.lineWidth = 2; c.lineCap = 'round'; c.beginPath(); c.moveTo(-1, 0); c.quadraticCurveTo(5, sy * -1.5, 11, 0); c.stroke();                // curved dagger
+      c.strokeStyle = '#7e57c2'; c.lineWidth = 1; c.beginPath(); c.moveTo(-3, 0); c.lineTo(0, 0); c.stroke(); c.lineCap = 'butt'; c.restore(); }
+    c.fillStyle = '#2d1b4e'; c.strokeStyle = '#120a1f'; c.lineWidth = 1.6; c.beginPath(); c.ellipse(-1, 0, 6.5, 10, 0, 0, 7); c.fill(); c.stroke();             // cloaked shoulders
+    c.fillStyle = '#d7a98d'; for (const sy of [-1, 1]) { c.beginPath(); c.arc(5.5, sy * 7.5, 1.9, 0, 7); c.fill(); }                                          // hands
+    c.fillStyle = '#1c1030'; c.strokeStyle = '#0a0612'; c.beginPath(); c.arc(2, 0, 6, 0, 7); c.fill(); c.stroke();                                           // hood
+    c.fillStyle = '#7e57c2'; c.fillRect(4.2, -4.2, 2.2, 8.4);                                                                                              // mask band
+    c.fillStyle = '#e1bee7'; c.beginPath(); c.arc(5.4, -1.8, 1.1, 0, 7); c.arc(5.4, 1.8, 1.1, 0, 7); c.fill();                                               // glowing eyes
   } else if (e.type === 'cerberus') { // three-headed hound, seen from above
     const tt = performance.now() / 1000 + e.x * 0.01, bs = e.swAt ? (performance.now() - e.swAt) / 1000 : 9, ck = e.sk || CHARGE_NAMES[e.skc] || '';
     c.scale(2.7, 2.7); if (bs < 0.25) c.translate(7 * Math.sin(bs / 0.25 * Math.PI), 0); // bite: lunges forward
@@ -2226,6 +2297,8 @@ function drawEnemy(c, e) {
   const big = isBossT(e), bw = big ? 84 : e.r * 2 + 6, by = e.y - lift * LIFT_PX - (big ? e.r * 3.4 : e.r + 8);
   c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
   c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
+  if (e.shield > 0) { c.strokeStyle = `rgba(255,112,67,${0.65 + 0.25 * Math.sin(performance.now() / 150 + e.x)})`; c.lineWidth = 2.5; c.beginPath(); c.arc(e.x, e.y, e.r + 7, 0, 7); c.stroke(); }  // barrier ring
+  if (e.shield > 0) { c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by - 4, bw, 3); c.fillStyle = '#ff7043'; c.fillRect(e.x - bw / 2, by - 4, bw * clamp(e.shield / (e.maxhp * LOCK.barrier), 0, 1), 3); }  // Hellguard barrier
   if (e.al !== undefined ? e.al : e.alert > 0) { // "!" = this enemy has noticed a player
     c.font = 'bold 15px system-ui,sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; c.fillStyle = '#ff5252';
     c.strokeText('!', e.x, by - 3); c.fillText('!', e.x, by - 3);
@@ -2323,6 +2396,10 @@ function drawWorld(g) {
       const a = e.face || 0, len = LASER.range;
       ctx.strokeStyle = `rgba(255,23,68,${0.25 + 0.55 * k})`; ctx.lineWidth = 1 + 3 * k; ctx.setLineDash(k > 0.7 ? [] : [12, 8]);
       ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(a) * len, e.y + Math.sin(a) * len); ctx.stroke();
+    } else if (kind === 'tpstrike') { // Assassin has landed: this circle is where it is about to strike
+      ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, TP.r, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(229,57,53,.34)'; ctx.beginPath(); ctx.arc(e.x, e.y, TP.r * k, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,82,82,.95)'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(e.x, e.y, TP.r, 0, 7); ctx.stroke();
     } else if (kind === 'pillars') { // the three spots where fire is about to rise
       for (const p of pillarSpots(e)) {
         ctx.fillStyle = `rgba(255,112,67,${0.08 + 0.22 * k})`; ctx.beginPath(); ctx.arc(p.x, p.y, SORC.r, 0, 7); ctx.fill();
