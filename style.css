@@ -76,7 +76,7 @@ input:focus{border-color:#ffd54f}
 .list h3{margin:8px 0 0;font-size:15px;color:#ffd54f;text-align:left}
 .gear{display:flex;align-items:center;gap:10px;background:#1b2140;border:2px solid #2b3366;border-radius:12px;padding:8px 10px;text-align:left}
 .gear.empty{opacity:.55}
-.gear .gi{font-size:26px;width:34px;text-align:center}
+
 .gear .gt{flex:1;font-size:15px}.gear .gt small{color:#9fa8da;font-size:12px}
 .gear .gb{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
 .gear .gb button{padding:7px 10px;font-size:13px}
@@ -189,3 +189,16 @@ textarea.code:focus{border-color:#ffd54f}
 /* icons */
 i[data-ic]{font-style:normal}
 .ic{width:1.2em;height:1.2em;vertical-align:-.25em;display:inline-block}
+/* equipment pictures (drawn by gearSVG in game.js); the tile border colour is the rarity colour */
+.gimg{width:100%;height:100%;display:block;object-fit:contain;pointer-events:none}
+.gimg.sm{width:1.7em;height:1.7em;display:inline-block;vertical-align:middle;border-radius:6px;border:2px solid var(--tc,#555);background:#161b3d}
+.gtile .gic{width:100%;height:100%;font-size:0;display:block}
+.gtile .gtier{position:absolute;left:0;right:0;bottom:3px;text-align:center;font-size:9px;text-shadow:0 1px 2px #000,0 0 3px #000}
+.gtile.gt4{box-shadow:0 0 14px rgba(255,236,130,.85)}
+.gtile.gt5{box-shadow:0 0 14px rgba(255,23,68,.85)}
+.gtile.gt6{background:#000;box-shadow:none}
+.gtile.gt0,.gtile.gt1,.gtile.gt2,.gtile.gt3{box-shadow:none}
+.gear .gi{width:48px;height:48px;border:2px solid var(--tc,#555);border-radius:10px;background:linear-gradient(160deg,#242b57,#161b3d);overflow:hidden;font-size:0}
+.gear .gi.gt4{box-shadow:0 0 10px rgba(255,236,130,.8)}
+.gear .gi.gt5{box-shadow:0 0 10px rgba(255,23,68,.8)}
+.gear .gi.gt6{background:#000}

@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.18-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.19-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -59,6 +59,158 @@ const ic = n => `<img class="ic" src="${ICON_URI[n]}" alt="">`;                /
 const iconImgs = {};
 function iconImg(n) { let im = iconImgs[n]; if (!im) { im = iconImgs[n] = new Image(); im.src = ICON_URI[n]; } return im; }   // for the canvas
 function fillIcons() { document.querySelectorAll('[data-ic]').forEach(el => { el.innerHTML = ic(el.dataset.ic); }); }
+// ---- equipment art: every piece is drawn as SVG from a palette (per rarity) and a detail level (gearSVG), then cached as a data URI ----
+const GEAR_BORDER = ['#b0bec5', '#66bb6a', '#29b6f6', '#ab47bc', '#ffd54f', '#ff1744', '#8b0000'];
+const GEAR_PAL = [
+  { m: ['#a3a7b0', '#55585f', '#1b1c20'], tr: ['#8b8f98', '#3a3c42'], gem: ['#8a8d94', '#d8dadf'], cl: ['#8a6a48', '#3d2a18'], bone: ['#d9cfb4', '#8f845f', '#3f3820'], eye: '#c8ccd2' },
+  { m: ['#a3a7b0', '#55585f', '#1b1c20'], tr: ['#8b8f98', '#3a3c42'], gem: ['#8a8d94', '#d8dadf'], cl: ['#8a6a48', '#3d2a18'], bone: ['#d9cfb4', '#8f845f', '#3f3820'], eye: '#c8ccd2' },
+  { m: ['#a9c1e3', '#41567a', '#101828'], tr: ['#8fb0dc', '#2b3d5c'], gem: ['#1e8fff', '#bfe4ff'], cl: ['#3d5f94', '#16243d'], bone: ['#d6dce6', '#8091aa', '#35405a'], eye: '#3aa9ff' },
+  { m: ['#b79ae0', '#4c3174', '#150c26'], tr: ['#a07edb', '#35205a'], gem: ['#b43cff', '#efc0ff'], cl: ['#6d3fa6', '#26123f'], bone: ['#e0d4f2', '#8f74b8', '#3d2860'], eye: '#c25bff' },
+  { m: ['#fff3b8', '#dba52a', '#6e4a00'], tr: ['#ffe98f', '#a06f00'], gem: ['#ffe34a', '#fffbe0'], cl: ['#f0d27a', '#a77a12'], bone: ['#fff6d0', '#e6c260', '#8a6618'], eye: '#ffe65c' },
+  { m: ['#ff6a5a', '#c4162a', '#470510'], tr: ['#ff6e4c', '#6a0a14'], gem: ['#ff7a00', '#fff0cc'], cl: ['#e23a3a', '#7a0a18'], bone: ['#ffc9bd', '#e0503f', '#7a1a14'], eye: '#ff6a1f' },
+  { m: ['#77737e', '#2d2b33', '#09090c'], tr: ['#d03228', '#6a0808'], gem: ['#ff1a1a', '#ffb4a4'], cl: ['#5a2a30', '#1d0c0f'], bone: ['#8c7878', '#463a3a', '#150f0f'], eye: '#ff2a1a' },
+];
+const GEAR_LEVEL = t => t < 2 ? 0 : t === 2 ? 1 : t === 3 ? 2 : 3;
+const GEAR_IDX = { iron_helm: 0, scout_hood: 1, vampire_crown: 2, wizard_hat: 3, horned_helm: 4, leather_vest: 5, chainmail: 6, dragon_plate: 7, mystic_robe: 8, troll_mantle: 9, iron_blade: 10, runed_staff: 11, doom_edge: 12, hunter_bow: 13, shadow_dagger: 14 };
+function gearSVG(key, t) {
+  const P = GEAR_PAL[t], L = GEAR_LEVEL(t), id = 'q' + GEAR_IDX[key] + 'x' + t; let defs = '', gn = 0;
+  const lg = (cols, v) => { const i = id + 'g' + (gn++); defs += `<linearGradient id="${i}" x1="0" y1="0" x2="${v ? 0 : 1}" y2="${v ? 1 : 0}">` + cols.map((c, k) => `<stop offset="${(k / (cols.length - 1)).toFixed(2)}" stop-color="${c}"/>`).join('') + '</linearGradient>'; return `url(#${i})`; };
+  const rg = (cols) => { const i = id + 'r' + (gn++); defs += `<radialGradient id="${i}">` + cols.map(([o, c, a]) => `<stop offset="${o}" stop-color="${c}" stop-opacity="${a}"/>`).join('') + '</radialGradient>'; return `url(#${i})`; };
+  const OUT = t === 6 ? '#000' : '#0d0b10', M = lg(P.m), MV = lg(P.m, 1), TR = lg(P.tr, 1), CL = lg(P.cl, 1), BN = lg(P.bone, 1), GM = rg([[0, P.gem[1], 1], [0.55, P.gem[0], 1], [1, P.gem[0], 0.85]]);
+  const st = (w) => `stroke="${OUT}" stroke-width="${w || 1.3}" stroke-linejoin="round" stroke-linecap="round"`;
+  const hi = d => `<path d="${d}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.3" stroke-linecap="round"/>`;
+  let a = { gem: [32, 30], top: [32, 6], sides: [[12, 30], [52, 30]] }, art = '', rot = 0;
+  switch (key) {
+    case 'iron_helm':
+      art = `<path d="M13 46 L32 56 L51 46 L47 40 H17 Z" fill="${M}" ${st()}/><path d="M13 46 L32 56 L51 46" fill="none" stroke="${TR}" stroke-width="3"/>
+      <path d="M14 44 V27 C14 14 22 7 32 7 C42 7 50 14 50 27 V44 L32 53 Z" fill="${M}" ${st()}/><path d="M14 22 Q32 14 50 22 V27 Q32 19 14 27 Z" fill="${TR}" ${st(1.2)}/>
+      <path d="M18 31 H46 L44 37 H20 Z" fill="#0c0b0d"/><path d="M29 30 H35 L36 46 L32 51 L28 46 Z" fill="${TR}" ${st(1.2)}/>
+      <g fill="#1d1b20"><rect x="19" y="40" width="3" height="5" rx="1.2"/><rect x="24" y="40" width="3" height="5" rx="1.2"/><rect x="37" y="40" width="3" height="5" rx="1.2"/><rect x="42" y="40" width="3" height="5" rx="1.2"/></g>${hi('M19 18 Q25 11 32 10')}`;
+      a = { gem: [32, 19], top: [32, 7], sides: [[13, 33], [51, 33]] }; break;
+    case 'scout_hood':
+      art = `<path d="M32 5 C18 7 11 22 13 37 C14 47 20 55 32 58 C44 55 50 47 51 37 C53 22 46 7 32 5 Z" fill="${CL}" ${st()}/>
+      <path d="M32 19 C24 19 19 28 21 38 C23 46 28 49 32 49 C36 49 41 46 43 38 C45 28 40 19 32 19 Z" fill="#150f1a" ${st(1.4)}/>
+      <path d="M25 35 q2 -2 4 0 M35 35 q2 -2 4 0" stroke="${P.gem[1]}" stroke-width="1.4" fill="none" stroke-linecap="round" opacity="${t < 2 ? 0.55 : 0}"/>
+      <path d="M16 40 Q20 52 32 55 M48 40 Q44 52 32 55" fill="none" stroke="${TR}" stroke-width="2.2"/><path d="M22 11 Q27 8 32 8" stroke="#fff" stroke-opacity=".4" stroke-width="1.4" fill="none"/>`;
+      a = { gem: [32, 13], top: [32, 5], sides: [[13, 36], [51, 36]] }; break;
+    case 'vampire_crown':
+      art = `<path d="M10 48 L12 20 L23 33 L32 11 L41 33 L52 20 L54 48 Z" fill="${M}" ${st()}/><path d="M10 48 H54 V54 H10 Z" fill="${TR}" ${st()}/>
+      <g fill="${TR}" ${st(1.2)}><circle cx="12" cy="19" r="3"/><circle cx="32" cy="10" r="3.4"/><circle cx="52" cy="19" r="3"/></g>
+      <path d="M32 33 L38 41 L32 49 L26 41 Z" fill="${L ? GM : '#c62828'}" ${st(1.4)}/><path d="M30 38 L32 36 L34 38" fill="none" stroke="#fff" stroke-opacity=".7"/>${hi('M14 26 L22 36')}`;
+      a = { gem: [32, 41], top: [32, 10], sides: [[11, 30], [53, 30]] }; break;
+    case 'wizard_hat':
+      art = `<ellipse cx="32" cy="48" rx="27" ry="8.5" fill="${CL}" ${st()}/><path d="M32 3 C31 14 27 24 22 33 L15 47 C24 52 40 52 49 47 L42 33 C37 24 33 14 32 3 Z" fill="${CL}" ${st()}/>
+      <path d="M18 41 Q32 47 46 41 L48 46 Q32 52 16 46 Z" fill="${TR}" ${st(1.3)}/><path d="M27 41 H37 V48 H27 Z" fill="${TR}" ${st(1.2)}/><path d="M29.5 43 H34.5 V46 H29.5Z" fill="${OUT}" opacity=".55"/>
+      <path d="M30 12 Q34 14 34 18" stroke="#fff" stroke-opacity=".4" stroke-width="1.4" fill="none"/><path d="M32 3 Q40 4 41 10" fill="none" stroke="${P.cl[1]}" stroke-width="2.2" stroke-linecap="round"/>`;
+      a = { gem: [32, 44.5], top: [32, 3], sides: [[7, 48], [57, 48]] }; break;
+    case 'horned_helm':
+      art = `<path d="M17 36 C6 34 4 20 9 9 C11 19 17 22 21 26 Z" fill="${BN}" ${st()}/><path d="M47 36 C58 34 60 20 55 9 C53 19 47 22 43 26 Z" fill="${BN}" ${st()}/>
+      <path d="M15 52 V34 C15 22 22 16 32 16 C42 16 49 22 49 34 V52 L40 56 H24 Z" fill="${M}" ${st()}/><path d="M15 30 H49 V36 H15 Z" fill="${TR}" ${st(1.2)}/>
+      <path d="M22 40 H42 L40 46 H24 Z" fill="#0c0b0d"/><path d="M29.5 36 H34.5 V52 L32 55 L29.5 52 Z" fill="${TR}" ${st(1.2)}/>${hi('M19 28 Q24 21 31 20')}`;
+      a = { gem: [32, 24], top: [32, 16], sides: [[9, 10], [55, 10]] }; break;
+    case 'leather_vest':
+      art = `<path d="M19 9 L27 6 L32 14 L37 6 L45 9 L54 18 L49 29 L47 56 H17 L15 29 L10 18 Z" fill="${CL}" ${st()}/><path d="M27 6 L32 14 L37 6" fill="none" stroke="${TR}" stroke-width="2.6"/>
+      <path d="M32 14 V56" stroke="${OUT}" stroke-width="1.6"/><path d="M28 20 L36 23 M28 28 L36 31 M28 36 L36 39" stroke="${P.tr[0]}" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M16 46 H48 V51 H16 Z" fill="${TR}" ${st(1.2)}/><rect x="28" y="45" width="8" height="7" rx="1.5" fill="${M}" ${st(1.2)}/>
+      <path d="M12 20 L16 28 M52 20 L48 28" stroke="${OUT}" stroke-opacity=".4" stroke-width="1.2"/>`;
+      a = { gem: [32, 33], top: [32, 6], sides: [[10, 19], [54, 19]] }; break;
+    case 'chainmail': {
+      const pt = id + 'p'; defs += `<pattern id="${pt}" width="6" height="6" patternUnits="userSpaceOnUse"><circle cx="3" cy="3" r="2.1" fill="none" stroke="${P.m[2]}" stroke-width="1"/><circle cx="0" cy="0" r="2.1" fill="none" stroke="${P.m[2]}" stroke-width="1"/><circle cx="6" cy="6" r="2.1" fill="none" stroke="${P.m[2]}" stroke-width="1"/><circle cx="6" cy="0" r="2.1" fill="none" stroke="${P.m[2]}" stroke-width="1"/><circle cx="0" cy="6" r="2.1" fill="none" stroke="${P.m[2]}" stroke-width="1"/></pattern>`;
+      const sh = 'M18 9 L27 6 Q32 13 37 6 L46 9 L57 19 L51 31 L47 28 L47 56 H17 L17 28 L13 31 L7 19 Z';
+      art = `<path d="${sh}" fill="${MV}" ${st()}/><path d="${sh}" fill="url(#${pt})"/><path d="M27 6 Q32 13 37 6" fill="#120f14" ${st(1.4)}/><path d="M17 50 H47 V56 H17 Z" fill="${TR}" ${st(1.2)}/><path d="M7 19 L13 31 M57 19 L51 31" stroke="${TR}" stroke-width="2.4" fill="none"/>${hi('M20 14 L22 40')}`;
+      a = { gem: [32, 30], top: [32, 6], sides: [[8, 21], [56, 21]] }; break; }
+    case 'dragon_plate':
+      art = `<ellipse cx="13" cy="17" rx="10" ry="8" transform="rotate(-20 13 17)" fill="${M}" ${st()}/><ellipse cx="51" cy="17" rx="10" ry="8" transform="rotate(20 51 17)" fill="${M}" ${st()}/>
+      <path d="M20 9 H44 L49 30 L43 56 H21 L15 30 Z" fill="${MV}" ${st()}/><path d="M32 9 V56" stroke="${OUT}" stroke-width="1.4"/><path d="M18 36 H46 M20 44 H44 M22 51 H42" stroke="${OUT}" stroke-width="1.3" stroke-opacity=".7"/>
+      <path d="M32 18 L38 26 L32 36 L26 26 Z" fill="${TR}" ${st(1.3)}/><path d="M7 15 L4 8 L12 11 M57 15 L60 8 L52 11" fill="${P.m[1]}" ${st(1.3)}/>${hi('M22 14 L19 30')}`;
+      a = { gem: [32, 26], top: [32, 9], sides: [[6, 14], [58, 14]] }; break;
+    case 'mystic_robe':
+      art = `<path d="M23 8 L32 13 L41 8 L53 20 L49 34 L47 57 H17 L15 34 L11 20 Z" fill="${CL}" ${st()}/><path d="M23 8 L32 26 L41 8" fill="#15101c" ${st(1.4)}/><path d="M23 8 L32 26 L41 8" fill="none" stroke="${TR}" stroke-width="2.4"/>
+      <path d="M16 38 L48 33 L48 40 L16 45 Z" fill="${TR}" ${st(1.2)}/><path d="M17 51 H47 V57 H17 Z" fill="${TR}" ${st(1.2)}/><path d="M22 30 q-3 14 -2 24 M42 30 q3 14 2 24" fill="none" stroke="${OUT}" stroke-opacity=".35" stroke-width="1.3"/>
+      <path d="M32 28 l2 4.5 5 .6 -3.7 3.3 1 5 -4.3 -2.6 -4.3 2.6 1 -5 -3.7 -3.3 5 -.6 Z" fill="${P.gem[1]}" stroke="${OUT}" stroke-width="1"/>`;
+      a = { gem: [32, 36], top: [32, 8], sides: [[10, 20], [54, 20]] }; break;
+    case 'troll_mantle':
+      art = `<path d="M9 22 C11 11 21 6 32 6 C43 6 53 11 55 22 L57 38 L51 35 L53 48 L45 43 L43 56 L36 47 L32 58 L28 47 L21 56 L19 43 L11 48 L13 35 L7 38 Z" fill="${CL}" ${st()}/>
+      <path d="M32 14 V50 M20 20 L24 44 M44 20 L40 44 M14 30 L17 46 M50 30 L47 46" stroke="${OUT}" stroke-opacity=".35" stroke-width="1.4" stroke-linecap="round"/>
+      <path d="M18 14 Q32 22 46 14" fill="none" stroke="${P.cl[0]}" stroke-width="5" stroke-linecap="round"/><circle cx="32" cy="17" r="5" fill="${BN}" ${st(1.4)}/>
+      <path d="M10 26 L7 31 M54 26 L57 31" stroke="${BN}" stroke-width="3" stroke-linecap="round"/>`;
+      a = { gem: [32, 17], top: [32, 6], sides: [[8, 34], [56, 34]] }; break;
+    case 'iron_blade':
+      art = `<path d="M32 2 L38 8 V41 L32 47 L26 41 V8 Z" fill="${M}" ${st()}/><path d="M32 6 V44" stroke="${OUT}" stroke-opacity=".45" stroke-width="2"/><path d="M29 10 V38" stroke="#fff" stroke-opacity=".55" stroke-width="1.4"/>
+      <path d="M17 44 Q32 41 47 44 L47 50 Q32 47 17 50 Z" fill="${TR}" ${st()}/><rect x="29" y="49" width="6" height="9" rx="1.5" fill="${CL}" ${st(1.4)}/><circle cx="32" cy="60" r="3.2" fill="${TR}" ${st(1.4)}/>`;
+      a = { gem: [32, 46.5], top: [32, 2], sides: [[16, 46], [48, 46]] }; rot = 40; break;
+    case 'runed_staff':
+      art = `<path d="M30 24 H34 V63 H30 Z" fill="${CL}" ${st(1.5)}/><path d="M31 32 h2 M31 40 h2 M31 48 h2 M31 56 h2" stroke="${P.tr[0]}" stroke-width="1.6"/>
+      <path d="M22 22 C18 14 22 6 32 5 C42 6 46 14 42 22 C40 18 38 16 36 16 L28 16 C26 16 24 18 22 22 Z" fill="${M}" ${st()}/><path d="M26 22 H38 L36 27 H28 Z" fill="${TR}" ${st(1.3)}/>
+      <circle cx="32" cy="14" r="7.5" fill="${GM}" ${st(1.6)}/><circle cx="29.5" cy="11.5" r="2" fill="#fff" fill-opacity=".8"/>`;
+      a = { gem: [32, 14], top: [32, 4], sides: [[20, 18], [44, 18]] }; rot = 40; break;
+    case 'doom_edge':
+      art = `<path d="M32 1 L37 8 L35 12 L40 17 L36 22 L41 28 L38 36 L40 42 L32 48 L24 42 L26 36 L23 28 L28 22 L24 17 L29 12 L27 8 Z" fill="${M}" ${st()}/><path d="M32 6 V44" stroke="${P.gem[0]}" stroke-width="2.4" stroke-linecap="round"/><path d="M29 12 V30" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>
+      <path d="M13 44 Q22 38 32 45 Q42 38 51 44 L48 51 Q40 46 32 53 Q24 46 16 51 Z" fill="${TR}" ${st()}/><rect x="29" y="52" width="6" height="7" fill="${CL}" ${st(1.3)}/><circle cx="32" cy="61" r="3.4" fill="${GM}" ${st(1.3)}/>`;
+      a = { gem: [32, 47], top: [32, 1], sides: [[13, 45], [51, 45]] }; rot = 40; break;
+    case 'hunter_bow':
+      art = `<path d="M22 4 C50 14 50 50 22 60" fill="none" stroke="${OUT}" stroke-width="7.4" stroke-linecap="round"/><path d="M22 4 C50 14 50 50 22 60" fill="none" stroke="${CL}" stroke-width="5" stroke-linecap="round"/>
+      <path d="M22 4 L22 60" stroke="#e9e4d6" stroke-width="1.2"/><path d="M12 32 H52" stroke="${OUT}" stroke-width="3.4" stroke-linecap="round"/><path d="M12 32 H52" stroke="${P.bone[1]}" stroke-width="1.8" stroke-linecap="round"/>
+      <path d="M52 32 L45 28 L45 36 Z" fill="${M}" ${st(1.3)}/><path d="M12 32 L8 27 L16 29 Z M12 32 L8 37 L16 35 Z" fill="${TR}" ${st(1)}/><rect x="39" y="26" width="5" height="12" rx="2" transform="rotate(8 41 32)" fill="${TR}" ${st(1.2)}/>`;
+      a = { gem: [41, 32], top: [29, 8], sides: [[22, 6], [22, 58]] }; rot = -30; break;
+    case 'shadow_dagger':
+      art = `<path d="M32 2 C42 12 41 30 37 43 H27 C23 30 22 12 32 2 Z" fill="${M}" ${st()}/><path d="M32 7 V41" stroke="${OUT}" stroke-opacity=".4" stroke-width="1.8"/><path d="M28 14 Q27 28 29 38" stroke="#fff" stroke-opacity=".55" stroke-width="1.3" fill="none"/>
+      <path d="M18 43 Q32 39 46 43 L44 48 Q32 45 20 48 Z" fill="${TR}" ${st()}/><rect x="29" y="47" width="6" height="9" rx="1.5" fill="${CL}" ${st(1.4)}/><circle cx="32" cy="59" r="4" fill="${GM}" ${st(1.4)}/>`;
+      a = { gem: [32, 45.5], top: [32, 2], sides: [[17, 45], [47, 45]] }; rot = 40; break;
+  }
+
+  // ---- dark-fantasy finish: hammered texture, light/shadow sheen, engraving, glowing eyes, cracks ----
+  const SIL = { iron_helm: 'M14 44 V27 C14 14 22 7 32 7 C42 7 50 14 50 27 V44 L32 53 Z', scout_hood: 'M32 5 C18 7 11 22 13 37 C14 47 20 55 32 58 C44 55 50 47 51 37 C53 22 46 7 32 5 Z', vampire_crown: 'M10 48 L12 20 L23 33 L32 11 L41 33 L52 20 L54 48 Z', wizard_hat: 'M32 3 C31 14 27 24 22 33 L15 47 C24 52 40 52 49 47 L42 33 C37 24 33 14 32 3 Z', horned_helm: 'M15 52 V34 C15 22 22 16 32 16 C42 16 49 22 49 34 V52 L40 56 H24 Z',
+    leather_vest: 'M19 9 L27 6 L32 14 L37 6 L45 9 L54 18 L49 29 L47 56 H17 L15 29 L10 18 Z', chainmail: 'M18 9 L27 6 Q32 13 37 6 L46 9 L57 19 L51 31 L47 28 L47 56 H17 L17 28 L13 31 L7 19 Z', dragon_plate: 'M20 9 H44 L49 30 L43 56 H21 L15 30 Z', mystic_robe: 'M23 8 L32 13 L41 8 L53 20 L49 34 L47 57 H17 L15 34 L11 20 Z', troll_mantle: 'M9 22 C11 11 21 6 32 6 C43 6 53 11 55 22 L57 38 L51 35 L53 48 L45 43 L43 56 L36 47 L32 58 L28 47 L21 56 L19 43 L11 48 L13 35 L7 38 Z',
+    iron_blade: 'M32 2 L38 8 V41 L32 47 L26 41 V8 Z', runed_staff: 'M22 22 C18 14 22 6 32 5 C42 6 46 14 42 22 C40 18 38 16 36 16 L28 16 C26 16 24 18 22 22 Z', doom_edge: 'M32 1 L37 8 L35 12 L40 17 L36 22 L41 28 L38 36 L40 42 L32 48 L24 42 L26 36 L23 28 L28 22 L24 17 L29 12 L27 8 Z', hunter_bow: '', shadow_dagger: 'M32 2 C42 12 41 30 37 43 H27 C23 30 22 12 32 2 Z' };
+  const ENG = { iron_helm: ['M32 9 V28', 'M32 10 C25 12 19 19 17 28', 'M32 10 C39 12 45 19 47 28'], scout_hood: ['M32 8 C22 12 17 24 17 36', 'M32 8 C42 12 47 24 47 36'], vampire_crown: ['M12 44 H52', 'M23 36 L32 18 L41 36'], wizard_hat: ['M32 6 C30 18 24 30 17 44', 'M32 6 C34 18 40 30 47 44'], horned_helm: ['M32 18 V34', 'M32 19 C25 21 19 26 17 33', 'M32 19 C39 21 45 26 47 33'],
+    leather_vest: ['M22 14 V44', 'M42 14 V44'], chainmail: ['M32 16 V50'], dragon_plate: ['M26 14 L22 50', 'M38 14 L42 50'], mystic_robe: ['M20 24 C18 36 18 46 19 54', 'M44 24 C46 36 46 46 45 54'], troll_mantle: ['M32 24 V52'],
+    iron_blade: ['M34.5 8 V40'], runed_staff: ['M28 12 C27 16 28 19 30 21', 'M36 12 C37 16 36 19 34 21'], doom_edge: ['M35 10 V40'], hunter_bow: [], shadow_dagger: ['M34 6 V40'] };
+  const EYES = { iron_helm: [[25, 34], [39, 34]], scout_hood: [[27, 35], [37, 35]], horned_helm: [[26, 43], [38, 43]] };
+  const sil = SIL[key]; let fin = '';
+  if (sil) {
+    const tx = id + 'tx', sh = id + 'sh', cp = id + 'cp';
+    defs += `<filter id="${tx}" x="0" y="0" width="64" height="64" filterUnits="userSpaceOnUse"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" seed="${GEAR_IDX[key] + 3}" result="n"/><feColorMatrix in="n" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1.6 -.55" result="m"/><feComposite in="m" in2="SourceAlpha" operator="in"/></filter>`;
+    defs += `<linearGradient id="${sh}" x1="0" y1="0" x2="0.35" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".30"/><stop offset=".35" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".42"/></linearGradient><clipPath id="${cp}"><path d="${sil}"/></clipPath>`;
+    fin += `<path d="${sil}" fill="#000" filter="url(#${tx})" opacity=".34"/><path d="${sil}" fill="url(#${sh})"/>`;
+    if (t >= 1) for (const d of ENG[key]) fin += `<path d="${d}" fill="none" stroke="#000" stroke-opacity=".5" stroke-width="1.4" stroke-linecap="round"/><path d="${d}" transform="translate(.9 .9)" fill="none" stroke="#fff" stroke-opacity=".38" stroke-width=".8" stroke-linecap="round"/>`;
+    if (t === 6) fin += `<g clip-path="url(#${cp})" fill="none" stroke="#ff2a1a" stroke-width="1" stroke-linecap="round" stroke-linejoin="round"><path d="M16 14 L24 22 L19 30 L28 38 L24 50"/><path d="M46 12 L40 22 L47 29 L40 38 L45 52"/><path d="M30 8 L33 18 L29 26 L35 34"/><path d="M12 36 L20 40 M52 40 L44 44 M30 46 L36 54"/></g>`;
+  }
+  const ey = EYES[key];
+  if (ey && t >= 2) for (const [ex, ey2] of ey) fin += `<ellipse cx="${ex}" cy="${ey2}" rx="6.5" ry="3.4" fill="${P.eye}" fill-opacity="${t === 6 ? 0.22 : 0.32}"/><ellipse cx="${ex}" cy="${ey2}" rx="3.9" ry="1.5" fill="${P.eye}"/><ellipse cx="${ex}" cy="${ey2}" rx="1.6" ry=".6" fill="#fff" fill-opacity=".9"/>`;
+  art += fin;
+  // ---- adornments: rarity upgrades ----
+  const g = a.gem, tp = a.top, sd = a.sides; let pre = '', post = '';
+  if (L >= 1) post += `<circle cx="${sd[0][0]}" cy="${sd[0][1]}" r="2.2" fill="${TR}" ${st(1)}/><circle cx="${sd[1][0]}" cy="${sd[1][1]}" r="2.2" fill="${TR}" ${st(1)}/>`;
+  if (L >= 1) post += `<circle cx="${g[0]}" cy="${g[1]}" r="${L === 1 ? 7 : L === 2 ? 9 : 10}" fill="${P.gem[0]}" fill-opacity="${t === 6 ? 0.18 : 0.28}"/><circle cx="${g[0]}" cy="${g[1]}" r="${L === 1 ? 3.4 : L === 2 ? 4.4 : 5}" fill="${GM}" ${st(1.4)}/><circle cx="${g[0] - 1.1}" cy="${g[1] - 1.2}" r="1.2" fill="#fff" fill-opacity=".85"/>`;
+  if (L >= 2) {
+    const f = (s) => { const [x, y] = sd[s], d = s ? 1 : -1; return `<path d="M${x} ${y - 2} L${x + d * 12} ${y - 15} L${x + d * 7} ${y - 1} Z M${x} ${y + 1} L${x + d * 11} ${y + 3} L${x + d * 4} ${y + 6} Z" fill="${M}" ${st(1.1)}/><path d="M${x + d * 1.5} ${y - 3} L${x + d * 10} ${y - 13}" stroke="#fff" stroke-opacity=".5" stroke-width=".8" fill="none"/>`; };
+    pre += f(0) + f(1);
+    pre += `<path d="M${tp[0] - 3.5} ${tp[1] + 7} L${tp[0]} ${tp[1] - 4} L${tp[0] + 3.5} ${tp[1] + 7} Z" fill="${M}" ${st(1.1)}/><path d="M${tp[0] - 1} ${tp[1] + 6} L${tp[0]} ${tp[1] - 2}" stroke="#fff" stroke-opacity=".5" stroke-width=".9" fill="none"/>`; }
+  let bg = '';
+  if (t === 4) { // legendary: golden radiance with rays
+    let rays = ''; for (let i = 0; i < 12; i++) { const an = i * Math.PI / 6; rays += `<path d="M32 32 L${(32 + 44 * Math.cos(an - 0.09)).toFixed(1)} ${(32 + 44 * Math.sin(an - 0.09)).toFixed(1)} L${(32 + 44 * Math.cos(an + 0.09)).toFixed(1)} ${(32 + 44 * Math.sin(an + 0.09)).toFixed(1)} Z" fill="#fff6b0" fill-opacity=".38"/>`; }
+    bg = `<circle cx="32" cy="32" r="32" fill="${rg([[0, '#fff9c4', 0.95], [0.5, '#ffe45c', 0.5], [1, '#ffd000', 0]])}"/>` + rays;
+    pre += `<g fill="#fff9c4" ${st(1)}><path d="M${tp[0] - 7} ${tp[1] + 4} L${tp[0] - 4} ${tp[1] - 6} L${tp[0]} ${tp[1] + 1} L${tp[0] + 4} ${tp[1] - 6} L${tp[0] + 7} ${tp[1] + 4} Z" fill="${TR}"/></g>`;
+    post += `<path d="M10 12 l1.6 3.6 3.6 1.6 -3.6 1.6 -1.6 3.6 -1.6 -3.6 -3.6 -1.6 3.6 -1.6Z M54 50 l1.2 2.6 2.6 1.2 -2.6 1.2 -1.2 2.6 -1.2 -2.6 -2.6 -1.2 2.6 -1.2Z" fill="#fff" fill-opacity=".95"/>`; }
+  if (t === 5) { // mythic: red radiance and licking flames
+    bg = `<circle cx="32" cy="32" r="32" fill="${rg([[0, '#ff8a80', 0.95], [0.5, '#ff1744', 0.55], [1, '#d50000', 0]])}"/>`;
+    const fl = (x, y, s, r) => `<path d="M${x} ${y} C${x - 5 * s} ${y - 6 * s} ${x - 2 * s} ${y - 12 * s} ${x} ${y - 18 * s} C${x + 1 * s} ${y - 12 * s} ${x + 5 * s} ${y - 8 * s} ${x + 4 * s} ${y - 3 * s} Z" transform="rotate(${r} ${x} ${y})" fill="#ff5a1f" stroke="#ffd180" stroke-width=".9"/>`;
+    { const hr = (s) => { const [x, y] = sd[s], d = s ? 1 : -1; return `<path d="M${x} ${y} C${x + d * 11} ${y + 1} ${x + d * 15} ${y - 12} ${x + d * 9} ${y - 22} C${x + d * 9} ${y - 11} ${x + d * 5} ${y - 6} ${x} ${y - 5} Z" fill="${BN}" ${st(1.2)}/>`; }; pre += hr(0) + hr(1); }
+    pre += `<circle cx="32" cy="32" r="29" fill="none" stroke="#4a0510" stroke-width="3.4"/><circle cx="32" cy="32" r="29" fill="none" stroke="#ff4a2a" stroke-width="1" stroke-dasharray="2 3"/>` + [[32,1],[63,32],[32,63],[1,32]].map(([x,y]) => `<path d="M${x} ${y} l${x<32?-3:x>32?3:-2} ${y<32?-3:y>32?3:-2} l${x===32?4:0} ${y===32?4:0} Z" fill="#4a0510"/>`).join('') + fl(tp[0], tp[1] + 3, 1.1, 0) + fl(tp[0] - 9, tp[1] + 7, 0.8, -28) + fl(tp[0] + 9, tp[1] + 7, 0.8, 28) + fl(sd[0][0] + 2, sd[0][1] + 10, 0.8, -70) + fl(sd[1][0] - 2, sd[1][1] + 10, 0.8, 70); }
+  if (t === 6) { // doomsday: black spikes and horns over burning cinders (no glow)
+    let h = 0; for (const c of key) h = (h * 31 + c.charCodeAt(0)) >>> 0; const rnd = () => (h = (Math.imul(h, 1664525) + 1013904223) >>> 0) / 4294967296;
+    let em = ''; for (let i = 0; i < 34; i++) { const x = rnd() * 64, y = 20 + rnd() * 44, r = 0.5 + rnd() * 1.5, hot = rnd(); em += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(1)}" fill="${hot > 0.7 ? '#ffd54f' : hot > 0.35 ? '#ff7a1a' : '#e53900'}" fill-opacity="${(0.4 + rnd() * 0.6).toFixed(2)}"/>`; }
+    let coals = ''; for (let i = 0; i < 9; i++) coals += `<ellipse cx="${(4 + i * 7.5 + rnd() * 3).toFixed(1)}" cy="${(58 + rnd() * 5).toFixed(1)}" rx="${(5 + rnd() * 4).toFixed(1)}" ry="${(2.4 + rnd() * 2).toFixed(1)}" fill="${rg([[0, '#ff9a3c', 0.95], [0.6, '#d63a00', 0.8], [1, '#5a0a00', 0.7]])}"/>`;
+    bg = `<rect width="64" height="64" fill="${lg(['#0a0203', '#2a0705', '#5a1204'], 1)}"/><rect y="40" width="64" height="24" fill="${rg([[0, '#ff6a00', 0.0], [1, '#ff6a00', 0]])}"/><ellipse cx="32" cy="64" rx="40" ry="20" fill="${rg([[0, '#ff6a1a', 0.55], [1, '#ff2a00', 0]])}"/>` + coals + em;
+    const hn = (s) => { const [x, y] = sd[s], d = s ? 1 : -1; return `<path d="M${x} ${y + 2} C${x + d * 8} ${y + 2} ${x + d * 11} ${y - 8} ${x + d * 7} ${y - 16} C${x + d * 6} ${y - 8} ${x + d * 3} ${y - 4} ${x} ${y - 4} Z" fill="#0d0a0c" stroke="#a01010" stroke-width="1.1"/>`; };
+    pre += hn(0) + hn(1) + `<path d="M${tp[0] - 4} ${tp[1] + 7} L${tp[0]} ${tp[1] - 5} L${tp[0] + 4} ${tp[1] + 7} Z" fill="#0d0a0c" stroke="#5a0000" stroke-width="1.2"/>`; }
+  const sc = rot ? 0.95 : 0.98, tf = ` transform="translate(32 35) rotate(${rot}) scale(${sc}) translate(-32 -33)"`;
+  const shadow = `<ellipse cx="32" cy="60" rx="18" ry="2.6" fill="#000" fill-opacity=".28"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><defs>${defs}</defs>${bg}${t === 6 ? '' : shadow}<g${tf}>${pre}${art}${post}</g></svg>`;
+}
+const gearURIs = {};
+const gearURI = (key, t) => gearURIs[key + ':' + t] || (gearURIs[key + ':' + t] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(gearSVG(key, t)));
 const ENEMIES = {
   rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
   goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
@@ -115,28 +267,70 @@ const PETS = {
 const WOLF = { r: 190, fear: 2, cd: 15, crowd: 3, engage: 85 }; // howls once 3 enemies (or all that are left) are within r and the nearest is within `engage` px
 const PANTHER = { hits: 3, gap: 0.14, mult: 1.5, r: 72, arc: 1.2, cd: 12 };
 const TURTLE = { mult: 0.75, dur: 5, heal: 0.2, cd: 25, r: 240 };
-// ---- equipment: 3 slots, 7 rarity tiers; MERGE_N identical pieces of the same tier merge into one of the next tier ----
-const TIERS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Doomsday'], TIER_COLORS = ['#b0bec5', '#81c784', '#4fc3f7', '#ba68c8', '#ffb300', '#ec407a', '#ff3d00'];
+// ---- equipment: 3 slots, 6 rarity tiers (Common..Mythic) of 15 pieces + a 7th tier (Doomsday) that only exists as its own separate pieces ----
+// MERGE_N identical pieces of one tier merge into the next tier, up to Mythic (MERGE_TOP). Mythic cannot be merged; Doomsday pieces only come straight out of chests.
+const TIERS = ['Common', 'Uncommon', 'Rare', 'Epic', 'Legendary', 'Mythic', 'Doomsday'];
+const TIER_BORDER = GEAR_BORDER, TIER_COLORS = ['#b0bec5', '#81c784', '#4fc3f7', '#ba68c8', '#ffd54f', '#ff5a73', '#e53935']; // border colours (tiles) / brighter text colours
 const MERGE_N = 3;       // how many identical pieces make the next tier
+const MERGE_TOP = 5;     // Mythic: the highest tier that merging can produce (index 5)
+const DOOM_TIER = 6;
 const TIER_VERSION = 7;  // saves from the 4-tier days (Common/Rare/Epic/Legendary) are converted on load
 const SLOTS = { head: 'Head', body: 'Body', weapon: 'Weapon' };
+// Numbers come from CoDunge_Enemy_Stats.xlsx (Equipment & Drops + Equipment Bonuses). vals = main effect for Common..Mythic; bon = extra bonuses that stack from tier `from` (Epic=3, Legendary=4, Mythic=5).
+// eff: atk / hp = flat, dr / spd = fraction (0.05 = 5%), vamp = fraction of max HP healed per kill. Doomsday pieces (doom: true) have a fixed bonus list and are drawn with `art`.
 const EQUIP = {
-  iron_helm:     { name: 'Iron Helm',     slot: 'head',   icon: '⛑️', price: 500,  eff: 'dr',   vals: [0.10, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35] },
-  scout_hood:    { name: "Scout's Hood",  slot: 'head',   icon: '🧢', price: 800,  eff: 'spd',  vals: [0.10, 0.12, 0.15, 0.20, 0.25, 0.30, 0.35] },
-  vampire_crown: { name: 'Vampire Crown', slot: 'head',   icon: '👑', price: 1200, eff: 'vamp', vals: [1, 2, 3, 4, 6, 8, 10] },
-  leather_vest:  { name: 'Leather Vest',  slot: 'body',   icon: '🦺', price: 400,  eff: 'hp',   vals: [15, 20, 25, 40, 60, 85, 120] },
-  chainmail:     { name: 'Chainmail',     slot: 'body',   icon: '🛡️', price: 900,  eff: 'hp',   vals: [30, 40, 50, 80, 120, 170, 240] },
-  dragon_plate:  { name: 'Dragon Plate',  slot: 'body',   icon: '🐉', price: 1800, eff: 'hp',   vals: [60, 80, 100, 150, 220, 310, 440] },
-  iron_blade:    { name: 'Iron Blade',    slot: 'weapon', icon: '🗡️', price: 400,  eff: 'atk',  vals: [2, 3, 4, 5, 7, 10, 14] },
-  runed_staff:   { name: 'Runed Staff',   slot: 'weapon', icon: '🪄', price: 900,  eff: 'atk',  vals: [4, 5, 6, 9, 12, 17, 24] },
-  doom_edge:     { name: 'Doom Edge',     slot: 'weapon', icon: '⚔️', price: 1800, eff: 'atk',  vals: [7, 9, 11, 16, 22, 31, 43] },
+  iron_helm: { name: "Iron Helm", slot: 'head', price: 300, eff: 'dr', vals: [0.05, 0.07, 0.1, 0.15, 0.25, 0.4],
+    bon: [{ eff: "hp", from: 3, v: [15, 25, 40] }, { eff: "atk", from: 4, v: [2, 4] }, { eff: "spd", from: 5, v: [0.05] }] },
+  scout_hood: { name: "Scout's Hood", slot: 'head', price: 300, eff: 'spd', vals: [0.02, 0.03, 0.05, 0.08, 0.1, 0.15],
+    bon: [{ eff: "atk", from: 3, v: [2, 3, 5] }, { eff: "dr", from: 4, v: [0.03, 0.05] }, { eff: "vamp", from: 5, v: [0.03] }] },
+  vampire_crown: { name: "Vampire Crown", slot: 'head', price: 300, eff: 'vamp', vals: [0.01, 0.02, 0.03, 0.05, 0.08, 0.1],
+    bon: [{ eff: "hp", from: 3, v: [15, 25, 40] }, { eff: "atk", from: 4, v: [2, 4] }, { eff: "dr", from: 5, v: [0.05] }] },
+  leather_vest: { name: "Leather Vest", slot: 'body', price: 400, eff: 'hp', vals: [15, 20, 30, 45, 60, 80],
+    bon: [{ eff: "spd", from: 3, v: [0.03, 0.05, 0.08] }, { eff: "atk", from: 4, v: [2, 3] }, { eff: "dr", from: 5, v: [0.03] }] },
+  chainmail: { name: "Chainmail", slot: 'body', price: 400, eff: 'hp', vals: [20, 25, 35, 50, 65, 85],
+    bon: [{ eff: "dr", from: 3, v: [0.03, 0.05, 0.08] }, { eff: "atk", from: 4, v: [2, 3] }, { eff: "vamp", from: 5, v: [0.02] }] },
+  dragon_plate: { name: "Dragon Plate", slot: 'body', price: 400, eff: 'hp', vals: [35, 40, 50, 65, 80, 100],
+    bon: [{ eff: "dr", from: 3, v: [0.04, 0.06, 0.1] }, { eff: "atk", from: 4, v: [3, 5] }, { eff: "vamp", from: 5, v: [0.03] }] },
+  iron_blade: { name: "Iron Blade", slot: 'weapon', price: 500, eff: 'atk', vals: [2, 3, 4, 5, 7, 10],
+    bon: [{ eff: "hp", from: 3, v: [15, 25, 40] }, { eff: "spd", from: 4, v: [0.03, 0.05] }, { eff: "vamp", from: 5, v: [0.02] }] },
+  runed_staff: { name: "Runed Staff", slot: 'weapon', price: 500, eff: 'atk', vals: [2, 5, 6, 9, 12, 17],
+    bon: [{ eff: "vamp", from: 3, v: [0.02, 0.03, 0.05] }, { eff: "hp", from: 4, v: [25, 40] }, { eff: "spd", from: 5, v: [0.05] }] },
+  doom_edge: { name: "Doom Edge", slot: 'weapon', price: 500, eff: 'atk', vals: [2, 9, 11, 16, 22, 31],
+    bon: [{ eff: "vamp", from: 3, v: [0.02, 0.04, 0.06] }, { eff: "dr", from: 4, v: [0.03, 0.05] }, { eff: "spd", from: 5, v: [0.05] }] },
+  wizard_hat: { name: "Wizard Hat", slot: 'head', price: 400, eff: 'atk', vals: [1, 2, 3, 5, 7, 10],
+    bon: [{ eff: "hp", from: 3, v: [12, 20, 32] }, { eff: "spd", from: 4, v: [0.03, 0.05] }, { eff: "vamp", from: 5, v: [0.02] }] },
+  horned_helm: { name: "Horned Helm", slot: 'head', price: 400, eff: 'dr', vals: [0.04, 0.06, 0.09, 0.13, 0.2, 0.3],
+    bon: [{ eff: "atk", from: 3, v: [2, 3, 5] }, { eff: "hp", from: 4, v: [20, 35] }, { eff: "spd", from: 5, v: [0.04] }] },
+  mystic_robe: { name: "Mystic Robe", slot: 'body', price: 400, eff: 'hp', vals: [12, 16, 24, 36, 52, 72],
+    bon: [{ eff: "spd", from: 3, v: [0.03, 0.05, 0.08] }, { eff: "atk", from: 4, v: [2, 3] }, { eff: "dr", from: 5, v: [0.04] }] },
+  troll_mantle: { name: "Troll Mantle", slot: 'body', price: 500, eff: 'hp', vals: [40, 48, 60, 76, 96, 120],
+    bon: [{ eff: "dr", from: 3, v: [0.02, 0.04, 0.06] }, { eff: "vamp", from: 4, v: [0.01, 0.02] }, { eff: "atk", from: 5, v: [3] }] },
+  hunter_bow: { name: "Hunter Bow", slot: 'weapon', price: 500, eff: 'atk', vals: [3, 4, 6, 8, 11, 15],
+    bon: [{ eff: "spd", from: 3, v: [0.03, 0.05, 0.08] }, { eff: "vamp", from: 4, v: [0.01, 0.02] }, { eff: "hp", from: 5, v: [30] }] },
+  shadow_dagger: { name: "Shadow Dagger", slot: 'weapon', price: 500, eff: 'atk', vals: [4, 5, 7, 9, 13, 18],
+    bon: [{ eff: "vamp", from: 3, v: [0.01, 0.02, 0.04] }, { eff: "spd", from: 4, v: [0.03, 0.06] }, { eff: "dr", from: 5, v: [0.03] }] },
+  // ---- Doomsday-only pieces (chest drops only, never merged) ----
+  doomsday_visage: { name: "Doomsday Visage", slot: 'head', price: 500, doom: true, art: 'iron_helm',
+    bon: [{ eff: "dr", v: 0.3 }, { eff: "atk", v: 10 }, { eff: "spd", v: 0.1 }] },
+  doomsday_bulwark: { name: "Doomsday Bulwark", slot: 'body', price: 500, doom: true, art: 'dragon_plate',
+    bon: [{ eff: "hp", v: 160 }, { eff: "dr", v: 0.1 }, { eff: "vamp", v: 0.05 }] },
+  doomsday_reaper: { name: "Doomsday Reaper", slot: 'weapon', price: 500, doom: true, art: 'doom_edge',
+    bon: [{ eff: "atk", v: 45 }, { eff: "vamp", v: 0.08 }, { eff: "spd", v: 0.08 }] },
 };
-const EQUIP_KEYS = Object.keys(EQUIP);
+const EQUIP_KEYS = Object.keys(EQUIP), BASE_KEYS = EQUIP_KEYS.filter(k => !EQUIP[k].doom), DOOM_KEYS = EQUIP_KEYS.filter(k => EQUIP[k].doom);
 const sellPrice = (key, tier) => Math.round(EQUIP[key].price / 2) * Math.pow(MERGE_N, tier); // each tier is worth MERGE_N pieces of the one below
-function equipText(key, tier) {
-  const d = EQUIP[key], v = d.vals[tier];
-  return d.eff === 'dr' ? `Take ${Math.round(v * 100)}% less damage` : d.eff === 'spd' ? `Move ${Math.round(v * 100)}% faster` : d.eff === 'vamp' ? `Heal ${v} HP on each kill` : d.eff === 'hp' ? `+${v} HP` : `+${v} ATK`;
+const pctOf = v => Math.round(v * 100);
+function bonusList(key, tier) { // every bonus this piece gives at this tier: main effect first, then the extra ones (Epic and up)
+  const d = EQUIP[key];
+  if (d.doom) return d.bon.map(b => ({ eff: b.eff, v: b.v }));
+  const t = Math.max(0, Math.min(MERGE_TOP, tier | 0)), out = [{ eff: d.eff, v: d.vals[t] }];
+  for (const b of d.bon) if (t >= b.from) out.push({ eff: b.eff, v: b.v[t - b.from] });
+  return out;
 }
+const effText = (eff, v) => eff === 'dr' ? `Take ${pctOf(v)}% less damage` : eff === 'spd' ? `Move ${pctOf(v)}% faster` : eff === 'vamp' ? `Heal ${pctOf(v)}% max HP per kill` : eff === 'hp' ? `+${v} HP` : `+${v} ATK`;
+function equipText(key, tier) { return bonusList(key, tier).map(b => effText(b.eff, b.v)).join(' · '); }
+const gearArt = key => EQUIP[key].art || key;                                           // which drawing a piece uses
+const gearIc = (key, tier, cls) => `<img class="${cls || 'gimg'}" src="${gearURI(gearArt(key), tier)}" alt="">`;   // equipment picture for HTML
 
 // ---------------- name filter ----------------
 // Blocks rude or unfriendly names. It cannot be perfect (no filter is): it normalises look-alike characters, then checks a list of strong
@@ -181,10 +375,11 @@ function sanitizeProfile(p) {
   { const pu = emptyPetUp(); for (const k of Object.keys(pu)) { const v = p.petUp && p.petUp[k]; if (v && typeof v === 'object') pu[k] = { atk: cap(v.atk, 1e6), hp: cap(v.hp, 1e6) }; } out.petUp = pu; }
   const oldTiers = (p.tv | 0) < TIER_VERSION, tierAt = t => oldTiers ? OLD_TIER_MAP[t] : t; // pre-7-tier saves: move each piece to its new tier slot
   { const inv = {};
-    for (const k of EQUIP_KEYS) { const a = p.inv && p.inv[k]; if (Array.isArray(a)) { const row = TIERS.map(() => 0); a.forEach((n, t) => { const nt = tierAt(t); if (nt !== undefined && nt < TIERS.length) row[nt] += cap(n, 1e6); }); if (row.some(n => n)) inv[k] = row; } }
+    for (const k of EQUIP_KEYS) { const a = p.inv && p.inv[k]; if (Array.isArray(a)) { const row = TIERS.map(() => 0); a.forEach((n, t) => { let nt = tierAt(t); if (nt !== undefined && nt < TIERS.length) { // regular pieces stop at Mythic; Doomsday pieces are always Doomsday
+           nt = EQUIP[k].doom ? DOOM_TIER : Math.min(nt, MERGE_TOP); row[nt] += cap(n, 1e6); } }); if (row.some(n => n)) inv[k] = row; } }
     out.inv = inv;
     const eq = { head: null, body: null, weapon: null };
-    for (const sl of Object.keys(eq)) { const v = p.eq && p.eq[sl]; if (v && EQUIP[v.k] && EQUIP[v.k].slot === sl) { const nt = tierAt(v.t | 0); if (nt !== undefined && nt >= 0 && nt < TIERS.length) eq[sl] = { k: v.k, t: nt }; } }
+    for (const sl of Object.keys(eq)) { const v = p.eq && p.eq[sl]; if (v && EQUIP[v.k] && EQUIP[v.k].slot === sl) { let nt = tierAt(v.t | 0); if (nt !== undefined && nt >= 0 && nt < TIERS.length) { nt = EQUIP[v.k].doom ? DOOM_TIER : Math.min(nt, MERGE_TOP); eq[sl] = { k: v.k, t: nt }; } } }
     out.eq = eq; }
   if (oldTiers) migrated = true;
   out.tv = TIER_VERSION;
@@ -229,7 +424,8 @@ let onProfileSaved = null; // set by the lobby code: while a player customises f
 function saveProfile() { try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} if (onProfileSaved) onProfileSaved(); }
 function gearBonus(eq) { // total of what the three equipped pieces give
   const b = { atk: 0, hp: 0, dr: 0, spd: 0, vamp: 0 };
-  for (const sl of Object.keys(SLOTS)) { const it = eq && eq[sl]; if (it && EQUIP[it.k]) b[EQUIP[it.k].eff] += EQUIP[it.k].vals[it.t]; }
+  for (const sl of Object.keys(SLOTS)) { const it = eq && eq[sl]; if (it && EQUIP[it.k]) for (const x of bonusList(it.k, it.t)) b[x.eff] += x.v; }
+  b.dr = Math.min(b.dr, 0.5); b.spd = Math.min(b.spd, 0.5); // the lobby only accepts up to +50%
   return b;
 }
 function statsFor(c) { const u = profile.up[c] || { atk: 0, hp: 0 }, b = gearBonus(profile.eq); return { atk: CHARS[c].atk + (u.atk | 0) + b.atk, hp: CHARS[c].hp + 5 * (u.hp | 0) + b.hp }; } // 1 point = +1 ATK or +5 HP, plus equipment
@@ -244,14 +440,14 @@ function equipGear(key, tier) {
 }
 function unequipGear(sl) { const old = profile.eq[sl]; if (!old) return; profile.eq[sl] = null; addGear(old.k, old.t); saveProfile(); }
 function mergeGear(key, tier) { // MERGE_N identical pieces of one tier -> one piece of the next tier
-  const row = profile.inv[key]; if (!row || row[tier] < MERGE_N || tier >= TIERS.length - 1) return false;
+  const row = profile.inv[key]; if (!row || row[tier] < MERGE_N || tier >= MERGE_TOP || EQUIP[key].doom) return false; // Mythic and Doomsday cannot be merged
   row[tier] -= MERGE_N; row[tier + 1]++; saveProfile(); return true;
 }
 function mergeAllGear() { // merge every identical set in the inventory, rarest results cascading upward; returns how many merges happened
   let n = 0;
   for (const key of EQUIP_KEYS) {
-    const row = profile.inv[key]; if (!row) continue;
-    for (let t = 0; t < TIERS.length - 1; t++) { const m = Math.floor(row[t] / MERGE_N); if (m) { row[t] -= MERGE_N * m; row[t + 1] += m; n += m; } }
+    const row = profile.inv[key]; if (!row || EQUIP[key].doom) continue;
+    for (let t = 0; t < MERGE_TOP; t++) { const m = Math.floor(row[t] / MERGE_N); if (m) { row[t] -= MERGE_N * m; row[t + 1] += m; n += m; } }
     if (!row.some(x => x)) delete profile.inv[key];
   }
   if (n) saveProfile(); return n;
@@ -261,10 +457,20 @@ function mergeAllGear() { // merge every identical set in the inventory, rarest 
 const CHEST = {
   name: 'Treasure Chest', icon: '📦', basePrice: 1000, growth: 1.25, pieces: 2,
   need: [8, 10, 12, 15, 18, 22, 26, 30, 35, 40, 45],
-  odds: [
-    [0.80, 0.18, 0.02, 0, 0, 0, 0], [0.70, 0.25, 0.05, 0, 0, 0, 0], [0.58, 0.30, 0.11, 0.01, 0, 0, 0], [0.45, 0.33, 0.18, 0.04, 0, 0, 0],
-    [0.33, 0.34, 0.24, 0.08, 0.01, 0, 0], [0.22, 0.32, 0.29, 0.14, 0.03, 0, 0], [0.14, 0.27, 0.31, 0.20, 0.07, 0.01, 0], [0.08, 0.20, 0.31, 0.26, 0.12, 0.03, 0],
-    [0.04, 0.13, 0.28, 0.30, 0.18, 0.06, 0.01], [0.02, 0.08, 0.22, 0.32, 0.24, 0.10, 0.02], [0.01, 0.04, 0.15, 0.30, 0.30, 0.16, 0.04], [0, 0.02, 0.09, 0.25, 0.33, 0.23, 0.08]],
+  odds: [   // from the Excel (Equipment & Drops). A Doomsday roll gives one of the Doomsday-only pieces; every other tier gives one of the 15 regular pieces.
+    [0.88, 0.1, 0.02, 0, 0, 0, 0],
+    [0.8, 0.15, 0.05, 0, 0, 0, 0],
+    [0.65, 0.25, 0.1, 0, 0, 0, 0],
+    [0.45, 0.33, 0.2, 0.02, 0, 0, 0],
+    [0, 0.55, 0.4, 0.05, 0, 0, 0],
+    [0, 0.4, 0.5, 0.1, 0, 0, 0],
+    [0, 0, 0.78, 0.2, 0.02, 0, 0],
+    [0, 0, 0.5, 0.45, 0.05, 0, 0],
+    [0, 0, 0, 0.895, 0.1, 0.005, 0],
+    [0, 0, 0, 0.692, 0.3, 0.008, 0],
+    [0, 0, 0, 0, 0.984, 0.013, 0.0025],
+    [0, 0, 0, 0, 0.975, 0.02, 0.005],
+  ],
 };
 const CHEST_MAX = CHEST.odds.length;
 function chestLevel(buys = profile.chestBuys) { let lv = 1, left = buys | 0; while (lv < CHEST_MAX && left >= CHEST.need[lv - 1]) { left -= CHEST.need[lv - 1]; lv++; } return lv; }
@@ -328,11 +534,15 @@ function chestSVG(level, opt = {}) {
   for (const [x, y, r] of sp) s += `<path d="M${x} ${y - r} Q${x + 1} ${y - 1} ${x + r} ${y} Q${x + 1} ${y + 1} ${x} ${y + r} Q${x - 1} ${y + 1} ${x - r} ${y} Q${x - 1} ${y - 1} ${x} ${y - r} Z" fill="${L.glow || '#fff'}" stroke="#fff" stroke-width=".8"/>`;
   return s + '</svg>';
 }
-function rollTier(odds) { let r = Math.random(), a = 0; for (let t = 0; t < odds.length; t++) { a += odds[t]; if (r < a) return t; } return 0; }
+function rollTier(odds) { // odds are used as shares of their own total, so a row that adds up to 99.95% still never falls through to Common
+  const sum = odds.reduce((a, b) => a + b, 0) || 1; let r = Math.random() * sum, a = 0, last = 0;
+  for (let t = 0; t < odds.length; t++) { if (odds[t] > 0) last = t; a += odds[t]; if (r < a) return t; } return last;
+}
+function rollPiece(t) { const pool = t === DOOM_TIER ? DOOM_KEYS : BASE_KEYS; return pool.length ? { k: pool[rnd(pool.length)], t } : { k: BASE_KEYS[rnd(BASE_KEYS.length)], t: MERGE_TOP }; }
 function buyChest() { // returns the pieces found, or null if it can't be afforded
   const lv = chestLevel(), price = chestPrice(lv); if (profile.gold < price) return null;
   profile.gold -= price; profile.chestBuys++; const out = [];
-  for (let i = 0; i < CHEST.pieces; i++) { const k = EQUIP_KEYS[rnd(EQUIP_KEYS.length)], t = rollTier(CHEST.odds[lv - 1]); addGear(k, t); out.push({ k, t }); }
+  for (let i = 0; i < CHEST.pieces; i++) { const { k, t } = rollPiece(rollTier(CHEST.odds[lv - 1])); addGear(k, t); out.push({ k, t }); }
   saveProfile(); return out;
 }
 function sellEquipped(sl) { const it = profile.eq[sl]; if (!it) return 0; const p = sellPrice(it.k, it.t); profile.eq[sl] = null; profile.gold += p; saveProfile(); return p; }
@@ -800,7 +1010,7 @@ function onRelay(d) {
       const p = d.p || {};
       if (!CHARS[p.char]) return;
       net.peer = { name: (nm => isBadName(nm) ? 'Player' : nm)(String(p.name || 'Friend').slice(0, 12)), char: p.char, atk: clamp(+p.atk || 1, 1, 9999), hp: clamp(+p.hp || 1, 1, 99999),
-        tok: String(p.tok || '').slice(0, 20), pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 20), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
+        tok: String(p.tok || '').slice(0, 20), pet: PETS[p.pet] ? p.pet : '', patk: clamp(+p.patk || 0, 0, 9999), php: clamp(+p.php || 0, 0, 99999), dr: clamp(+p.dr || 0, 0, 0.5), spd: clamp(+p.spd || 0, 0, 0.5), vamp: clamp(+p.vamp || 0, 0, 1), best: clamp(+p.best || 1, 1, 999), ver: String(p.ver || '?').slice(0, 24) };
       net.peer.ed = !!p.ed;
       if (!game) refreshLobby();
       break;
@@ -1141,7 +1351,7 @@ function hitEnemy(g, e, dmg, src) {
     addFx(g, { type: 'poof', x: e.x, y: e.y });
     const def = ENEMIES[e.type];
     if (def.boss) g.bossKills++; else g.kills++;
-    if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, src.vamp); // Vampire Crown
+    if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, Math.max(1, Math.round(src.vamp * src.maxhp))); // 'HP healed per kill %': a share of max HP
     if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
       const gd = goldFor(e.type, g.stage);
       if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd, ic: 'gold', c: '#ffd54f' }); }
@@ -1149,7 +1359,7 @@ function hitEnemy(g, e, dmg, src) {
         const cp = Math.random() < 0.5;
         if (cp) g.teamCp++; else g.teamPp++;
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 34, s: cp ? '+1 CP' : '+1 PP', c: cp ? '#ffd600' : '#f48fb1' });
-        for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(EQUIP_KEYS[rnd(EQUIP_KEYS.length)]); // each player rolls their own piece
+        for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(BASE_KEYS[rnd(BASE_KEYS.length)]); // each player rolls their own (regular, Common) piece
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: 'Loot!', ic: 'gear', c: '#ffd54f' });
       } else {
         // one roll per kill, so an enemy drops at most ONE item: Character Point, Pet Point (once pets are unlocked) or a potion
@@ -2797,14 +3007,14 @@ function renderPets() {
 }
 function gearRow(key, tier, count, buttons) { // one line of an equipment list
   const d = EQUIP[key], row = document.createElement('div'); row.className = 'gear';
-  row.innerHTML = `<span class="gi">${d.icon}</span><span class="gt"><b>${d.name}</b> ${SHOW_TIER(tier)}${count > 1 ? ` ×${count}` : ''}<br><small>${SLOTS[d.slot]} · ${equipText(key, tier)}</small></span><span class="gb">${buttons}</span>`;
+  row.innerHTML = `<span class="gi gt${tier}" style="--tc:${TIER_BORDER[tier]}">${gearIc(key, tier)}</span><span class="gt"><b>${d.name}</b> ${SHOW_TIER(tier)}${count > 1 ? ` ×${count}` : ''}<br><small>${SLOTS[d.slot]} · ${equipText(key, tier)}</small></span><span class="gb">${buttons}</span>`;
   return row;
 }
-const gearTile = (key, tier, count, sel, attrs, label, act) => `<button type="button" class="gtile${sel ? ' sel' : ''}${key ? '' : ' empty'}" style="--tc:${key ? TIER_COLORS[tier] : '#3b4278'}" data-act="${act}" ${attrs}>${key ? `<span class="gic">${EQUIP[key].icon}</span><span class="gtier">${TIERS[tier]}</span>${count > 1 ? `<span class="gcnt">×${count}</span>` : ''}${act === 'sell-pick' && attrs.includes('data-s=') ? '<span class="geq">EQUIPPED</span>' : ''}` : `<span class="gic">·</span><span class="gtier">${label}</span>`}</button>`;;
+const gearTile = (key, tier, count, sel, attrs, label, act) => `<button type="button" class="gtile${sel ? ' sel' : ''}${key ? ' gt' + tier : ' empty'}" style="--tc:${key ? TIER_BORDER[tier] : '#3b4278'}" data-act="${act}" ${attrs}>${key ? `<span class="gic">${gearIc(key, tier)}</span><span class="gtier" style="color:${TIER_COLORS[tier]}">${TIERS[tier]}</span>${count > 1 ? `<span class="gcnt">×${count}</span>` : ''}${act === 'sell-pick' && attrs.includes('data-s=') ? '<span class="geq">EQUIPPED</span>' : ''}` : `<span class="gic">·</span><span class="gtier">${label}</span>`}</button>`;;
 function renderGear() { // Equipment screen: equipped slots, inventory, equip / merge
   const box = $('gearBox'); box.innerHTML = '';
   const b = gearBonus(profile.eq);
-  $('gearSummary').textContent = `Bonuses: +${b.atk} ATK · +${b.hp} HP` + (b.dr ? ` · ${Math.round(b.dr * 100)}% less damage` : '') + (b.spd ? ` · ${Math.round(b.spd * 100)}% faster` : '') + (b.vamp ? ` · ${b.vamp} HP per kill` : '');
+  $('gearSummary').textContent = `Bonuses: +${b.atk} ATK · +${b.hp} HP` + (b.dr ? ` · ${Math.round(b.dr * 100)}% less damage` : '') + (b.spd ? ` · ${Math.round(b.spd * 100)}% faster` : '') + (b.vamp ? ` · heal ${pctOf(b.vamp)}% max HP per kill` : '');
   // equipped slots: three big tiles; inventory: a grid of tiles (one per item + rarity); tap a tile to see it and its buttons
   const tile = (key, tier, count, sel, attrs, label) => gearTile(key, tier, count, sel, attrs, label, 'pick');
   if (gearSel && !(gearSel.s ? profile.eq[gearSel.s] : (profile.inv[gearSel.k] && profile.inv[gearSel.k][gearSel.t] > 0))) gearSel = null; // what was selected is gone (equipped, merged ...)
@@ -2813,7 +3023,7 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
   eqg.innerHTML = Object.keys(SLOTS).map(sl => { const it = profile.eq[sl]; return it ? tile(it.k, it.t, 1, gearSel && gearSel.s === sl, `data-s="${sl}"`) : tile(null, 0, 0, false, 'disabled', SLOTS[sl]); }).join('');
   box.appendChild(eqg);
   const det = document.createElement('div'); det.className = 'gdetail'; box.appendChild(det); // the selected piece and its buttons, right under the equipped slots
-  let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < TIERS.length - 1; t++) pairs += Math.floor(r[t] / MERGE_N); }
+  let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < MERGE_TOP; t++) pairs += Math.floor(r[t] / MERGE_N); }
   const hd = document.createElement('div'); hd.className = 'gearhead';
   hd.innerHTML = `<h3>Inventory · ${MERGE_N} identical pieces merge up</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
   const inv = [];
@@ -2823,7 +3033,7 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
   else { const g = document.createElement('div'); g.className = 'ggrid'; g.innerHTML = inv.map(([k, t, n]) => tile(k, t, n, gearSel && !gearSel.s && gearSel.k === k && gearSel.t === t, `data-k="${k}" data-t="${t}"`)).join(''); box.appendChild(g); }
   if (!gearSel) det.innerHTML = '<small>Tap a piece to see it</small>';
   else if (gearSel.s) { const it = profile.eq[gearSel.s]; det.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${gearSel.s}">Unequip</button>`)); }
-  else { const { k, t } = gearSel, n = profile.inv[k][t], merge = t < TIERS.length - 1 ? `<button data-act="merge" data-k="${k}" data-t="${t}" ${n < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : ''; det.appendChild(gearRow(k, t, n, `<button data-act="equip" data-k="${k}" data-t="${t}">Equip</button>${merge}`)); }
+  else { const { k, t } = gearSel, n = profile.inv[k][t], merge = t < MERGE_TOP && !EQUIP[k].doom ? `<button data-act="merge" data-k="${k}" data-t="${t}" ${n < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : ''; det.appendChild(gearRow(k, t, n, `<button data-act="equip" data-k="${k}" data-t="${t}">Equip</button>${merge}`)); }
 }
 let gearSel = null; // { k, t } a piece in the inventory, or { s } an equipped slot
 let shopTab = 'pets', shopSub = 'buy', chestResult = null, chestOdds = false, sellSel = null;
@@ -2845,7 +3055,7 @@ function renderShop() {
   if (shopSub === 'buy') { // Buy: the chests, on their own screen
     if (chestResult) { // what the last chest contained
       const r = document.createElement('div'); r.className = 'chestres';
-      r.innerHTML = `<b>${chestResult.name} opened!</b>` + chestResult.items.map(it => `<div>${EQUIP[it.k].icon} ${EQUIP[it.k].name} ${SHOW_TIER(it.t)} <small>${equipText(it.k, it.t)}</small></div>`).join('');
+      r.innerHTML = `<b>${chestResult.name} opened!</b>` + chestResult.items.map(it => `<div>${gearIc(it.k, it.t, 'gimg sm')} ${EQUIP[it.k].name} ${SHOW_TIER(it.t)} <small>${equipText(it.k, it.t)}</small></div>`).join('');
       box.appendChild(r);
     }
     const cp = chestProgress(), lv = cp.lv, price = chestPrice(lv), od = CHEST.odds[lv - 1], pct = cp.need ? Math.round(cp.have / cp.need * 100) : 100;
