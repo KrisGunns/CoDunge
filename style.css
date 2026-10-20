@@ -83,15 +83,18 @@ input:focus{border-color:#ffd54f}
 .tier{font-size:12px;font-weight:800}
 .chestres{background:#2a2f55;border:2px solid #ffd54f;border-radius:12px;padding:10px;text-align:left;line-height:1.7;box-shadow:0 0 14px rgba(255,213,79,.3)}.chestres small{color:#9fa8da}
 button.warn{background:#ef6c00;border-bottom-color:#8d3c00}
-#reconn{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);z-index:30;display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:center;
-  background:rgba(120,30,20,.92);border:2px solid #ffab91;border-radius:14px;padding:10px 14px;max-width:94vw;font-size:14px;text-align:center;box-shadow:0 4px 18px rgba(0,0,0,.5)}
-#reconn button{padding:6px 12px;font-size:13px}
+#reconn{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(5,8,20,.82);padding:16px}
+#reconn.hidden{display:none}
+.rcCard{background:#1a2040;border:2px solid #ffab91;border-radius:16px;padding:20px 18px;max-width:340px;width:100%;text-align:center;display:flex;flex-direction:column;gap:10px;box-shadow:0 6px 24px rgba(0,0,0,.6)}
+.rcCard h2{color:#ffab91;margin:0}
+.rcCard p{margin:0}
 
 .screen.top{margin:0 auto auto}
 #stageBtns{display:flex;flex-direction:column;gap:8px;width:100%}
 #stageBtns button{width:100%;font-size:18px;padding:12px 16px}
 #stageBtns button.rec{background:#00897b;border-bottom-color:#004d40}
 .tabs.subtabs button{max-width:150px;padding:7px 12px;font-size:14px;background:#232a52}
+.gfilter{margin:6px 0}
 .tabs.subtabs button.on{background:#3949ab;border-bottom-color:#ffd54f}
 .pts{display:flex;flex-direction:column;gap:3px;width:100%}
 .pts .pl{font-size:12px;color:#b9c0dd;text-align:left}

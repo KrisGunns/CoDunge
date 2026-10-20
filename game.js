@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.19-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.20-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -565,7 +565,7 @@ function applyGates() {
   $('shopTabs').classList.toggle('hidden', !unlocked('gear'));
   $('menuPpBox').classList.toggle('hidden', !unlocked('pets')); // no Pet Points anywhere until pets are unlocked
 }
-// A run you left or lost (guest side) can be rejoined for 2 minutes. Until you reconnect or leave it, nothing else in the menus is available,
+// A run you left or lost (guest side) can be rejoined for 5 minutes. Until you reconnect or leave it, nothing else in the menus is available,
 // so a run can't be dodged to upgrade heroes and then rejoined.
 function applyLock() {
   const l = !!lastGame();
@@ -587,9 +587,17 @@ const PJ_PREFIX = 'coopquest-v1-';
 // Direct-only: STUN servers just help the two browsers find each other, and all game data then flows peer to peer (no relay, no data cost).
 // The catch: if both networks block direct links (some mobile data / strict networks) the connection fails instead of being relayed.
 // To allow a relay fallback again, list TURN servers in turn-config.js (they are used only if present).
+// Fallback relay used only when turn-config.js has no servers of its own: the free public OpenRelay TURN service (metered.ca).
+// WebRTC always tries a direct link first and only uses the relay when both networks block direct links (mobile data etc.).
+// It is shared and rate-limited, so for reliable play put your own free metered.ca credentials in turn-config.js.
+const PUBLIC_TURN = [
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+];
 const PJ_OPTS = { debug: 1, config: { iceServers: [
   { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' },
-].concat(Array.isArray(globalThis.CODUNGE_ICE) ? globalThis.CODUNGE_ICE : []) } };
+].concat(Array.isArray(globalThis.CODUNGE_ICE) && globalThis.CODUNGE_ICE.length ? globalThis.CODUNGE_ICE : PUBLIC_TURN) } };
 // Errors after which a PeerJS peer is destroyed. Everything else (network blips, a friend's failed attempt) must NOT close the room.
 const FATAL = new Set(['browser-incompatible', 'invalid-id', 'invalid-key', 'ssl-unavailable', 'unavailable-id']);
 const FIND_SLOTS = 3;             // waiting slots per region pool
@@ -607,7 +615,7 @@ function findPools() {
 const SLOT_CONNECT_MS = 20000; // a WebRTC link through a relay can take a while on mobile data; don't give up on it too early
 const net = { id: 0, isHost: true, peer: null, pj: null, conn: null, token: 0, extra: [], findTimer: 0, lastMsg: 0, tok: '', roomCode: '', rc: null, helloT: 0, sub: false };
 const AWAY_MS = 5000;        // host: a partner silent for this long counts as disconnected (their hero stands still and is safe)
-const REJOIN_MS = 120000;    // how long a dropped player can come back (host keeps their slot) / how long a guest keeps retrying
+const REJOIN_MS = 300000;    // how long a dropped player can come back (host keeps their slot) / how long a guest keeps retrying
 const LAST_KEY = 'coopquest.last';
 const newTok = () => Math.random().toString(36).slice(2, 12) + Date.now().toString(36).slice(-4);
 const nowMs = () => performance.now();
@@ -629,7 +637,7 @@ function keepBrokerLink(p, tk) { // re-attach a peer to the matchmaking service 
   const tryRe = n => {
     if (tk !== net.token || net.pj !== p || p.destroyed || !p.disconnected) return;
     safe(() => p.reconnect());
-    if (n < 12) setTimeout(() => tryRe(n + 1), 2000);
+    if (n < 150) setTimeout(() => tryRe(n + 1), 2000); // keep trying for ~5 minutes
   };
   tryRe(0);
 }
@@ -707,7 +715,7 @@ function onLinkOpen() { relay({ k: 'prof', p: myProfileMsg() }); refreshLobby();
 function onLinkClosed() {
   net.conn = null; clearInterval(cdTimer); cdTimer = 0;
   if (game) {
-    if (game.isHost) { toast('Your friend disconnected — they can rejoin for 2 minutes'); } // the update loop marks them "away" and waits
+    if (game.isHost) { toast('Your friend disconnected — they can rejoin for 5 minutes'); } // the update loop marks them "away" and waits
     else startReconnect('Connection to the host was lost');
     return;
   }
@@ -763,7 +771,7 @@ function createRoom() {
       if (dead || !current() || !announced) return;
       if (game) { reopenRoom(tk, code, 0); return; } // mid-game: bring the room code back so a dropped friend can rejoin
       if (net.conn) return;
-      if (tries < 8) { tries++; setTimeout(() => { if (tk === net.token && !net.conn && !game) start(); }, 1500); }
+      if (tries < 200) { tries++; setTimeout(() => { if (tk === net.token && !net.conn && !game) start(); }, 1500); } // waiting room stays registered for ~5 minutes of outages
     });
   };
   net.revive = () => { tries = 0; start(); };
@@ -786,7 +794,7 @@ function connectRoom(p, code, tk, auto) {
   if (auto) renderLobby();
   attachConn(conn, tk);
   setTimeout(() => { if (tk === net.token && net.conn === conn && !conn.open && auto) { findGame(); return; } // matched room unreachable: just look for another match
-    if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a direct connection to the host. One of your networks blocks direct links (common on mobile data). Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
+    if (tk === net.token && net.conn === conn && !conn.open) netFail('Found the room but could not open a connection to the host (a network is blocking it, or the relay is busy). Try again, put both players on the same kind of network (e.g. both on Wi-Fi), or add a TURN relay in turn-config.js.'); }, 20000);
 }
 function joinRoom(code) {
   if (!needPeer()) return;
@@ -816,7 +824,7 @@ function rcAttempt() {
   if (nowMs() - rc.t0 > REJOIN_MS) return giveUp('Could not reconnect to the host.');
   rc.tries++;
   const old = net.conn; net.conn = null; safe(() => old && old.close());
-  if (game) showReconn(`${rc.reason} — reconnecting (try ${rc.tries})…`); else $('multiStatus').textContent = `Rejoining your game (try ${rc.tries})…`;
+  if (game) showReconn(`${rc.reason}. Trying to reach the host again (attempt ${rc.tries})…`); else $('multiStatus').textContent = `Rejoining your game (try ${rc.tries})…`;
   const go = p => {
     if (net.rc !== rc) return;
     const conn = p.connect(PJ_PREFIX + net.roomCode, { reliable: true, serialization: 'json' });
@@ -2160,8 +2168,7 @@ function update(dt) {
       }
     }
   } else if (g.grid) {
-    if (g.pendSnap) { applySnap(g, g.pendSnap); g.pendSnap = null; }
-    smooth(g, dt, inp);
+    if (!net.rc) { if (g.pendSnap) { applySnap(g, g.pendSnap); g.pendSnap = null; } smooth(g, dt, inp); } // while disconnected the picture stays frozen: nothing is simulated or changed until the host answers again
     if (g.multi && !net.rc && nowMs() - net.lastMsg > 4000) startReconnect(net.conn && net.conn.open ? 'No data from the host' : 'Connection lost'); // silent link: try to re-establish it
     if (g.banner) { g.banner.t += dt; if (g.banner.t > 2.2) g.banner = null; }
     if (g.multi) netProbe(nowMs());
@@ -3026,15 +3033,18 @@ function renderGear() { // Equipment screen: equipped slots, inventory, equip / 
   let pairs = 0; for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = 0; t < MERGE_TOP; t++) pairs += Math.floor(r[t] / MERGE_N); }
   const hd = document.createElement('div'); hd.className = 'gearhead';
   hd.innerHTML = `<h3>Inventory · ${MERGE_N} identical pieces merge up</h3><button data-act="merge-all" ${pairs ? '' : 'disabled'}>Merge all${pairs ? ` (${pairs})` : ''}</button>`; box.appendChild(hd);
+  const fl = document.createElement('div'); fl.className = 'tabs subtabs gfilter';
+  fl.innerHTML = [['all', 'All'], ...Object.entries(SLOTS)].map(([k, n]) => `<button type="button" data-act="filter" data-f="${k}" class="${gearFilter === k ? 'on' : ''}">${n}</button>`).join(''); box.appendChild(fl);
   const inv = [];
-  for (const key of EQUIP_KEYS) { const r = profile.inv[key]; if (r) for (let t = TIERS.length - 1; t >= 0; t--) if (r[t]) inv.push([key, t, r[t]]); }
+  for (const key of EQUIP_KEYS) { if (gearFilter !== 'all' && EQUIP[key].slot !== gearFilter) continue; const r = profile.inv[key]; if (r) for (let t = TIERS.length - 1; t >= 0; t--) if (r[t]) inv.push([key, t, r[t]]); }
   inv.sort((a, b) => b[1] - a[1]);
-  if (!inv.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = 'Nothing here yet. Buy a chest in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
+  if (!inv.length) { const e = document.createElement('p'); e.className = 'sub'; e.textContent = gearFilter !== 'all' && Object.keys(profile.inv).length ? `No ${SLOTS[gearFilter].toLowerCase()} pieces yet.` : 'Nothing here yet. Buy a chest in the Shop, or defeat a boss for a random piece.'; box.appendChild(e); }
   else { const g = document.createElement('div'); g.className = 'ggrid'; g.innerHTML = inv.map(([k, t, n]) => tile(k, t, n, gearSel && !gearSel.s && gearSel.k === k && gearSel.t === t, `data-k="${k}" data-t="${t}"`)).join(''); box.appendChild(g); }
   if (!gearSel) det.innerHTML = '<small>Tap a piece to see it</small>';
   else if (gearSel.s) { const it = profile.eq[gearSel.s]; det.appendChild(gearRow(it.k, it.t, 1, `<button data-act="unequip" data-s="${gearSel.s}">Unequip</button>`)); }
   else { const { k, t } = gearSel, n = profile.inv[k][t], merge = t < MERGE_TOP && !EQUIP[k].doom ? `<button data-act="merge" data-k="${k}" data-t="${t}" ${n < MERGE_N ? 'disabled' : ''}>Merge ${MERGE_N} → ${TIERS[t + 1]}</button>` : ''; det.appendChild(gearRow(k, t, n, `<button data-act="equip" data-k="${k}" data-t="${t}">Equip</button>${merge}`)); }
 }
+let gearFilter = 'all'; // inventory filter: all | head | body | weapon
 let gearSel = null; // { k, t } a piece in the inventory, or { s } an equipped slot
 let shopTab = 'pets', shopSub = 'buy', chestResult = null, chestOdds = false, sellSel = null;
 function renderShop() {
@@ -3112,7 +3122,8 @@ $('shopCards').addEventListener('click', e => {
 $('gearBox').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b || b.disabled) return;
   const a = b.dataset.act;
-  if (a === 'pick') { gearSel = b.dataset.s ? { s: b.dataset.s } : { k: b.dataset.k, t: +b.dataset.t }; }
+  if (a === 'filter') { gearFilter = b.dataset.f; }
+  else if (a === 'pick') { gearSel = b.dataset.s ? { s: b.dataset.s } : { k: b.dataset.k, t: +b.dataset.t }; }
   else if (a === 'equip') { equipGear(b.dataset.k, +b.dataset.t); gearSel = null; }
   else if (a === 'unequip') { unequipGear(b.dataset.s); gearSel = null; }
   else if (a === 'merge-all') { const n = mergeAllGear(); if (n) toast(n > 1 ? `${n} merges done!` : 'Merged!'); }
@@ -3241,7 +3252,7 @@ $('pmSound').addEventListener('click', () => toast('Sound settings are coming so
 $('pmRun').addEventListener('click', () => pmView('pmRunBox'));
 $('pmRunBack').addEventListener('click', () => pmView('pmMain'));
 $('pmQuit').addEventListener('click', () => {
-  const g = game; $('pmConfirmTxt').textContent = g && g.multi ? (g.isHost ? 'This ends the run for your friend too.' : 'For 2 minutes you can only reconnect to it or leave it for good (Start Game > Multiplayer).') : 'Your progress so far in this run is kept.';
+  const g = game; $('pmConfirmTxt').textContent = g && g.multi ? (g.isHost ? 'This ends the run for your friend too.' : 'For 5 minutes you can only reconnect to it or leave it for good (Start Game > Multiplayer).') : 'Your progress so far in this run is kept.';
   pmView('pmConfirm');
 });
 $('pmNo').addEventListener('click', () => pmView('pmMain'));
