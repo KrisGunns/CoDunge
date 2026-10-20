@@ -39,6 +39,7 @@
     <button id="btnChar" class="big alt">Characters</button>
     <button id="btnPets" class="big alt">Pets</button>
     <button id="btnGear" class="big alt">Equipment</button>
+    <button id="btnFriends" class="big alt">Friends</button>
     <button id="btnShop" class="big gold">Shop</button>
     <button id="btnSettings" class="big back">⚙ Settings</button>
     <p class="ver" id="menuVer"></p>
@@ -87,12 +88,28 @@
       <p class="sub">Room code — give it to your friend</p>
       <div id="lobbyCode">-----</div>
       <button id="btnShare" type="button">Share invite link</button>
+      <button id="btnInvite" type="button" class="alt">Invite a friend</button>
     </div>
     <ul id="lobbyPlayers"></ul>
     <div id="lobbyTools" class="toolrow"><button id="lbChar" type="button" class="alt">Characters</button><button id="lbPets" type="button" class="alt">Pets</button><button id="lbGear" type="button" class="alt">Equipment</button><button id="lbShop" type="button" class="gold">Shop</button></div>
     <p id="lobbyStatus" class="status"></p>
     <button id="btnLobbyStart" class="big hidden">Start</button>
     <button id="btnLobbyLeave" class="back">Leave</button>
+  </section>
+
+  <!-- Friends -->
+  <section id="scrFriends" class="screen hidden">
+    <h2>Friends</h2>
+    <p class="sub">Your friend code</p>
+    <div id="myFCode">------</div>
+    <div class="toolrow"><button id="btnFCopy" type="button" class="alt">Copy code</button><button id="btnFShare" type="button" class="alt">Share link</button></div>
+    <p id="fPresence" class="sub"></p>
+    <div class="row"><input id="fcodeInput" maxlength="6" placeholder="FRIEND CODE" autocomplete="off" autocapitalize="characters"><button id="btnFAdd" type="button">Add</button></div>
+    <p id="fMsg" class="status"></p>
+    <ul id="friendList"></ul>
+    <p id="fHint" class="sub"></p>
+    <button id="btnFRefresh" type="button" class="alt">Refresh</button>
+    <button class="back" data-go="scrMenu">Back</button>
   </section>
 
   <!-- Settings -->
@@ -172,6 +189,7 @@
   </section>
 </div>
 
+<div id="fmodal" class="hidden"><div class="rcCard"><h2 id="fmTitle">Friend request</h2><p id="fmTxt"></p><button id="fmYes" type="button">Accept</button><button id="fmNo" type="button" class="back">Decline</button></div></div>
 <div id="reconn" class="hidden"><div class="rcCard"><h2>Disconnected from host</h2><p id="reconnTxt">Reconnecting…</p><p class="sub">The room stays open for 5 minutes. Your hero is safe while you are away.</p><button id="btnReconn" type="button">Try to reconnect</button><button id="btnReconnLeave" type="button" class="back">Leave game</button></div></div>
 <div id="pauseMenu" class="hidden"><div class="pbox">
   <div id="pmMain"><h2>Menu</h2>

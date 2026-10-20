@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.20-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.20-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -358,7 +358,7 @@ function isBadName(name) {
 const SAVE_KEY = 'coopquest.v1';
 const emptyUp = () => ({ warrior: { atk: 0, hp: 0 }, mage: { atk: 0, hp: 0 }, healer: { atk: 0, hp: 0 } });
 const emptyPetUp = () => ({ wolf: { atk: 0, hp: 0 }, panther: { atk: 0, hp: 0 }, turtle: { atk: 0, hp: 0 } });
-const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null }, tv: TIER_VERSION, chestBuys: 0, ageOk: false });
+const defaultProfile = () => ({ name: '', cp: 0, pp: 0, gold: 0, sel: 'warrior', up: emptyUp(), best: { stage: 1, level: 1 }, pets: [], pet: '', petUp: emptyPetUp(), inv: {}, eq: { head: null, body: null, weapon: null }, tv: TIER_VERSION, chestBuys: 0, ageOk: false, friendCode: '', friends: [] });
 const OLD_TIER_MAP = [0, 2, 3, 4]; // the old 4 tiers (Common, Rare, Epic, Legendary) sit at these places in the 7-tier list
 const cap = (v, m) => Math.min(m, Math.max(0, Math.floor(+v) || 0));
 // Turns anything (an old save, a pasted save code) into a valid profile: unknown keys dropped, numbers clamped, tiers converted. Returns { out, migrated }.
@@ -369,6 +369,9 @@ function sanitizeProfile(p) {
   out.name = String(out.name || '').replace(/[<>&"'`\u0000-\u001f]/g, '').slice(0, 12);
   if (isBadName(out.name)) out.name = '';
   out.chestBuys = cap(out.chestBuys, 1e6); out.ageOk = !!out.ageOk;
+  out.friendCode = /^[A-Z0-9]{6}$/.test(out.friendCode) ? out.friendCode : '';
+  { const seen = new Set([out.friendCode]); out.friends = (Array.isArray(out.friends) ? out.friends : []).filter(f => f && typeof f === 'object' && /^[A-Z0-9]{6}$/.test(f.code) && !seen.has(f.code) && seen.add(f.code))
+      .slice(0, 30).map(f => ({ code: f.code, name: String(f.name || '').replace(/[<>&"'`\u0000-\u001f]/g, '').trim().slice(0, 12), st: f.st === 'pend' ? 'pend' : 'ok' })); }
   out.cp = cap(out.cp, 1e9); out.gold = cap(out.gold, 1e9); out.pp = cap(out.pp, 1e9);
   out.best = { stage: Math.max(1, cap(out.best.stage, 999)), level: Math.max(1, cap(out.best.level, 10)) };
   out.sel = CHARS[out.sel] ? out.sel : 'warrior';
@@ -408,6 +411,8 @@ function loadProfile() {
   return defaultProfile();
 }
 let profile = loadProfile();
+const mkFCode = () => { const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; let c = ''; for (let i = 0; i < 6; i++) c += A[rnd(A.length)]; return c; };
+if (!profile.friendCode) { profile.friendCode = mkFCode(); try { localStorage.setItem(SAVE_KEY, JSON.stringify(profile)); } catch (e) {} }
 // ---- save codes: the whole profile as one line of text, so progress can be kept somewhere safe and loaded on another device ----
 // Format: DD1.<base64url JSON>.<8-hex checksum>. The checksum only catches typos and cut-off pastes; it is not anti-cheat (the save lives in the browser anyway).
 const fnv = str => { let h = 0x811c9dc5; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(16).padStart(8, '0'); };
@@ -549,7 +554,7 @@ function sellEquipped(sl) { const it = profile.eq[sl]; if (!it) return 0; const 
 function sellGear(key, tier) { if (!EQUIP[key] || !takeGear(key, tier)) return false; profile.gold += sellPrice(key, tier); saveProfile(); return true; }
 
 // ---------------- screens / toast ----------------
-const SCREENS = ['scrName', 'scrMenu', 'scrSettings', 'scrDev', 'scrSave', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrOver'];
+const SCREENS = ['scrName', 'scrMenu', 'scrSettings', 'scrDev', 'scrSave', 'scrMode', 'scrStage', 'scrMulti', 'scrLobby', 'scrChar', 'scrPets', 'scrShop', 'scrGear', 'scrFriends', 'scrOver'];
 function show(id) {
   SCREENS.forEach(s => $(s).classList.toggle('hidden', s !== id));
   $('screens').classList.toggle('hidden', !id);
@@ -570,7 +575,7 @@ function applyGates() {
 function applyLock() {
   const l = !!lastGame();
   $('rejoinBox').classList.toggle('hidden', !l); $('multiMain').classList.toggle('hidden', l);
-  for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnShop', 'btnSettings']) $(id).disabled = l;
+  for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnFriends', 'btnShop', 'btnSettings']) $(id).disabled = l;
 }
 { const lt = setInterval(() => { if (!$('scrMenu').classList.contains('hidden') || !$('scrMulti').classList.contains('hidden')) applyLock(); }, 2000); if (lt && lt.unref) lt.unref(); }
 let toastTimer = 0, pauseOpen = false;
@@ -987,6 +992,7 @@ function renderLobby() {
   $('lobbyCodeBox').classList.toggle('hidden', !showCode);
   $('lobbyCode').textContent = lobby.code || '-----';
   $('lobbyTitle').textContent = lobby.auto ? 'Find Game' : 'Game Room';
+  $('btnInvite').classList.toggle('hidden', !net.isHost);
   const ul = $('lobbyPlayers'); ul.innerHTML = '';
   (lobby.players || []).forEach(p => {
     const me = p.id === net.id;
@@ -3167,7 +3173,7 @@ $('btnImport').addEventListener('click', () => {
   if (!r.ok) { $('saveMsg').textContent = r.msg; return; }
   const p = r.profile, sum = `${p.name || 'Unnamed'} · best ${p.best.stage}-${p.best.level} · 🟡${p.cp} · PP ${p.pp} · gold ${p.gold}`;
   if (!confirm(`Load this save?\n${sum}\n\nIt REPLACES the progress on this device.`)) return;
-  profile = p; saveProfile(); updateMenu(); $('saveIn').value = ''; $('saveMsg').textContent = 'Save loaded: ' + sum;
+  profile = p; if (!profile.friendCode) profile.friendCode = mkFCode(); saveProfile(); updateMenu(); restartPresence(); $('saveIn').value = ''; $('saveMsg').textContent = 'Save loaded: ' + sum;
   toast('Save loaded!');
 });
 $('btnShop').addEventListener('click', openShop);
@@ -3188,8 +3194,14 @@ function submitName() {
   err(''); profile.name = n; profile.ageOk = true; saveProfile(); updateMenu(); afterName();
 }
 let pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
-function afterName() { // an invite link (?room=CODE) jumps straight into joining
-  if (pendingRoom.length === 5) {
+let pendingFriend = (new URLSearchParams(location.search).get('friend') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
+function afterName() { // an invite link (?room=CODE) jumps straight into joining; a friend link (?friend=CODE) sends a friend request
+  startPresence();
+  if (pendingFriend.length === 6) {
+    const c = pendingFriend; pendingFriend = '';
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    openFriends(); const r = addFriend(c); $('fMsg').textContent = r;
+  } else if (pendingRoom.length === 5) {
     const c = pendingRoom; pendingRoom = '';
     try { history.replaceState(null, '', location.pathname); } catch (e) {}
     $('codeInput').value = c; show('scrMulti'); joinRoom(c);
@@ -3265,6 +3277,173 @@ $('btnRejoinLeave').addEventListener('click', () => {
 $('btnReconn').addEventListener('click', () => { if (net.rc) rcAttempt(); });
 $('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout(net.rc.timer); net.rc = null; } hideReconn(); leaveGame(); });
 
+
+// ---------------- friends: friend codes, requests, online check and game invites ----------------
+// Every player has a permanent friend code (profile.friendCode). While the game is open, a small "presence" peer listens on the free PeerJS matchmaking
+// service under that code. Friends are mutual: you add a code, they accept. Only accepted friends can see you online or send you invites.
+// This works only while the game is open in the friend's browser (no server of our own, so no offline invites / push notifications).
+const FR_MAX = 30, FCODE = /^[A-Z0-9]{6}$/;
+const fid = code => PJ_PREFIX + 'f-' + code;
+const pres = { p: null, token: 0, state: 'off', tries: 0, timer: 0 }; // state: off | connecting | on | taken
+const frStat = {};            // friend code -> 'on' | 'busy' | 'off' | 'chk'
+const declined = new Set();   // friend requests turned down this session
+const fmQueue = []; let fmTimer = 0;
+const fName = n => { n = String(n || '').replace(/[<>&"'`\u0000-\u001f]/g, '').trim().slice(0, 12); return !n || isBadName(n) ? 'Player' : n; };
+const findFriend = code => profile.friends.find(f => f.code === code);
+const busyNow = () => !!game || !!(net.conn && net.conn.open);
+function startPresence() {
+  if (typeof Peer === 'undefined' || !profile.friendCode || !profile.name) return;
+  if (pres.p && !pres.p.destroyed) { if (pres.p.disconnected) safe(() => pres.p.reconnect()); return; }
+  clearTimeout(pres.timer);
+  const tk = ++pres.token, p = new Peer(fid(profile.friendCode), PJ_OPTS), cur = () => tk === pres.token && pres.p === p;
+  pres.p = p; pres.state = 'connecting'; renderFriendsHead();
+  const retry = ms => { clearTimeout(pres.timer); pres.timer = setTimeout(() => { if (tk !== pres.token) return; safe(() => p.destroy()); pres.p = null; startPresence(); }, ms); };
+  p.on('open', () => { if (!cur()) return; pres.state = 'on'; pres.tries = 0; renderFriendsHead(); checkT = 0; if (friendsOpen()) checkFriends(); });
+  p.on('connection', c => { if (cur()) presConn(c); });
+  p.on('disconnected', () => { if (cur()) { pres.state = 'connecting'; renderFriendsHead(); setTimeout(() => { if (cur() && p.disconnected && !p.destroyed) safe(() => p.reconnect()); }, 2000); } });
+  p.on('close', () => { if (cur()) { pres.state = 'off'; pres.p = null; renderFriendsHead(); retry(5000); } });
+  p.on('error', err => {
+    if (!cur()) return; const t = err && err.type;
+    if (t === 'peer-unavailable') return; // a friend who is not online: handled by the probe timeouts
+    if (t === 'unavailable-id') { pres.state = ++pres.tries > 6 ? 'taken' : 'connecting'; renderFriendsHead(); safe(() => p.destroy()); pres.p = null; retry(pres.tries > 6 ? 30000 : 6000); return; } // old tab still registered, or open on another device
+    if (p.disconnected && !p.destroyed) { setTimeout(() => { if (cur() && p.disconnected && !p.destroyed) safe(() => p.reconnect()); }, 3000); return; }
+    if (p.destroyed) { pres.state = 'off'; pres.p = null; renderFriendsHead(); retry(10000); }
+  });
+}
+function restartPresence() { pres.token++; clearTimeout(pres.timer); const p = pres.p; pres.p = null; pres.state = 'off'; safe(() => p && p.destroy()); startPresence(); }
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { startPresence(); if (friendsOpen()) checkFriends(); } });
+window.addEventListener('online', () => startPresence());
+window.addEventListener('beforeunload', () => safe(() => pres.p && pres.p.destroy())); // frees the friend code at once, so a page reload can claim it again
+function presConn(c) {
+  const from = String(c.peer || '').startsWith(PJ_PREFIX + 'f-') ? String(c.peer).slice((PJ_PREFIX + 'f-').length) : '';
+  const kill = setTimeout(() => safe(() => c.close()), 20000);
+  c.on('close', () => clearTimeout(kill));
+  c.on('data', d => { if (FCODE.test(from) && d && typeof d === 'object') safe(() => onPresMsg(c, from, d)); });
+}
+function onPresMsg(c, from, d) {
+  const me = fName(profile.name), f = findFriend(from);
+  if (d.k === 'ping') { if (f && f.st === 'ok') { c.send({ k: 'pong', name: me, busy: busyNow() }); updFriendName(f, d.name); } } // strangers get no answer at all
+  else if (d.k === 'freq') {
+    if (f && (f.st === 'ok' || f.st === 'pend')) { if (f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} is now your friend`); renderFriends(); } c.send({ k: 'facc', name: me }); return; }
+    if (declined.has(from) || game || profile.friends.length >= FR_MAX || fmQueue.some(q => q.code === from)) return;
+    fmQueue.push({ kind: 'req', code: from, name: fName(d.name) }); nextModal();
+  }
+  else if (d.k === 'facc') { if (f && f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} accepted your friend request`); renderFriends(); } }
+  else if (d.k === 'invite') {
+    if (!f || f.st !== 'ok' || !/^[A-Z0-9]{5}$/.test(String(d.room))) return;
+    if (busyNow() || fmQueue.some(q => q.kind === 'inv')) { c.send({ k: 'ack', busy: true }); return; }
+    updFriendName(f, d.name); c.send({ k: 'ack', ok: true });
+    fmQueue.push({ kind: 'inv', code: from, name: f.name, room: String(d.room) }); nextModal();
+  }
+}
+function updFriendName(f, n) { if (!n) return; const nn = fName(n); if (f.name !== nn) { f.name = nn; saveProfile(); } }
+function nextModal() { // one pop-up at a time: friend requests and game invites
+  if (fmTimer || !fmQueue.length || game) return;
+  const q = fmQueue[0], inv = q.kind === 'inv';
+  $('fmTitle').textContent = inv ? 'Game invite' : 'Friend request';
+  $('fmTxt').textContent = inv ? `${q.name} invites you to play together!` : `${q.name} (${q.code}) wants to be your friend.`;
+  $('fmYes').textContent = inv ? 'Join game' : 'Accept'; $('fmNo').textContent = inv ? 'Not now' : 'Decline';
+  $('fmodal').classList.remove('hidden');
+  const t0 = performance.now();
+  fmTimer = setInterval(() => { if (game || performance.now() - t0 > 90000) closeModal(true); }, 1000); // never lingers over a run, and an old invite expires
+}
+function closeModal(drop) { clearInterval(fmTimer); fmTimer = 0; $('fmodal').classList.add('hidden'); const q = fmQueue.shift(); setTimeout(nextModal, 250); return drop ? null : q; }
+$('fmNo').addEventListener('click', () => { const q = closeModal(); if (q && q.kind === 'req') declined.add(q.code); });
+$('fmYes').addEventListener('click', () => {
+  const q = closeModal(); if (!q || game) return;
+  if (q.kind === 'req') {
+    if (profile.friends.length >= FR_MAX) { toast('Your friend list is full'); return; }
+    const f = findFriend(q.code); if (f) { f.st = 'ok'; f.name = q.name; } else profile.friends.push({ code: q.code, name: q.name, st: 'ok' });
+    saveProfile(); toast(`${q.name} is now your friend`); probeFriend(findFriend(q.code), { k: 'freq', name: fName(profile.name) }, () => {}); renderFriends();
+  } else { if (!needPeer()) return; show('scrMulti'); $('multiStatus').textContent = ''; joinRoom(q.room); }
+});
+// Send one message to a friend's presence peer and wait briefly for the answer (null = no answer = offline).
+function probeFriend(f, msg, done, ms) {
+  const p = pres.p; if (!f || !p || p.destroyed || p.disconnected || pres.state !== 'on') return done(null);
+  let fin = false, c = null, to = 0;
+  const end = r => { if (fin) return; fin = true; clearTimeout(to); safe(() => c && c.close()); done(r); };
+  to = setTimeout(() => end(null), ms || 6000);
+  try { c = p.connect(fid(f.code), { reliable: true, serialization: 'json' }); } catch (e) { return end(null); }
+  c.on('open', () => safe(() => c.send(msg)));
+  c.on('data', d => end(d && typeof d === 'object' ? d : null)); c.on('error', () => end(null)); c.on('close', () => end(null));
+}
+let checkT = 0;
+function checkFriends() {
+  if (Date.now() - checkT < 2500) return; checkT = Date.now();
+  const me = fName(profile.name);
+  for (const f of profile.friends.slice()) {
+    if (frStat[f.code] === 'chk') continue; frStat[f.code] = 'chk';
+    probeFriend(f, f.st === 'pend' ? { k: 'freq', name: me } : { k: 'ping', name: me }, r => {
+      if (r && r.k === 'pong' && f.st === 'ok') { frStat[f.code] = r.busy ? 'busy' : 'on'; updFriendName(f, r.name); }
+      else if (r && r.k === 'facc' && f.st === 'pend') { f.st = 'ok'; updFriendName(f, r.name); saveProfile(); frStat[f.code] = 'on'; toast(`${f.name} accepted your friend request`); }
+      else frStat[f.code] = 'off';
+      renderFriends();
+    });
+  }
+  renderFriends();
+}
+function addFriend(code) {
+  code = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!FCODE.test(code)) return 'Friend codes have 6 letters / numbers.';
+  if (code === profile.friendCode) return 'That is your own code.';
+  if (findFriend(code)) return 'Already on your list.';
+  if (profile.friends.length >= FR_MAX) return `Your list is full (${FR_MAX} friends).`;
+  profile.friends.push({ code, name: '', st: 'pend' }); saveProfile(); startPresence(); checkT = 0; checkFriends();
+  return 'Request sent. They need the game open to see it — it is sent again every time you open this list.';
+}
+const friendsOpen = () => !$('scrFriends').classList.contains('hidden');
+const canInvite = () => !!(net.isHost && lobby.code && !lobby.auto && net.pj && !game);
+function renderFriendsHead() {
+  if (!friendsOpen()) return;
+  $('myFCode').textContent = profile.friendCode || '------';
+  $('fPresence').textContent = pres.state === 'on' ? '● Online — friends can see you and invite you' : pres.state === 'taken' ? '○ This friend code is open on another device or tab' : pres.state === 'connecting' ? '… Connecting to the friends service' : '○ Friends service not reachable (retrying)';
+  $('fPresence').style.color = pres.state === 'on' ? '#a5d6a7' : '#ffab91';
+}
+function renderFriends() {
+  if (!friendsOpen()) return;
+  renderFriendsHead();
+  const ul = $('friendList'); ul.innerHTML = ''; const inv = canInvite();
+  $('fHint').textContent = inv ? 'Tap Invite on an online friend to send them your room.' : 'Friends who are online show a green dot. To invite one: Start Game > Multiplayer > Create Game Room > Invite.';
+  if (!profile.friends.length) { const li = document.createElement('li'); li.className = 'fempty'; li.textContent = 'No friends yet. Share your code or add theirs.'; ul.appendChild(li); return; }
+  const rank = f => f.st === 'pend' ? 3 : ({ on: 0, busy: 1, chk: 2, off: 2 })[frStat[f.code]] ?? 2;
+  for (const f of profile.friends.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))) {
+    const st = f.st === 'pend' ? 'pend' : (frStat[f.code] || 'off'), li = document.createElement('li');
+    const label = { on: 'Online', busy: 'In a game', chk: 'Checking…', off: 'Offline', pend: 'Request sent' }[st];
+    const dot = document.createElement('span'); dot.className = 'fdot ' + st; li.appendChild(dot);
+    const nm = document.createElement('span'); nm.className = 'fname'; nm.textContent = f.name || f.code; const sm = document.createElement('small'); sm.textContent = label + (f.name ? ' · ' + f.code : ''); nm.appendChild(sm); li.appendChild(nm);
+    if (inv && st === 'on') { const b = document.createElement('button'); b.type = 'button'; b.dataset.act = 'invite'; b.dataset.c = f.code; b.textContent = 'Invite'; li.appendChild(b); }
+    const x = document.createElement('button'); x.type = 'button'; x.className = 'back fx'; x.dataset.act = 'remove'; x.dataset.c = f.code; x.textContent = '✕'; x.title = 'Remove'; li.appendChild(x);
+    ul.appendChild(li);
+  }
+}
+let frTimer = 0;
+function openFriends() {
+  $('fMsg').textContent = ''; show('scrFriends'); startPresence(); renderFriends(); checkT = 0; checkFriends();
+  clearInterval(frTimer); frTimer = setInterval(() => { if (!friendsOpen()) { clearInterval(frTimer); frTimer = 0; return; } checkFriends(); }, 12000);
+}
+$('btnFriends').addEventListener('click', openFriends);
+$('btnInvite').addEventListener('click', () => { net.sub = true; relay({ k: 'prof', p: myProfileMsg() }); openFriends(); });
+$('btnFAdd').addEventListener('click', () => { $('fMsg').textContent = addFriend($('fcodeInput').value); if (!/^(Friend codes|That is|Already|Your list)/.test($('fMsg').textContent)) $('fcodeInput').value = ''; renderFriends(); });
+$('fcodeInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFAdd').click(); });
+$('btnFRefresh').addEventListener('click', () => { checkT = 0; startPresence(); checkFriends(); });
+$('btnFCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(profile.friendCode); toast('Friend code copied'); } catch (e) { toast(profile.friendCode); } });
+$('btnFShare').addEventListener('click', async () => {
+  const url = location.origin + location.pathname + '?friend=' + profile.friendCode;
+  try { if (navigator.share) { await navigator.share({ title: 'Doom and Dungeons', text: `Add me as a friend in Doom and Dungeons (code ${profile.friendCode})`, url }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+  try { await navigator.clipboard.writeText(url); toast('Friend link copied!'); } catch (e) { toast(url); }
+});
+$('friendList').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return; const f = findFriend(b.dataset.c); if (!f) return;
+  if (b.dataset.act === 'remove') { if (!confirm(`Remove ${f.name || f.code} from your friends?`)) return; profile.friends = profile.friends.filter(x => x !== f); saveProfile(); renderFriends(); }
+  else if (b.dataset.act === 'invite') {
+    if (!canInvite()) { toast('Create a game room first'); return; }
+    b.disabled = true; b.textContent = 'Sending…';
+    probeFriend(f, { k: 'invite', name: fName(profile.name), room: lobby.code }, r => {
+      toast(r && r.ok ? `Invite sent to ${f.name || f.code}` : r && r.busy ? `${f.name || f.code} is busy right now` : `${f.name || f.code} did not answer (offline?)`);
+      renderFriends();
+    });
+  }
+});
 // ---------------- boot ----------------
 fillIcons();
 resize();

@@ -205,3 +205,17 @@ i[data-ic]{font-style:normal}
 .gear .gi.gt4{box-shadow:0 0 10px rgba(255,236,130,.8)}
 .gear .gi.gt5{box-shadow:0 0 10px rgba(255,23,68,.8)}
 .gear .gi.gt6{background:#000}
+
+/* friends */
+#myFCode{font-size:34px;font-weight:800;letter-spacing:6px;color:#ffd54f;background:#151a2e;border-radius:12px;padding:6px 16px}
+#friendList{list-style:none;padding:0;margin:0;width:100%;display:flex;flex-direction:column;gap:6px;max-height:34vh;overflow-y:auto}
+#friendList li{display:flex;align-items:center;gap:10px;background:#1b2140;border-radius:8px;padding:8px 10px;font-size:16px;text-align:left}
+#friendList li.fempty{justify-content:center;color:#9fa8da;font-size:14px}
+#friendList .fname{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#friendList .fname small{display:block;color:#9fa8da;font-size:12px}
+#friendList button{padding:6px 12px;font-size:14px}
+#friendList button.fx{padding:6px 10px}
+.fdot{width:12px;height:12px;border-radius:50%;background:#555;flex:none}
+.fdot.on{background:#66bb6a;box-shadow:0 0 8px #66bb6a}.fdot.busy{background:#ffb74d}.fdot.chk{background:#90a4ae}.fdot.pend{background:#5c6bc0}
+#fmodal{position:fixed;inset:0;z-index:31;display:flex;align-items:center;justify-content:center;background:rgba(5,8,20,.82);padding:16px}
+#fmodal.hidden{display:none}
