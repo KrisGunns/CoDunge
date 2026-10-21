@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.20-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.20-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -3299,7 +3299,7 @@ function startPresence() {
   pres.p = p; pres.state = 'connecting'; renderFriendsHead();
   const retry = ms => { clearTimeout(pres.timer); pres.timer = setTimeout(() => { if (tk !== pres.token) return; safe(() => p.destroy()); pres.p = null; startPresence(); }, ms); };
   p.on('open', () => { if (!cur()) return; pres.state = 'on'; pres.tries = 0; renderFriendsHead(); checkT = 0; if (friendsOpen()) checkFriends(); });
-  p.on('connection', c => { if (cur()) presConn(c); });
+  safe(() => p.socket.on('message', m => { if (cur()) onSignal(m); })); // friend messages travel through the matchmaking service itself (no WebRTC link needed, so no NAT / relay problems)
   p.on('disconnected', () => { if (cur()) { pres.state = 'connecting'; renderFriendsHead(); setTimeout(() => { if (cur() && p.disconnected && !p.destroyed) safe(() => p.reconnect()); }, 2000); } });
   p.on('close', () => { if (cur()) { pres.state = 'off'; pres.p = null; renderFriendsHead(); retry(5000); } });
   p.on('error', err => {
@@ -3314,25 +3314,34 @@ function restartPresence() { pres.token++; clearTimeout(pres.timer); const p = p
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { startPresence(); if (friendsOpen()) checkFriends(); } });
 window.addEventListener('online', () => startPresence());
 window.addEventListener('beforeunload', () => safe(() => pres.p && pres.p.destroy())); // frees the friend code at once, so a page reload can claim it again
-function presConn(c) {
-  const from = String(c.peer || '').startsWith(PJ_PREFIX + 'f-') ? String(c.peer).slice((PJ_PREFIX + 'f-').length) : '';
-  const kill = setTimeout(() => safe(() => c.close()), 20000);
-  c.on('close', () => clearTimeout(kill));
-  c.on('data', d => { if (FCODE.test(from) && d && typeof d === 'object') safe(() => onPresMsg(c, from, d)); });
+// Friend messages are sent through the PeerJS matchmaking server as signalling packets (it forwards any packet with a destination id and stamps the real sender id on it).
+// Unlike a WebRTC data link, this works from any network, including mobile data behind strict NAT.
+const SIG = 'CANDIDATE', FPRE = PJ_PREFIX + 'f-';
+function sigSend(code, msg) {
+  const p = pres.p; if (!p || p.destroyed || p.disconnected || pres.state !== 'on') return false;
+  try { p.socket.send({ type: SIG, dst: fid(code), payload: { dd: msg } }); return true; } catch (e) { return false; }
 }
-function onPresMsg(c, from, d) {
-  const me = fName(profile.name), f = findFriend(from);
-  if (d.k === 'ping') { if (f && f.st === 'ok') { c.send({ k: 'pong', name: me, busy: busyNow() }); updFriendName(f, d.name); } } // strangers get no answer at all
+const waits = new Map(); let rid = 0;
+function onSignal(m) {
+  if (!m || m.type !== SIG || !m.payload || typeof m.payload.dd !== 'object' || !m.payload.dd) return;
+  const src = String(m.src || ''); if (!src.startsWith(FPRE)) return;
+  const from = src.slice(FPRE.length); if (!FCODE.test(from)) return;
+  safe(() => onPresMsg(from, m.payload.dd));
+}
+function onPresMsg(from, d) {
+  const me = fName(profile.name), f = findFriend(from), rep = o => sigSend(from, Object.assign({ rid: d.rid }, o));
+  if (d.rid && waits.has(d.rid) && ['pong', 'facc', 'ack'].includes(d.k)) { const w = waits.get(d.rid); if (w.code === from) { w.fin(d); if (d.k !== 'facc') return; } }
+  if (d.k === 'ping') { if (f && f.st === 'ok') { rep({ k: 'pong', name: me, busy: busyNow() }); updFriendName(f, d.name); } } // strangers get no answer at all
   else if (d.k === 'freq') {
-    if (f && (f.st === 'ok' || f.st === 'pend')) { if (f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} is now your friend`); renderFriends(); } c.send({ k: 'facc', name: me }); return; }
+    if (f && (f.st === 'ok' || f.st === 'pend')) { if (f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} is now your friend`); renderFriends(); } rep({ k: 'facc', name: me }); return; }
     if (declined.has(from) || game || profile.friends.length >= FR_MAX || fmQueue.some(q => q.code === from)) return;
     fmQueue.push({ kind: 'req', code: from, name: fName(d.name) }); nextModal();
   }
-  else if (d.k === 'facc') { if (f && f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} accepted your friend request`); renderFriends(); } }
+  else if (d.k === 'facc') { for (const w of [...waits.values()]) if (w.code === from) w.fin(d); if (f && f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); frStat[f.code] = 'on'; toast(`${f.name} accepted your friend request`); renderFriends(); } }
   else if (d.k === 'invite') {
     if (!f || f.st !== 'ok' || !/^[A-Z0-9]{5}$/.test(String(d.room))) return;
-    if (busyNow() || fmQueue.some(q => q.kind === 'inv')) { c.send({ k: 'ack', busy: true }); return; }
-    updFriendName(f, d.name); c.send({ k: 'ack', ok: true });
+    if (busyNow() || fmQueue.some(q => q.kind === 'inv')) { rep({ k: 'ack', busy: true }); return; }
+    updFriendName(f, d.name); rep({ k: 'ack', ok: true });
     fmQueue.push({ kind: 'inv', code: from, name: f.name, room: String(d.room) }); nextModal();
   }
 }
@@ -3354,18 +3363,16 @@ $('fmYes').addEventListener('click', () => {
   if (q.kind === 'req') {
     if (profile.friends.length >= FR_MAX) { toast('Your friend list is full'); return; }
     const f = findFriend(q.code); if (f) { f.st = 'ok'; f.name = q.name; } else profile.friends.push({ code: q.code, name: q.name, st: 'ok' });
-    saveProfile(); toast(`${q.name} is now your friend`); probeFriend(findFriend(q.code), { k: 'freq', name: fName(profile.name) }, () => {}); renderFriends();
+    saveProfile(); toast(`${q.name} is now your friend`); sigSend(q.code, { k: 'facc', name: fName(profile.name) }); setTimeout(() => { checkT = 0; checkFriends(); }, 600); renderFriends();
   } else { if (!needPeer()) return; show('scrMulti'); $('multiStatus').textContent = ''; joinRoom(q.room); }
 });
-// Send one message to a friend's presence peer and wait briefly for the answer (null = no answer = offline).
+// Send one message to a friend and wait briefly for the answer (null = no answer = offline).
 function probeFriend(f, msg, done, ms) {
-  const p = pres.p; if (!f || !p || p.destroyed || p.disconnected || pres.state !== 'on') return done(null);
-  let fin = false, c = null, to = 0;
-  const end = r => { if (fin) return; fin = true; clearTimeout(to); safe(() => c && c.close()); done(r); };
-  to = setTimeout(() => end(null), ms || 6000);
-  try { c = p.connect(fid(f.code), { reliable: true, serialization: 'json' }); } catch (e) { return end(null); }
-  c.on('open', () => safe(() => c.send(msg)));
-  c.on('data', d => end(d && typeof d === 'object' ? d : null)); c.on('error', () => end(null)); c.on('close', () => end(null));
+  if (!f || pres.state !== 'on') return done(null);
+  const id = 'r' + (++rid) + Math.random().toString(36).slice(2, 6); let fin = false, to = 0;
+  const end = r => { if (fin) return; fin = true; clearTimeout(to); waits.delete(id); done(r); };
+  waits.set(id, { code: f.code, fin: end }); to = setTimeout(() => end(null), ms || 5000);
+  if (!sigSend(f.code, Object.assign({ rid: id }, msg))) end(null);
 }
 let checkT = 0;
 function checkFriends() {
@@ -3374,9 +3381,10 @@ function checkFriends() {
   for (const f of profile.friends.slice()) {
     if (frStat[f.code] === 'chk') continue; frStat[f.code] = 'chk';
     probeFriend(f, f.st === 'pend' ? { k: 'freq', name: me } : { k: 'ping', name: me }, r => {
-      if (r && r.k === 'pong' && f.st === 'ok') { frStat[f.code] = r.busy ? 'busy' : 'on'; updFriendName(f, r.name); }
-      else if (r && r.k === 'facc' && f.st === 'pend') { f.st = 'ok'; updFriendName(f, r.name); saveProfile(); frStat[f.code] = 'on'; toast(`${f.name} accepted your friend request`); }
-      else frStat[f.code] = 'off';
+      if (r && (r.k === 'pong' || r.k === 'facc')) {
+        if (f.st === 'pend') { f.st = 'ok'; saveProfile(); toast(`${fName(r.name)} accepted your friend request`); }
+        frStat[f.code] = r.busy ? 'busy' : 'on'; updFriendName(f, r.name);
+      } else frStat[f.code] = 'off';
       renderFriends();
     });
   }
