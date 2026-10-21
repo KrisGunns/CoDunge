@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.20-d'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.21-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -3295,17 +3295,16 @@ function startPresence() {
   if (typeof Peer === 'undefined' || !profile.friendCode || !profile.name) return;
   if (pres.p && !pres.p.destroyed) { if (pres.p.disconnected) safe(() => pres.p.reconnect()); return; }
   clearTimeout(pres.timer);
-  const tk = ++pres.token, p = new Peer(fid(profile.friendCode), PJ_OPTS), cur = () => tk === pres.token && pres.p === p;
+  const tk = ++pres.token, p = new Peer(fid(profile.friendCode), { debug: 1, config: { iceServers: [] } }) /* messages need no ICE servers */, cur = () => tk === pres.token && pres.p === p;
   pres.p = p; pres.state = 'connecting'; renderFriendsHead();
   const retry = ms => { clearTimeout(pres.timer); pres.timer = setTimeout(() => { if (tk !== pres.token) return; safe(() => p.destroy()); pres.p = null; startPresence(); }, ms); };
-  p.on('open', () => { if (!cur()) return; pres.state = 'on'; pres.tries = 0; renderFriendsHead(); checkT = 0; relayTest(); if (friendsOpen()) checkFriends(); });
-  p.on('connection', c => { if (cur()) rtcIn(c); }); // second route: a direct link, used in addition to the matchmaking service until the relay test has passed
-  safe(() => p.socket.on('message', m => { if (cur()) onSignal(m); })); // friend messages travel through the matchmaking service itself (no WebRTC link needed, so no NAT / relay problems)
+  p.on('open', () => { if (!cur()) return; pres.state = 'on'; pres.tries = 0; pres.opens++; renderFriendsHead(); checkT = 0; if (friendsOpen()) checkFriends(); });
+  p.on('connection', c => { if (cur()) msgIn(c); }); // a friend's message arrives inside an ordinary PeerJS connection request (see sendMsg)
   p.on('disconnected', () => { if (cur()) { pres.state = 'connecting'; renderFriendsHead(); setTimeout(() => { if (cur() && p.disconnected && !p.destroyed) safe(() => p.reconnect()); }, 2000); } });
   p.on('close', () => { if (cur()) { pres.state = 'off'; pres.p = null; renderFriendsHead(); retry(5000); } });
   p.on('error', err => {
     if (!cur()) return; const t = err && err.type; pres.lastErr = t || String(err); renderFriendsHead();
-    if (t === 'peer-unavailable') return; // a friend who is not online: handled by the probe timeouts
+    if (t === 'peer-unavailable') { const m = /f-([A-Z0-9]{6})/.exec(String(err.message || '')); if (m) for (const w of [...waits.values()]) if (w.code === m[1]) w.fin(null); return; } // that friend is not online
     if (t === 'unavailable-id') { pres.state = ++pres.tries > 6 ? 'taken' : 'connecting'; renderFriendsHead(); safe(() => p.destroy()); pres.p = null; retry(pres.tries > 6 ? 30000 : 6000); return; } // old tab still registered, or open on another device
     if (p.disconnected && !p.destroyed) { setTimeout(() => { if (cur() && p.disconnected && !p.destroyed) safe(() => p.reconnect()); }, 3000); return; }
     if (p.destroyed) { pres.state = 'off'; pres.p = null; renderFriendsHead(); retry(10000); }
@@ -3315,49 +3314,34 @@ function restartPresence() { pres.token++; clearTimeout(pres.timer); const p = p
 document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { startPresence(); if (friendsOpen()) checkFriends(); } });
 window.addEventListener('online', () => startPresence());
 window.addEventListener('beforeunload', () => safe(() => pres.p && pres.p.destroy())); // frees the friend code at once, so a page reload can claim it again
-// Friend messages are sent through the PeerJS matchmaking server as signalling packets (it forwards any packet with a destination id and stamps the real sender id on it).
-// Unlike a WebRTC data link, this works from any network, including mobile data behind strict NAT.
-const SIG = 'CANDIDATE', FPRE = PJ_PREFIX + 'f-';
-function sigSend(code, msg) {
-  const p = pres.p; if (!p || p.destroyed || p.disconnected || pres.state !== 'on') return false;
-  try { p.socket.send({ type: SIG, dst: fid(code), payload: { dd: msg } }); pres.sent++; return true; } catch (e) { return false; }
-}
-pres.sent = 0; pres.recv = 0; pres.relay = 'testing'; pres.relayMs = 0; pres.lastErr = ''; pres.selfMid = '';
+// Friend messages ride inside the "metadata" of an ordinary PeerJS connection request. The matchmaking service delivers that request to the friend's page
+// even when no direct WebRTC link can be built (strict NAT, mobile data), so nothing here needs a working relay.
+// (Raw custom packets over the service's socket were tried first: the public server drops the connection when it gets them.)
+const FPRE = PJ_PREFIX + 'f-';
+const waits = new Map(); let rid = 0;
+pres.sent = 0; pres.recv = 0; pres.opens = 0; pres.lastErr = '';
 const newMid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const seenMid = new Set();
-// Every message goes out through the matchmaking service; until the relay self-test has passed it is ALSO tried over a direct link (duplicates are dropped by message id).
-function sendMsg(code, msg) { if (!msg.mid) msg.mid = newMid(); const ok = sigSend(code, msg); if (pres.relay !== 'ok') rtcSend(code, msg); return ok; }
-function rtcSend(code, msg) {
-  const p = pres.p; if (!p || p.destroyed || p.disconnected || pres.state !== 'on') return;
-  let c = null; try { c = p.connect(fid(code), { reliable: true, serialization: 'json' }); } catch (e) { return; }
-  const kill = setTimeout(() => safe(() => c.close()), 9000);
-  c.on('open', () => safe(() => c.send(msg)));
-  c.on('data', d => { if (d && typeof d === 'object') safe(() => onPresMsg(code, d, c)); });
+function sendMsg(code, msg) {
+  const p = pres.p; if (!p || p.destroyed || p.disconnected || pres.state !== 'on') return false;
+  if (!msg.mid) msg.mid = newMid();
+  let c = null; try { c = p.connect(fid(code), { reliable: true, serialization: 'json', metadata: { dd: msg } }); } catch (e) { return false; }
+  pres.sent++;
+  const kill = setTimeout(() => safe(() => c.close()), 6000);
+  c.on('open', () => { clearTimeout(kill); setTimeout(() => safe(() => c.close()), 300); });
   c.on('error', () => clearTimeout(kill)); c.on('close', () => clearTimeout(kill));
+  return true;
 }
-function rtcIn(c) {
-  const id = String(c.peer || ''), from = id.startsWith(FPRE) ? id.slice(FPRE.length) : '';
-  const kill = setTimeout(() => safe(() => c.close()), 20000); c.on('close', () => clearTimeout(kill));
-  c.on('data', d => { if (FCODE.test(from) && d && typeof d === 'object') safe(() => onPresMsg(from, d, c)); });
+function msgIn(c) {
+  pres.recv++;
+  const id = String(c.peer || ''), from = id.startsWith(FPRE) ? id.slice(FPRE.length) : '', m = c.metadata;
+  if (FCODE.test(from) && m && typeof m === 'object' && m.dd && typeof m.dd === 'object') safe(() => onPresMsg(from, m.dd));
+  setTimeout(() => safe(() => c.close()), 400); // the message has arrived; the link itself is not needed
+  renderFriendsHead();
 }
-function relayTest() { // does the matchmaking service really pass our messages on? Send one to ourselves and see if it comes back.
-  pres.relay = 'testing'; pres.selfMid = newMid(); const t0 = performance.now(), mid = pres.selfMid; renderFriendsHead();
-  if (!sigSend(profile.friendCode, { k: 'self', mid })) { pres.relay = 'fail'; renderFriendsHead(); return; }
-  setTimeout(() => { if (pres.selfMid === mid && pres.relay === 'testing') { pres.relay = 'fail'; renderFriendsHead(); } }, 5000);
-  pres.t0 = t0;
-}
-const waits = new Map(); let rid = 0;
-function onSignal(m) {
-  pres.recv++; 
-  if (!m || m.type !== SIG || !m.payload || typeof m.payload.dd !== 'object' || !m.payload.dd) return;
-  const src = String(m.src || ''); if (!src.startsWith(FPRE)) return;
-  const from = src.slice(FPRE.length); if (!FCODE.test(from)) return;
-  safe(() => onPresMsg(from, m.payload.dd));
-}
-function onPresMsg(from, d, via) {
-  if (d.k === 'self') { if (from === profile.friendCode && d.mid === pres.selfMid && pres.relay !== 'ok') { pres.relay = 'ok'; pres.relayMs = Math.round(performance.now() - pres.t0); renderFriendsHead(); } return; }
+function onPresMsg(from, d) {
   if (d.mid) { if (seenMid.has(d.mid)) return; seenMid.add(d.mid); if (seenMid.size > 80) seenMid.delete(seenMid.values().next().value); }
-  const me = fName(profile.name), f = findFriend(from), rep = o => { const m = Object.assign({ rid: d.rid, mid: newMid() }, o); if (via && via.open) safe(() => via.send(m)); sendMsg(from, m); };
+  const me = fName(profile.name), f = findFriend(from), rep = o => { sendMsg(from, Object.assign({ rid: d.rid }, o)); };
   if (d.rid && waits.has(d.rid) && ['pong', 'facc', 'ack'].includes(d.k)) { const w = waits.get(d.rid); if (w.code === from) { w.fin(d); if (d.k !== 'facc') return; } }
   if (d.k === 'ping') { if (f && f.st === 'ok') { rep({ k: 'pong', name: me, busy: busyNow() }); updFriendName(f, d.name); } } // strangers get no answer at all
   else if (d.k === 'freq') {
@@ -3400,7 +3384,7 @@ function probeFriend(f, msg, done, ms) {
   const id = 'r' + (++rid) + Math.random().toString(36).slice(2, 6); let fin = false, to = 0;
   const end = r => { if (fin) return; fin = true; clearTimeout(to); waits.delete(id); done(r); };
   waits.set(id, { code: f.code, fin: end }); to = setTimeout(() => end(null), ms || 5000);
-  if (!sendMsg(f.code, Object.assign({ rid: id }, msg)) && pres.relay === 'ok') end(null);
+  if (!sendMsg(f.code, Object.assign({ rid: id }, msg))) end(null);
 }
 let checkT = 0;
 function checkFriends() {
@@ -3434,7 +3418,7 @@ function renderFriendsHead() {
   $('myFCode').textContent = profile.friendCode || '------';
   $('fPresence').textContent = pres.state === 'on' ? '● Online — friends can see you and invite you' : pres.state === 'taken' ? '○ This friend code is open on another device or tab' : pres.state === 'connecting' ? '… Connecting to the friends service' : '○ Friends service not reachable (retrying)';
   $('fPresence').style.color = pres.state === 'on' ? '#a5d6a7' : '#ffab91';
-  $('fDiag').textContent = `v${GAME_VERSION} · service ${pres.state} · message relay ${pres.relay === 'ok' ? 'OK (' + pres.relayMs + ' ms)' : pres.relay === 'testing' ? 'testing…' : 'NOT working (using direct links)'} · sent ${pres.sent} · received ${pres.recv}${pres.lastErr ? ' · last error: ' + pres.lastErr : ''}`;
+  $('fDiag').textContent = `v${GAME_VERSION} · service ${pres.state} (connected ${pres.opens}×) · sent ${pres.sent} · received ${pres.recv}${pres.lastErr ? ' · last error: ' + pres.lastErr : ''}`;
 }
 function renderFriends() {
   if (!friendsOpen()) return;
@@ -3462,7 +3446,7 @@ $('btnFriends').addEventListener('click', openFriends);
 $('btnInvite').addEventListener('click', () => { net.sub = true; relay({ k: 'prof', p: myProfileMsg() }); openFriends(); });
 $('btnFAdd').addEventListener('click', () => { $('fMsg').textContent = addFriend($('fcodeInput').value); if (!/^(Friend codes|That is|Already|Your list)/.test($('fMsg').textContent)) $('fcodeInput').value = ''; renderFriends(); });
 $('fcodeInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('btnFAdd').click(); });
-$('btnFRefresh').addEventListener('click', () => { checkT = 0; startPresence(); relayTest(); checkFriends(); });
+$('btnFRefresh').addEventListener('click', () => { checkT = 0; startPresence(); checkFriends(); });
 $('btnFCopy').addEventListener('click', async () => { try { await navigator.clipboard.writeText(profile.friendCode); toast('Friend code copied'); } catch (e) { toast(profile.friendCode); } });
 $('btnFShare').addEventListener('click', async () => {
   const url = location.origin + location.pathname + '?friend=' + profile.friendCode;
