@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.21-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.21-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -2531,7 +2531,8 @@ function drawEnemy(c, e) {
 const tileHash = (c, r) => (Math.imul(c + 1, 73856093) ^ Math.imul(r + 1, 19349663)) >>> 0;
 function drawWorld(g) {
   const t = g.time || performance.now() / 1000, hell = isHell(g.stage);
-  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+  const vz = g.vis || { c0: 0, c1: COLS - 1, r0: 0, r1: ROWS - 1 };
+  for (let r = vz.r0; r <= vz.r1; r++) for (let c = vz.c0; c <= vz.c1; c++) {
     const v = g.grid[r][c], x = c * TILE, y = r * TILE;
     if (hell) {
       const h = tileHash(c, r);
@@ -2918,6 +2919,7 @@ function render() {
   ctx.save();
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.beginPath(); ctx.rect(L.clip.x, L.clip.y, L.clip.w, L.clip.h); ctx.clip();
   ctx.setTransform(L.s * dpr, 0, 0, L.s * dpr, tx * dpr, ty * dpr);
+  g.vis = { c0: Math.max(0, Math.floor((L.clip.x - tx) / L.s / TILE) - 1), c1: Math.min(COLS - 1, Math.ceil((L.clip.x + L.clip.w - tx) / L.s / TILE) + 1), r0: Math.max(0, Math.floor((L.clip.y - ty) / L.s / TILE) - 1), r1: Math.min(ROWS - 1, Math.ceil((L.clip.y + L.clip.h - ty) / L.s / TILE) + 1) }; // only the tiles on screen are drawn (big Hell rooms scroll)
   drawWorld(g);
   if (L.portrait) { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); drawHUD(g, L.clip.w, L.clip.h, true); } // HUD stays put, normal text size
   else { ctx.setTransform(L.s * dpr, 0, 0, L.s * dpr, L.ox * dpr, L.oy * dpr); drawHUD(g, L.vw, L.vh); }
@@ -3285,7 +3287,7 @@ $('btnReconnLeave').addEventListener('click', () => { if (net.rc) { clearTimeout
 const FR_MAX = 30, FCODE = /^[A-Z0-9]{6}$/;
 const fid = code => PJ_PREFIX + 'f-' + code;
 const pres = { p: null, token: 0, state: 'off', tries: 0, timer: 0 }; // state: off | connecting | on | taken
-const frStat = {};            // friend code -> 'on' | 'busy' | 'off' | 'chk'
+const frStat = {}, frBusy = {};            // friend code -> 'on' | 'busy' | 'off' | 'chk'
 const declined = new Set();   // friend requests turned down this session
 const fmQueue = []; let fmTimer = 0;
 const fName = n => { n = String(n || '').replace(/[<>&"'`\u0000-\u001f]/g, '').trim().slice(0, 12); return !n || isBadName(n) ? 'Player' : n; };
@@ -3319,7 +3321,7 @@ window.addEventListener('beforeunload', () => safe(() => pres.p && pres.p.destro
 // (Raw custom packets over the service's socket were tried first: the public server drops the connection when it gets them.)
 const FPRE = PJ_PREFIX + 'f-';
 const waits = new Map(); let rid = 0;
-pres.sent = 0; pres.recv = 0; pres.opens = 0; pres.lastErr = '';
+pres.sent = 0; pres.recv = 0; pres.opens = 0; pres.lastErr = ''; pres.lastInv = '';
 const newMid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 const seenMid = new Set();
 function sendMsg(code, msg) {
@@ -3343,7 +3345,8 @@ function onPresMsg(from, d) {
   if (d.mid) { if (seenMid.has(d.mid)) return; seenMid.add(d.mid); if (seenMid.size > 80) seenMid.delete(seenMid.values().next().value); }
   const me = fName(profile.name), f = findFriend(from), rep = o => { sendMsg(from, Object.assign({ rid: d.rid }, o)); };
   if (d.rid && waits.has(d.rid) && ['pong', 'facc', 'ack'].includes(d.k)) { const w = waits.get(d.rid); if (w.code === from) { w.fin(d); if (d.k !== 'facc') return; } }
-  if (d.k === 'ping') { if (f && f.st === 'ok') { rep({ k: 'pong', name: me, busy: busyNow() }); updFriendName(f, d.name); } } // strangers get no answer at all
+  if (f && f.st === 'pend' && (d.k === 'ping' || d.k === 'invite')) { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name || from} is now your friend`); renderFriends(); } // they only ping / invite people who accepted, so a missed "accepted" message cannot leave the two lists out of step
+  if (d.k === 'ping') { if (f && f.st === 'ok') { rep({ k: 'pong', name: me, busy: game ? 2 : busyNow() ? 1 : 0 }); updFriendName(f, d.name); } } // strangers get no answer at all
   else if (d.k === 'freq') {
     if (f && (f.st === 'ok' || f.st === 'pend')) { if (f.st === 'pend') { f.st = 'ok'; saveProfile(); updFriendName(f, d.name); toast(`${f.name} is now your friend`); renderFriends(); } rep({ k: 'facc', name: me }); return; }
     if (declined.has(from) || game || profile.friends.length >= FR_MAX || fmQueue.some(q => q.code === from)) return;
@@ -3375,7 +3378,8 @@ $('fmYes').addEventListener('click', () => {
   if (q.kind === 'req') {
     if (profile.friends.length >= FR_MAX) { toast('Your friend list is full'); return; }
     const f = findFriend(q.code); if (f) { f.st = 'ok'; f.name = q.name; } else profile.friends.push({ code: q.code, name: q.name, st: 'ok' });
-    saveProfile(); toast(`${q.name} is now your friend`); sendMsg(q.code, { k: 'facc', name: fName(profile.name) }); setTimeout(() => { checkT = 0; checkFriends(); }, 600); renderFriends();
+    saveProfile(); toast(`${q.name} is now your friend`); for (const ms of [0, 2500, 7000]) setTimeout(() => sendMsg(q.code, { k: 'facc', name: fName(profile.name) }), ms); // a few tries: the first one can be lost if their page is busy
+    setTimeout(() => { checkT = 0; checkFriends(); }, 900); renderFriends();
   } else { if (!needPeer()) return; show('scrMulti'); $('multiStatus').textContent = ''; joinRoom(q.room); }
 });
 // Send one message to a friend and wait briefly for the answer (null = no answer = offline).
@@ -3395,7 +3399,7 @@ function checkFriends() {
     probeFriend(f, f.st === 'pend' ? { k: 'freq', name: me } : { k: 'ping', name: me }, r => {
       if (r && (r.k === 'pong' || r.k === 'facc')) {
         if (f.st === 'pend') { f.st = 'ok'; saveProfile(); toast(`${fName(r.name)} accepted your friend request`); }
-        frStat[f.code] = r.busy ? 'busy' : 'on'; updFriendName(f, r.name);
+        frStat[f.code] = r.busy ? 'busy' : 'on'; frBusy[f.code] = r.busy; updFriendName(f, r.name);
       } else frStat[f.code] = 'off';
       renderFriends();
     });
@@ -3418,7 +3422,7 @@ function renderFriendsHead() {
   $('myFCode').textContent = profile.friendCode || '------';
   $('fPresence').textContent = pres.state === 'on' ? '● Online — friends can see you and invite you' : pres.state === 'taken' ? '○ This friend code is open on another device or tab' : pres.state === 'connecting' ? '… Connecting to the friends service' : '○ Friends service not reachable (retrying)';
   $('fPresence').style.color = pres.state === 'on' ? '#a5d6a7' : '#ffab91';
-  $('fDiag').textContent = `v${GAME_VERSION} · service ${pres.state} (connected ${pres.opens}×) · sent ${pres.sent} · received ${pres.recv}${pres.lastErr ? ' · last error: ' + pres.lastErr : ''}`;
+  $('fDiag').textContent = `v${GAME_VERSION} · service ${pres.state} (connected ${pres.opens}×) · sent ${pres.sent} · received ${pres.recv}${pres.lastErr ? ' · last error: ' + pres.lastErr : ''}${pres.lastInv ? ' · invite: ' + pres.lastInv : ''}`;
 }
 function renderFriends() {
   if (!friendsOpen()) return;
@@ -3429,7 +3433,7 @@ function renderFriends() {
   const rank = f => f.st === 'pend' ? 3 : ({ on: 0, busy: 1, chk: 2, off: 2 })[frStat[f.code]] ?? 2;
   for (const f of profile.friends.slice().sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name))) {
     const st = f.st === 'pend' ? 'pend' : (frStat[f.code] || 'off'), li = document.createElement('li');
-    const label = { on: 'Online', busy: 'In a game', chk: 'Checking…', off: 'Offline', pend: 'Request sent' }[st];
+    const label = { on: 'Online', busy: frBusy[f.code] === 1 ? 'In a room' : 'In a game', chk: 'Checking…', off: 'Offline', pend: 'Request sent' }[st];
     const dot = document.createElement('span'); dot.className = 'fdot ' + st; li.appendChild(dot);
     const nm = document.createElement('span'); nm.className = 'fname'; nm.textContent = f.name || f.code; const sm = document.createElement('small'); sm.textContent = label + (f.name ? ' · ' + f.code : ''); nm.appendChild(sm); li.appendChild(nm);
     if (inv && st === 'on') { const b = document.createElement('button'); b.type = 'button'; b.dataset.act = 'invite'; b.dataset.c = f.code; b.textContent = 'Invite'; li.appendChild(b); }
@@ -3460,7 +3464,8 @@ $('friendList').addEventListener('click', e => {
     if (!canInvite()) { toast('Create a game room first'); return; }
     b.disabled = true; b.textContent = 'Sending…';
     probeFriend(f, { k: 'invite', name: fName(profile.name), room: lobby.code }, r => {
-      toast(r && r.ok ? `Invite sent to ${f.name || f.code}` : r && r.busy ? `${f.name || f.code} is busy right now` : `${f.name || f.code} did not answer (offline?)`);
+      const msg = r && r.ok ? `Invite sent to ${f.name || f.code}. Waiting for them to tap Join.` : r && r.busy ? `${f.name || f.code} is in a game or room right now.` : `${f.name || f.code} did not answer. Are they on the Friends / menu screen with the game open?`;
+      pres.lastInv = msg; toast(msg); $('fMsg').textContent = msg; checkT = 0;
       renderFriends();
     });
   }
