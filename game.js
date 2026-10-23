@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.23-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.23-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -212,8 +212,8 @@ function gearSVG(key, t) {
 const gearURIs = {};
 const gearURI = (key, t) => gearURIs[key + ':' + t] || (gearURIs[key + ':' + t] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(gearSVG(key, t)));
 const ENEMIES = {
-  rat: { name: 'Rat', atk: 1, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
-  goblin: { name: 'Goblin', atk: 3, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
+  rat: { name: 'Rat', atk: 3, hp: 10, speed: 95, r: 8, cd: 0.8, gold: 2.5 },
+  goblin: { name: 'Goblin', atk: 6, hp: 30, speed: 70, r: 11, cd: 1.0, gold: 5 },
   skeleton: { name: 'Skeleton Archer', atk: 5, hp: 20, speed: 60, r: 10, cd: 1.6, ranged: true, gold: 5 }, // from stage 2
   voidling: { name: 'Voidling', atk: 10, hp: 30, speed: 65, r: 10, cd: 3, laser: true, gold: 7.5 },          // from stage 3
   sorcerer: { name: 'Sorcerer', atk: 20, hp: 40, speed: 58, r: 10, cd: 3.5, caster: true, gold: 10 },             // from stage 5-1
@@ -2575,21 +2575,22 @@ function drawEnemy(c, e) {
     const f = 0.55 + 0.45 * Math.sin(performance.now() / 55 + e.id * 1.7);
     miniBat(c, 0, 0, 0, 1.7, f, '#4a2d70', '#b79cf0');
     c.fillStyle = '#ff5252'; c.beginPath(); c.arc(8.6, -1.8, 1.1, 0, 7); c.arc(8.6, 1.8, 1.1, 0, 7); c.fill();
-  } else if (e.type === 'vampire_lord') { // pale lord in a black spiked coat and a billowing red cape, seen from above: claws reaching out in front
+  } else if (e.type === 'vampire_lord') { // pale lord in a black spiked coat and a slim red cape, seen from above: arms hang at his sides and swipe with long claws when he attacks
     const now = performance.now(), tt = now / 1000 + e.x * 0.01, sw = e.swAt ? (now - e.swAt) / 1000 : 9, ck = e.sk || CHARGE_NAMES[e.skc] || '';
     const flap = Math.sin(tt * 3.2), wrap = ck === 'batform' ? clamp(1 - e.ch / (e.cht || VAMP.bat.windup), 0, 1) : 0, dk = ck === 'drain' ? clamp(1 - e.ch / (e.cht || VAMP.drain.windup), 0, 1) : 0;
-    const swp = sw < 0.3 ? Math.sin(sw / 0.3 * Math.PI) : 0;       // claw strike: both hands sweep across in front of him and back
+    const swp = sw < 0.54 ? Math.sin(sw / 0.54 * Math.PI) : 0;       // claw strike: opens his mouth a little while he swipes
     c.scale(2.6, 2.6); c.lineCap = 'round'; c.lineJoin = 'round';
     if (dk > 0) { c.fillStyle = `rgba(220,20,60,${0.12 + 0.22 * dk})`; c.beginPath(); c.arc(4, 0, 22 + 4 * Math.sin(tt * 30), 0, 7); c.fill(); }
-    // the cape: billows out behind him; as he transforms it wraps in around his body
-    const cw = 1 - 0.65 * wrap, HEM = [[-1, 11], [-12, 21], [-24, 24], [-32, 19], [-38, 13], [-41, 6], [-43, 0]];
-    const cp = (i, sd) => [HEM[i][0] + 7 * wrap - flap * 2.2 * (i / 6) * (1 - wrap), sd * HEM[i][1] * cw + sd * flap * 1.4 * (i / 6)];
+    // the cape: a slim cloak hanging from the shoulders and trailing behind him, swaying; as he transforms it wraps in around his body
+    const cw = 1 - 0.6 * wrap, sway = Math.sin(tt * 2.4) * 3.2 * (1 - wrap), HEM = [[-1, 10], [-6, 11.6], [-12, 12], [-18, 11], [-23, 8.6], [-27, 4.6], [-30, 0]];
+    const cp = (i, sd) => [HEM[i][0] + 7 * wrap - Math.abs(flap) * 1.2 * (i / 6), sd * HEM[i][1] * cw + sway * Math.pow(i / 6, 1.5)];
     c.fillStyle = '#a3131b'; c.strokeStyle = '#3a0509'; c.lineWidth = 1.5; c.beginPath(); let q = cp(0, -1); c.moveTo(q[0], q[1]);
-    for (let i = 1; i < 7; i++) { const a = cp(i, -1), b = i < 6 ? cp(i + 1, -1) : [cp(6, 0)[0], 0]; c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+    for (let i = 1; i < 7; i++) { const a = cp(i, -1), b = i < 6 ? cp(i + 1, -1) : cp(6, 0); c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
     for (let i = 6; i >= 1; i--) { const a = cp(i, 1), b = i > 1 ? cp(i - 1, 1) : cp(0, 1); c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
     c.closePath(); c.fill(); c.stroke();
-    c.strokeStyle = '#5b0a10'; c.lineWidth = 1; for (const i of [1, 2, 3, 4, 5]) for (const sd of [-1, 1]) { const a = cp(i, sd); c.beginPath(); c.moveTo(-3, sd * 7 * cw); c.quadraticCurveTo(a[0] * 0.5, a[1] * 0.55, a[0] * 0.92, a[1] * 0.92); c.stroke(); }  // folds
-    c.strokeStyle = '#d4373f'; c.lineWidth = 0.8; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(-1, sd * 11); c.quadraticCurveTo(-8, sd * 18 * cw, -14, sd * 21.5 * cw); c.stroke(); }                                  // lit edge
+    c.strokeStyle = '#5b0a10'; c.lineWidth = 1; for (const i of [2, 4]) for (const sd of [-1, 1]) { const a = cp(i, sd); c.beginPath(); c.moveTo(-3, sd * 5 * cw); c.quadraticCurveTo(a[0] * 0.5, a[1] * 0.6, a[0] * 0.95, a[1] * 0.9); c.stroke(); }  // folds
+    { const t6 = cp(6, 0); c.beginPath(); c.moveTo(-4, 0); c.quadraticCurveTo(t6[0] * 0.5, t6[1] * 0.4, t6[0] * 0.92, t6[1] * 0.92); c.stroke(); }
+    c.strokeStyle = '#d4373f'; c.lineWidth = 0.8; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(-1, sd * 10); c.quadraticCurveTo(-8, sd * 12.2 * cw, -17, sd * 12.8 * cw + sway * 0.25); c.stroke(); }  // lit edge
     // coat: a black back with a seam down the middle and gold buttons at the belt
     c.fillStyle = '#16111c'; c.strokeStyle = '#050307'; c.lineWidth = 1.6; c.beginPath(); c.ellipse(-1, 0, 11, 14.5, 0, 0, 7); c.fill(); c.stroke();
     c.strokeStyle = '#332b3c'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-11, 0); c.lineTo(4, 0); c.stroke();
@@ -2601,17 +2602,23 @@ function drawEnemy(c, e) {
       c.strokeStyle = '#5d5568'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(9, sd * 8); c.lineTo(5, sd * 12); c.stroke();
       c.fillStyle = '#e0a92b'; c.beginPath(); c.arc(4.2, sd * 11, 1.1, 0, 7); c.fill();
     }
-    // arms reaching forward, pale hands with long claws
+    // arms hang down at his sides; a claw strike is a swipe: one hand sweeps out and across the front, then the other, and each returns to his side
     for (const sd of [-1, 1]) {
-      const hx = 25 + 4 * swp, hy = sd * (6.5 - 13 * swp);
-      c.strokeStyle = '#050307'; c.lineWidth = 7.4; c.beginPath(); c.moveTo(6, sd * 12); c.quadraticCurveTo(15, sd * 11.5, hx - 2, hy); c.stroke();
-      c.strokeStyle = '#1b1522'; c.lineWidth = 5.6; c.beginPath(); c.moveTo(6, sd * 12); c.quadraticCurveTo(15, sd * 11.5, hx - 2, hy); c.stroke();
-      c.strokeStyle = '#e0a92b'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(hx - 4.4, hy - 3); c.lineTo(hx - 4.4, hy + 3); c.stroke();           // gold cuff
-      c.fillStyle = '#d6d8de'; c.strokeStyle = '#5f6370'; c.lineWidth = 1; c.beginPath(); c.arc(hx, hy, 3.3, 0, 7); c.fill(); c.stroke();
-      const cl = 9 + 4 * swp;
+      const u = (sw - (sd < 0 ? 0 : 0.18)) / 0.36, pp = u > 0 && u < 1 ? (u < 0.5 ? u * 2 : 2 - 2 * u) : 0, s = pp * pp * (3 - 2 * pp);
+      const rx = 12, ry = sd * 17, tx = 26, ty = -sd * 8, sa = Math.atan2(ty - ry, tx - rx);
+      const hx = rx + (tx - rx) * s, hy = ry + (ty - ry) * s, ang = sd * 0.3 + (sa - sd * 0.3) * s;
+      if (s > 0.12) { const x0 = rx + 11, y0 = ry, x1 = hx + Math.cos(ang) * 11, y1 = hy + Math.sin(ang) * 11; c.strokeStyle = `rgba(255,255,255,${0.5 * s})`; c.lineWidth = 3.2 * s; c.beginPath(); c.moveTo(x0, y0); c.quadraticCurveTo((x0 + x1) / 2 + 9, (y0 + y1) / 2, x1, y1); c.stroke(); } // swipe streak
+      const kx = (5 + hx) / 2 + 2, ky = (sd * 12 + hy) / 2 + sd * 2 * (1 - s);
+      c.strokeStyle = '#050307'; c.lineWidth = 7.4; c.beginPath(); c.moveTo(5, sd * 12); c.quadraticCurveTo(kx, ky, hx - Math.cos(ang) * 2, hy - Math.sin(ang) * 2); c.stroke();
+      c.strokeStyle = '#1b1522'; c.lineWidth = 5.6; c.beginPath(); c.moveTo(5, sd * 12); c.quadraticCurveTo(kx, ky, hx - Math.cos(ang) * 2, hy - Math.sin(ang) * 2); c.stroke();
+      c.save(); c.translate(hx, hy); c.rotate(ang);
+      c.strokeStyle = '#e0a92b'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(-4.4, -3); c.lineTo(-4.4, 3); c.stroke();                       // gold cuff
+      c.fillStyle = '#d6d8de'; c.strokeStyle = '#5f6370'; c.lineWidth = 1; c.beginPath(); c.arc(0, 0, 3.3, 0, 7); c.fill(); c.stroke();
+      const cl = 8.5 + 4 * s;
       for (const k of [-1.5, -0.5, 0.5, 1.5]) { // long curved claws
-        c.fillStyle = '#efe6d2'; c.strokeStyle = '#6e1420'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(hx + 2, hy + k * 1.4 - 0.6); c.quadraticCurveTo(hx + cl * 0.6, hy + k * 2.6 - 1, hx + cl, hy + k * 3.4 + sd * 0.8); c.quadraticCurveTo(hx + cl * 0.55, hy + k * 2.4 + 0.9, hx + 2, hy + k * 1.4 + 0.6); c.closePath(); c.fill(); c.stroke();
+        c.fillStyle = '#efe6d2'; c.strokeStyle = '#6e1420'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(2, k * 1.4 - 0.6); c.quadraticCurveTo(cl * 0.6, k * 2.6 - 1, cl, k * 3.4 + sd * 0.8); c.quadraticCurveTo(cl * 0.55, k * 2.4 + 0.9, 2, k * 1.4 + 0.6); c.closePath(); c.fill(); c.stroke();
       }
+      c.restore();
     }
     // high collar lined with red, then the head
     c.fillStyle = '#16111c'; c.strokeStyle = '#050307'; c.lineWidth = 1.2; c.beginPath(); c.ellipse(4, 0, 7.8, 10, 0, 0, 7); c.fill(); c.stroke();
