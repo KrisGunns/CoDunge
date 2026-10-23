@@ -31,7 +31,7 @@ const POTION = { chance: 0.08, heal: 0.2 };       // potion drop chance per kill
 const PET_RESPAWN = 20;                           // seconds until a KO'd pet comes back
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
-const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, sorcerer: 220, hellguard: 200, assassin: 200, skeleton_king: 240, cerberus: 300 }; // px
+const VISION = { rat: 160, goblin: 190, troll: 230, skeleton: 220, voidling: 320, sorcerer: 220, hellguard: 200, assassin: 200, skeleton_king: 240, cerberus: 300, vampire_lord: 280 }; // px
 const FOV = 2.1;      // radians (~120 degrees) in front of the enemy
 const NOTICE = 44;    // px: anything this close (and not behind a wall) is noticed regardless of facing
 let SPAWN_POINT = { x: 2.5 * TILE, y: (ROWS / 2) * TILE };
@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.22-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.23-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -219,12 +219,14 @@ const ENEMIES = {
   sorcerer: { name: 'Sorcerer', atk: 20, hp: 40, speed: 58, r: 10, cd: 3.5, caster: true, gold: 10 },             // from stage 5-1
   hellguard: { name: 'Hellguard', atk: 15, hp: 60, speed: 70, r: 11, cd: 1, gold: 12 },                       // Doom stages only (target lock + barrier)
   assassin: { name: 'Assassin', atk: 25, hp: 55, speed: 75, r: 11, cd: 1, gold: 12 },                         // from stage 6-1 (teleport strike)
-  troll: { name: 'Troll', atk: 10, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true, gold: 0 },
-  skeleton_king: { name: 'Skeleton King', atk: 15, hp: 150, speed: 58, r: 15, cd: 1.6, boss: true, gold: 0, reach: 70 },
-  cerberus: { name: 'Cerberus', atk: 20, hp: 200, speed: 66, r: 15, cd: 1.2, boss: true, gold: 0 },             // 3-headed hound; boss of every 3rd stage (3, 6, 9, ...)
+  troll: { name: 'Troll', atk: 20, hp: 100, speed: 60.5, r: 14, cd: 1.2, boss: true, gold: 0 },
+  skeleton_king: { name: 'Skeleton King', atk: 25, hp: 150, speed: 58, r: 15, cd: 1.6, boss: true, gold: 0, reach: 70 },
+  cerberus: { name: 'Cerberus', atk: 35, hp: 200, speed: 66, r: 15, cd: 1.2, boss: true, gold: 0 },             // 3-headed hound; boss of every 4th stage (3, 7, 11, ...)
+  vampire_lord: { name: 'Vampire Lord', atk: 25, hp: 250, speed: 70, r: 15, cd: 1.1, boss: true, gold: 0 },     // boss of every 4th stage (4, 8, 12, ...): claw strikes, Bat Transform, Drain
+  bat: { name: 'Bat', atk: 0, hp: 1, speed: 150, r: 8, cd: 2, gold: 0 },                                          // only ever made by the Vampire Lord's Bat Transform (always 1 HP; its bite is a share of his ATK)
 };
-// Boss order: stage 1 Troll, stage 2 Skeleton King, stage 3 Cerberus, stage 4 Troll, ... New bosses go at the END of this list.
-const BOSS_ORDER = ['troll', 'skeleton_king', 'cerberus'];
+// Boss order: stage 1 Troll, stage 2 Skeleton King, stage 3 Cerberus, stage 4 Vampire Lord, stage 5 Troll, ... New bosses go at the END of this list.
+const BOSS_ORDER = ['troll', 'skeleton_king', 'cerberus', 'vampire_lord'];
 const bossFor = stage => BOSS_ORDER[(stage - 1) % BOSS_ORDER.length];
 // Gold per kill = base gold x (1 + GOLD_PER_STAGE x (stage - 1)), rounded. Bosses and summoned minions pay nothing.
 const GOLD_PER_STAGE = 0.15;
@@ -243,6 +245,13 @@ const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.45, step: 7
 const CERB = {
   fire: { cd: 25, first: 6, windup: 0.5, gap: 0.3, speed: 210, mult: 1.5, life: 10, spread: 0.3, range: 640 },
   jump: { cd: 15, first: 4, up: 1.3, down: 0.3, lock: 0.45, r: 110, mult: 3, min: 70, max: 450 }, // up = whole flight (he leaps, travels over the floor and lands); the landing spot stops following you for the last `lock` seconds
+};
+// Vampire Lord. Bat Transform: after a short windup he bursts into a swarm of 1-HP bats that flit around the room on their own (and nip at heroes for a share of his ATK).
+// While he is a swarm he cannot be hit and regenerates 2% of his max HP per second; when the last bat dies he is back. Drain: he charges at a hero and bites for
+// 2 x ATK + 25% of the victim's CURRENT HP, and heals himself for 50% of the damage that actually got through. His normal attack is a claw strike.
+const VAMP = {
+  bat: { cd: 30, first: 8, windup: 0.7, n: 6, regen: 0.02, mult: 0.2, dive: 260, biteCd: 2.5 },
+  drain: { cd: 12, first: 3, windup: 0.7, speed: 540, range: 460, mult: 2, curPct: 0.25, steal: 0.5 },
 };
 const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold: 480 }; // Voidling: red laser ignores walls
 // Hellguard: once it spots you it locks on and never stops chasing (only a wolf's howl breaks the lock); while locked it wears a barrier of 50% of its max HP.
@@ -1230,12 +1239,12 @@ function resyncGuest(rejoined) { // host: (re)send the whole game state to the p
 const STAGE_LIN = 0.2, STAGE_QUAD = 0.01, BOSS_HP_MULT = 3;
 const stageMult = stage => 1 + STAGE_LIN * (stage - 1) + STAGE_QUAD * (stage - 1) * (stage - 1);
 function makeEnemy(g, type, x, y, summoned) {
-  const def = ENEMIES[type], m = stageMult(g.stage), hp = Math.ceil(def.hp * (def.boss ? BOSS_HP_MULT : 1) * m - 1e-9);
+  const def = ENEMIES[type], m = stageMult(g.stage), hp = type === 'bat' ? 1 : Math.ceil(def.hp * (def.boss ? BOSS_HP_MULT : 1) * m - 1e-9); // a bat always dies to one hit
   return { id: g.nid++, type, x, y, r: def.r, hp, maxhp: hp, atk: def.atk * m,
     speed: def.speed * (def.boss ? 1 : 0.9 + Math.random() * 0.2), cd: 0.6 + Math.random() * 0.6, hurt: 0, face: Math.random() * Math.PI * 2, dead: false,
     alert: 0, home: { x, y }, wp: null, wt: 0, pause: Math.random() * 2,
-    sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : type === 'cerberus' ? CERB.fire.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : type === 'cerberus' ? CERB.jump.first : type === 'assassin' ? TP.first : 0, fbQ: 0, fbT: 0, shield: 0, lock: false, hadLock: false,
-    ch: 0, cht: 0, sk: '', fear: 0, dashT: 0, summoned: !!summoned };
+    sm: type === 'troll' ? 4 : type === 'skeleton_king' ? KING.summon.first : type === 'cerberus' ? CERB.fire.first : type === 'vampire_lord' ? VAMP.bat.first : 0, s2: type === 'skeleton_king' ? KING.dash.first : type === 'cerberus' ? CERB.jump.first : type === 'vampire_lord' ? VAMP.drain.first : type === 'assassin' ? TP.first : 0, fbQ: 0, fbT: 0, shield: 0, lock: false, hadLock: false,
+    ch: 0, cht: 0, sk: '', fear: 0, dashT: 0, bt: 0, summoned: !!summoned };
 }
 const DOOM = { sorcShare: 0.4, hellShare: 0.25, bossAdds: 10, bossSorcShare: 0.6 }; // Doom rooms: shares of sorcerers / hellguards (rest voidlings); boss room: bossAdds escorts, 60% sorcerers + 40% hellguards
 const ASSASSIN_SPAWN = { from: 6, base: 0.05, perLevel: 0.01, perStage: 0.01, cap: 0.15 };
@@ -1315,10 +1324,10 @@ function clearLine(g, x1, y1, x2, y2, r) {
 const angDiff = (a, b) => { let d = a - b; while (d > Math.PI) d -= 2 * Math.PI; while (d < -Math.PI) d += 2 * Math.PI; return d; };
 
 // ---------------- effects ----------------
-const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7, bash: 0.25, dust: 0.4 };
+const FX_LIFE = { slash: 0.22, spin: 0.45, chain: 0.3, ray: 0.35, txt: 0.9, poof: 0.35, heal: 0.55, door: 0.6, smash: 0.5, howl: 0.6, barrier: 0.5, laser: 0.22, cleave: 0.28, summon: 0.7, bash: 0.25, dust: 0.4, claw: 0.3, drain: 0.5, batburst: 0.6 };
 function pushFx(g, f) {
-  if (f.type === 'cleave' || f.type === 'smash' || f.type === 'summon' || f.type === 'bash') { // tell the boss it just used a skill, so it can play the matching animation (host and guest)
-    const bx = f.bx !== undefined ? f.bx : f.x, by = f.by !== undefined ? f.by : f.y, want = f.type === 'cleave' || f.type === 'summon' ? 'skeleton_king' : f.type === 'smash' ? 'troll' : null;
+  if (f.type === 'cleave' || f.type === 'smash' || f.type === 'summon' || f.type === 'bash' || f.type === 'claw') { // tell the boss it just used a skill, so it can play the matching animation (host and guest)
+    const bx = f.bx !== undefined ? f.bx : f.x, by = f.by !== undefined ? f.by : f.y, want = f.type === 'cleave' || f.type === 'summon' ? 'skeleton_king' : f.type === 'smash' ? 'troll' : f.type === 'claw' ? 'vampire_lord' : null;
     for (const e of g.enemies) if (!e.dead && ENEMIES[e.type] && ENEMIES[e.type].boss && (!want || e.type === want) && Math.hypot(e.x - bx, e.y - by) < 8) { if (f.type === 'summon') e.suAt = performance.now(); else e.swAt = performance.now(); }
   }
   if (g.fx.length > 160) g.fx.splice(0, 40); g.fx.push(Object.assign({ t: 0, life: FX_LIFE[f.type] || 0.4 }, f)); }
@@ -1364,8 +1373,8 @@ function hitEnemy(g, e, dmg, src) {
     e.dead = true;
     addFx(g, { type: 'poof', x: e.x, y: e.y });
     const def = ENEMIES[e.type];
-    if (def.boss) g.bossKills++; else g.kills++;
-    if (src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, Math.max(1, Math.round(src.vamp * src.maxhp))); // 'HP healed per kill %': a share of max HP
+    if (def.boss) g.bossKills++; else if (e.type !== 'bat') g.kills++;
+    if (e.type !== 'bat' && src && !src.isPet && src.vamp > 0 && src.alive) heal(g, src, Math.max(1, Math.round(src.vamp * src.maxhp))); // 'HP healed per kill %': a share of max HP
     if (!e.summoned) { // summoned minions pay nothing, so a boss can't be farmed
       const gd = goldFor(e.type, g.stage);
       if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd, ic: 'gold', c: '#ffd54f' }); }
@@ -1600,10 +1609,10 @@ function stepTo(g, e, tgt, fk, dt, mult) {
     else { moveEnt(g, e, (dx >= 0 ? 1 : -1) * sp, 0); if (e.x === ox) moveEnt(g, e, 0, Math.sign(dy) * sp); }
   }
 }
-const CHARGE_KINDS = { smash: 1, dash: 2, laser: 3, cleave: 4, pillars: 5, fire: 6, jumpup: 7, jumpdn: 8, tpout: 9, tpstrike: 10 };
-const isAir = e => e.sk === 'jumpup' || e.sk === 'jumpdn' || e.sk === 'tpout'; // Cerberus mid-jump / Assassin mid-teleport: can't be hit
+const CHARGE_KINDS = { smash: 1, dash: 2, laser: 3, cleave: 4, pillars: 5, fire: 6, jumpup: 7, jumpdn: 8, tpout: 9, tpstrike: 10, drain: 11, batform: 12 };
+const isAir = e => e.sk === 'jumpup' || e.sk === 'jumpdn' || e.sk === 'tpout' || !!e.bt; // Cerberus mid-jump / Assassin mid-teleport / Vampire Lord as a swarm of bats: can't be hit
 function startCharge(e, kind, t) { e.sk = kind; e.ch = e.cht = t; }
-function chargeLock(kind) { return kind === 'laser' ? LASER.lock : kind === 'dash' ? 0.25 : kind === 'cleave' ? 0.12 : kind === 'pillars' ? 0.1 : kind === 'fire' ? 0.15 : Infinity; } // aims until this many seconds are left
+function chargeLock(kind) { return kind === 'laser' ? LASER.lock : kind === 'dash' ? 0.25 : kind === 'cleave' ? 0.12 : kind === 'pillars' ? 0.1 : kind === 'fire' ? 0.15 : kind === 'drain' ? 0.2 : Infinity; } // aims until this many seconds are left
 function chargeStep(g, e, dt) {
   e.ch -= dt;
   if (e.sk === 'jumpup') { // flight: he travels from where he jumped to the marked spot; the mark follows the target until the last moments so the player can still dodge
@@ -1655,18 +1664,79 @@ function chargeStep(g, e, dt) {
     const t = nearestTarget(g, e.x, e.y), dist = t ? Math.hypot(t.x - e.x, t.y - e.y) : KING.dash.range;
     e.dashLeft = clamp(dist + 60, 120, KING.dash.range); e.dashT = 1; e.dashHit = new Set();
   }
+  else if (k === 'drain') { // Vampire Lord: the charge at a hero (he bites the first one he reaches)
+    const t = nearestTarget(g, e.x, e.y), dist = t ? Math.hypot(t.x - e.x, t.y - e.y) : VAMP.drain.range;
+    e.dashLeft = clamp(dist + 80, 140, VAMP.drain.range + 80); e.dashT = 1; e.dashHit = new Set();
+  }
+  else if (k === 'batform') startBats(g, e);
+}
+function drainBite(g, e, t) { // damage 2 x ATK + 25% of the victim's current HP; he heals 50% of what actually got through (barriers and Iron Helm count)
+  const dmg = Math.max(1, Math.round(VAMP.drain.mult * e.atk + VAMP.drain.curPct * t.hp)), before = t.hp;
+  hurtT(g, t, dmg);
+  const dealt = Math.max(0, before - t.hp);
+  addFx(g, { type: 'drain', x: t.x, y: t.y, bx: e.x, by: e.y, a: e.face });
+  const n = Math.min(e.maxhp - e.hp, Math.round(dealt * VAMP.drain.steal));
+  if (n > 0) { e.hp += n; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r * 2.6, s: '+' + n, c: '#69f0ae' }); }
+}
+function startBats(g, e) { // the Lord bursts into a swarm: he is hidden and untargetable until every bat is dead
+  e.bt = 1; e.bx = e.x; e.by = e.y; e.lbx = e.x; e.lby = e.y; e.regen = 0; e.regT = 1; e.cd = Math.max(e.cd, 1);
+  const n = VAMP.bat.n, a0 = Math.random() * Math.PI * 2;
+  for (let i = 0; i < n; i++) {
+    const a = a0 + i * Math.PI * 2 / n; let x = e.x + Math.cos(a) * 26, y = e.y + Math.sin(a) * 26;
+    if (hitsWall(g, x, y, 8) || !clearLine(g, e.x, e.y, x, y, 6)) { x = e.x; y = e.y; }
+    const b = makeEnemy(g, 'bat', x, y, true); b.owner = e.id; b.atk = e.atk * VAMP.bat.mult; b.face = a; b.cd = 1 + Math.random() * 1.5; b.alert = 9; g.enemies.push(b);
+  }
+  addFx(g, { type: 'poof', x: e.x, y: e.y }); addFx(g, { type: 'batburst', x: e.x, y: e.y });
+  addFx(g, { type: 'txt', x: e.x, y: e.y - e.r * 2.6, s: 'SWARM!', c: '#b39ddb' });
+}
+function batTick(g, e, dt) { // the Lord as a swarm: regenerates, his (hidden) position and HP bar follow the bats, and he returns when the last one is gone
+  let n = 0, cx = 0, cy = 0;
+  for (const o of g.enemies) if (o.type === 'bat' && !o.dead && o.owner === e.id) { n++; cx += o.x; cy += o.y; e.lbx = o.x; e.lby = o.y; }
+  if (n === 0) { endBats(g, e); return; }
+  e.x = cx / n; e.y = cy / n;
+  if (e.hp < e.maxhp) {
+    e.regen += VAMP.bat.regen * e.maxhp * dt; const h = Math.floor(e.regen);
+    if (h >= 1) { e.regen -= h; e.hp = Math.min(e.maxhp, e.hp + h); }
+    e.regT -= dt; if (e.regT <= 0) { e.regT = 1; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r * 2.6, s: '+' + Math.max(1, Math.round(VAMP.bat.regen * e.maxhp)), c: '#69f0ae' }); }
+  }
+}
+function endBats(g, e) { // he re-forms where the last bat fell (or the nearest free spot; his starting spot as a last resort)
+  let x = e.lbx, y = e.lby, ok = !hitsWall(g, x, y, e.r);
+  for (let i = 0; !ok && i < 24; i++) { const a = i * Math.PI / 6, rr = 22 * (1 + Math.floor(i / 12)); x = e.lbx + Math.cos(a) * rr; y = e.lby + Math.sin(a) * rr; ok = !hitsWall(g, x, y, e.r); }
+  if (!ok) { x = e.bx; y = e.by; }
+  e.x = x; e.y = y; e.bt = 0; e.sm = VAMP.bat.cd; e.cd = 1.2; e.alert = Math.max(e.alert, 6);
+  addFx(g, { type: 'poof', x, y }); addFx(g, { type: 'batburst', x, y, back: 1 });
+  addFx(g, { type: 'txt', x, y: y - e.r * 2.6, s: 'He returns!', c: '#ff8a80' });
+}
+function batStep(g, e, dt) { // one bat: flits about on a wavering course; now and then it swoops at the nearest hero for a nip
+  const tgt = nearestTarget(g, e.x, e.y), sp = e.speed; e.fl = (e.fl || 0) + dt;
+  if (e.dive > 0 && tgt) {
+    e.dive -= dt; if (e.dive <= 0) e.cd = 1.2;
+    e.face = Math.atan2(tgt.y - e.y, tgt.x - e.x); moveEnt(g, e, Math.cos(e.face) * sp * 1.7 * dt, Math.sin(e.face) * sp * 1.7 * dt);
+    if (Math.hypot(tgt.x - e.x, tgt.y - e.y) <= e.r + tgt.r + 3) {
+      hurtT(g, tgt, Math.max(1, Math.round(e.atk))); e.dive = 0; e.cd = VAMP.bat.biteCd + Math.random(); e.face += Math.PI + (Math.random() - 0.5);
+    }
+    return;
+  }
+  e.dive = 0;
+  if (tgt && e.cd <= 0 && Math.hypot(tgt.x - e.x, tgt.y - e.y) <= VAMP.bat.dive) { e.dive = 1.3; return; }
+  e.face += (Math.sin(e.fl * 3.1 + e.id) * 2.2 + (Math.random() - 0.5) * 3) * dt;
+  const ox = e.x, oy = e.y; moveEnt(g, e, Math.cos(e.face) * sp * dt, Math.sin(e.face) * sp * dt);
+  if (Math.hypot(e.x - ox, e.y - oy) < sp * dt * 0.4) e.face += Math.PI * (0.6 + Math.random() * 0.8); // hit a wall: turn away
 }
 function dashStep(g, e, dt) {
-  const step = Math.min(KING.dash.speed * dt, e.dashLeft), ox = e.x, oy = e.y;
-  e.dustT = (e.dustT || 0) - dt; if (e.dustT <= 0) { e.dustT = 0.04; addFx(g, { type: 'dust', x: e.x - Math.cos(e.face) * 30, y: e.y - Math.sin(e.face) * 30, a: e.face }); }
+  const V = e.type === 'vampire_lord', step = Math.min((V ? VAMP.drain.speed : KING.dash.speed) * dt, e.dashLeft), ox = e.x, oy = e.y;
+  e.dustT = (e.dustT || 0) - dt; if (e.dustT <= 0) { e.dustT = 0.04; addFx(g, { type: 'dust', x: e.x - Math.cos(e.face) * 30, y: e.y - Math.sin(e.face) * 30, a: e.face, c: V ? '#6a1b4d' : undefined }); }
   moveEnt(g, e, Math.cos(e.face) * step, Math.sin(e.face) * step);
   const moved = Math.hypot(e.x - ox, e.y - oy); e.dashLeft -= step;
-  for (const t of targetsOf(g)) {
+  if (V) { // Drain: the first hero he reaches gets bitten, and the charge ends
+    for (const t of targetsOf(g)) if (Math.hypot(t.x - e.x, t.y - e.y) <= bodyR(e) + t.r + 6) { drainBite(g, e, t); e.dashLeft = 0; break; }
+  } else for (const t of targetsOf(g)) {
     if (e.dashHit.has(t) || Math.hypot(t.x - e.x, t.y - e.y) > e.r + t.r + 10) continue;
     e.dashHit.add(t); hurtT(g, t, Math.max(1, Math.round(KING.dash.mult * e.atk)));
     addFx(g, { type: 'smash', x: t.x, y: t.y, r: 34 });
   }
-  if (moved < step * 0.5 || e.dashLeft <= 0) { e.dashT = 0; e.s2 = KING.dash.cd; e.cd = Math.max(e.cd, 0.8); }
+  if (moved < step * 0.5 || e.dashLeft <= 0) { e.dashT = 0; e.s2 = V ? VAMP.drain.cd : KING.dash.cd; e.cd = Math.max(e.cd, V ? 1 : 0.8); }
 }
 function fearStep(g, e, dt) {
   e.fear -= dt; e.ch = 0; e.sk = ''; e.dashT = 0; e.fbQ = 0;
@@ -1705,6 +1775,11 @@ function fireTick(g, e, dt) { // Cerberus: its three heads spit one fireball eac
 function cerbAI(g, e, tgt, d) { // returns true when it started a skill this frame
   if (e.s2 <= 0 && d >= CERB.jump.min && d <= CERB.jump.max) { startCharge(e, 'jumpup', CERB.jump.up); e.land = { x: tgt.x, y: tgt.y }; e.jfrom = { x: e.x, y: e.y }; return true; }
   if (e.sm <= 0 && d >= 60 && d <= CERB.fire.range) { startCharge(e, 'fire', CERB.fire.windup); return true; }
+  return false;
+}
+function vampAI(g, e, tgt, seen, d) { // returns true when it started a skill this frame
+  if (e.sm <= 0) { startCharge(e, 'batform', VAMP.bat.windup); return true; }
+  if (e.s2 <= 0 && seen && d <= VAMP.drain.range && clearLine(g, e.x, e.y, tgt.x, tgt.y, e.r)) { startCharge(e, 'drain', VAMP.drain.windup); return true; }
   return false;
 }
 function kingAI(g, e, tgt, seen, d) { // returns true when it used up this frame starting a skill
@@ -1851,7 +1926,9 @@ function step(g, dt) {
     if (e.sm > 0) e.sm -= dt;
     if (e.s2 > 0) e.s2 -= dt;
     if (g.bossRoom) e.alert = Math.max(e.alert, 5);        // everyone in the boss room is hostile from the moment players enter
+    if (e.bt) { batTick(g, e, dt); continue; }             // Vampire Lord while he is a swarm of bats
     if (e.fear > 0) { fearStep(g, e, dt); continue; }      // howled at: runs away, cannot attack
+    if (e.type === 'bat') { batStep(g, e, dt); continue; } // the swarm: always on the wing, no vision needed
     if (e.dashT > 0) { dashStep(g, e, dt); continue; }     // Skeleton King mid-charge
     if (e.ch > 0) { chargeStep(g, e, dt); continue; }      // winding up a skill: stands still
     if (e.fbQ > 0) { fireTick(g, e, dt); continue; }       // Cerberus spitting fireballs: stands still
@@ -1870,6 +1947,7 @@ function step(g, dt) {
     if (e.type === 'troll' && e.sm <= 0 && seen && d <= SMASH.r * SMASH.trigger) { startCharge(e, 'smash', SMASH.charge); continue; }
     if (e.type === 'skeleton_king' && kingAI(g, e, tgt, seen, d)) continue;
     if (e.type === 'cerberus' && cerbAI(g, e, tgt, d)) continue;
+    if (e.type === 'vampire_lord' && vampAI(g, e, tgt, seen, d)) continue;
     if (e.type === 'assassin' && e.s2 <= 0 && d >= TP.minDist && d <= TP.maxDist && Math.random() < TP.chance * dt) { // teleport strike: only once it has spotted you
       e.s2 = TP.cd; e.tpTgt = tgt; addFx(g, { type: 'poof', x: e.x, y: e.y }); startCharge(e, 'tpout', TP.vanish); continue;
     }
@@ -1901,12 +1979,12 @@ function step(g, dt) {
         g.proj.push({ id: g.nid++, x: e.x, y: e.y, vx: Math.cos(a) * ARROW.speed, vy: Math.sin(a) * ARROW.speed,
           dmg: Math.max(1, Math.round(e.atk)), life: ARROW.life, kind: 'arrow', hostile: true, dead: false });
       }
-    } else if (e.type !== 'skeleton_king' && d <= bodyR(e) + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); if (def.boss) addFx(g, { type: 'bash', x: tgt.x, y: tgt.y, bx: e.x, by: e.y, a: e.face }); }
+    } else if (e.type !== 'skeleton_king' && d <= bodyR(e) + tgt.r + 8 && e.cd <= 0) { e.cd = def.cd; hurtT(g, tgt, Math.max(1, Math.round(e.atk))); if (def.boss) addFx(g, { type: e.type === 'vampire_lord' ? 'claw' : 'bash', x: tgt.x, y: tgt.y, bx: e.x, by: e.y, a: e.face }); }
   }
   // enemy separation
   for (let i = 0; i < g.enemies.length; i++) for (let j = i + 1; j < g.enemies.length; j++) {
     const a = g.enemies[i], b = g.enemies[j];
-    if (a.dead || b.dead) continue;
+    if (a.dead || b.dead || a.bt || b.bt) continue;
     const dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), min = (a.r + b.r) * 0.9;
     if (d < min && d > 0.01) { const push = 40 * dt / d; moveEnt(g, a, -dx * push, -dy * push); moveEnt(g, b, dx * push, dy * push); }
   }
@@ -1996,7 +2074,7 @@ function snapshot(g) { // kept small on purpose: it goes out 20x a second over a
   const s = {
     k: 's', d: g.door.open ? 1 : 0, kl: g.kills, bk: g.bossKills, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
     p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
-    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0, Math.round(e.shield || 0)]),
+    e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0, Math.round(e.shield || 0), e.bt ? 1 : 0]),
     q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
     j: g.proj.map(j => [j.id, ri(j.x), ri(j.y), j.kind, r2(Math.atan2(j.vy, j.vx))]),
     c: g.pickups.map(k => [k.id, ri(k.x), ri(k.y), k.kind === 'pp' ? 1 : k.kind === 'pot' ? 2 : 0]),
@@ -2031,7 +2109,7 @@ function applySnap(g, s) {
   g.enemies = s.e.map(a => {
     let e = oldE.get(a[0]);
     if (!e) e = { id: a[0], type: a[1], x: a[2], y: a[3], r: ENEMIES[a[1]] ? ENEMIES[a[1]].r : 10 };
-    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12]; e.land = a[13] || a[14] ? { x: a[13], y: a[14] } : null; e.shield = a[15] || 0;
+    e.tx = a[2]; e.ty = a[3]; e.hp = a[4]; e.maxhp = a[5]; e.face = a[6]; e.hurt = a[7]; e.al = a[8]; e.ch = a[9] || 0; e.skc = a[10] || 0; e.fearing = !!a[11]; e.summoned = !!a[12]; e.land = a[13] || a[14] ? { x: a[13], y: a[14] } : null; e.shield = a[15] || 0; e.bt = a[16] ? 1 : 0;
     return e;
   });
   const oldQ = new Map(g.pets.map(q => [q.id, q]));
@@ -2255,8 +2333,8 @@ function drawChar(c, type, x, y, a, sc, hurt) {
   if (hurt) { c.fillStyle = 'rgba(255,255,255,.65)'; c.beginPath(); c.arc(0, 0, 14, 0, 7); c.fill(); }
   c.restore();
 }
-const CHARGE_NAMES = ['', 'smash', 'dash', 'laser', 'cleave', 'pillars', 'fire', 'jumpup', 'jumpdn', 'tpout', 'tpstrike'];
-const chargeTotal = k => k === 'smash' ? SMASH.charge : k === 'dash' ? KING.dash.charge : k === 'laser' ? LASER.charge : k === 'cleave' ? KING.cleave.windup : k === 'pillars' ? SORC.windup : k === 'fire' ? CERB.fire.windup : k === 'jumpup' ? CERB.jump.up : k === 'jumpdn' ? CERB.jump.down : k === 'tpout' ? TP.vanish : k === 'tpstrike' ? TP.windup : 1;
+const CHARGE_NAMES = ['', 'smash', 'dash', 'laser', 'cleave', 'pillars', 'fire', 'jumpup', 'jumpdn', 'tpout', 'tpstrike', 'drain', 'batform'];
+const chargeTotal = k => k === 'smash' ? SMASH.charge : k === 'dash' ? KING.dash.charge : k === 'laser' ? LASER.charge : k === 'cleave' ? KING.cleave.windup : k === 'pillars' ? SORC.windup : k === 'fire' ? CERB.fire.windup : k === 'jumpup' ? CERB.jump.up : k === 'jumpdn' ? CERB.jump.down : k === 'tpout' ? TP.vanish : k === 'tpstrike' ? TP.windup : k === 'drain' ? VAMP.drain.windup : k === 'batform' ? VAMP.bat.windup : 1;
 function drawPet(c, q) {
   c.save(); c.translate(q.x, q.y);
   if (!q.alive) c.globalAlpha = 0.3;
@@ -2308,8 +2386,24 @@ function airLift(e) { // Cerberus mid-jump: 0 on the ground .. 1 at the top of t
 }
 const LIFT_PX = 80;
 const isBossT = e => !!(ENEMIES[e.type] && ENEMIES[e.type].boss);          // bosses are drawn twice as big
+function miniBat(c, x, y, ang, sz, f, col, ol) { // a bat silhouette seen from above, wings flapping (f: 0.1 folded .. 1 spread)
+  c.save(); c.translate(x, y); c.rotate(ang); c.scale(sz, sz); c.fillStyle = col || '#2a1640';
+  for (const s of [-1, 1]) { c.beginPath(); c.moveTo(1, s * 1.5); c.quadraticCurveTo(3, s * 6 * f, -1, s * 10 * f); c.lineTo(-2.5, s * 7 * f); c.lineTo(-4.5, s * 9 * f); c.lineTo(-5.5, s * 4 * f); c.lineTo(-3, s * 1.5); c.closePath(); c.fill(); if (ol) { c.strokeStyle = ol; c.lineWidth = 0.8; c.stroke(); } }
+  c.beginPath(); c.ellipse(0, 0, 4, 2.5, 0, 0, 7); c.fill(); c.beginPath(); c.arc(4, 0, 2, 0, 7); c.fill(); if (ol) { c.strokeStyle = ol; c.lineWidth = 0.8; c.beginPath(); c.ellipse(0, 0, 4, 2.5, 0, 0, 7); c.stroke(); }
+  c.beginPath(); c.moveTo(4.2, -1.4); c.lineTo(3.2, -4); c.lineTo(5.6, -2); c.moveTo(4.2, 1.4); c.lineTo(3.2, 4); c.lineTo(5.6, 2); c.fill();
+  c.restore();
+}
 function drawEnemy(c, e) {
   if (e.type === 'assassin' && (e.sk || CHARGE_NAMES[e.skc] || '') === 'tpout') return;   // mid-teleport: gone for a moment
+  if (e.bt) { // the Vampire Lord is a swarm of bats right now: only his health bar is drawn, following the swarm
+    const bw = 84, by = e.y - e.r * 2.4;
+    c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
+    c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
+    c.strokeStyle = `rgba(105,240,174,${0.5 + 0.4 * Math.sin(performance.now() / 180)})`; c.lineWidth = 1.5; c.strokeRect(e.x - bw / 2 - 1, by - 1, bw + 2, 6);
+    c.font = 'bold 10px system-ui,sans-serif'; c.textAlign = 'center'; c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.85)'; c.fillStyle = '#69f0ae';
+    c.strokeText('REGENERATING', e.x, by - 5); c.fillText('REGENERATING', e.x, by - 5);
+    return;
+  }
   const lift = e.type === 'cerberus' ? airLift(e) : 0;
   if (lift > 0) { // his shadow stays on the floor and travels across the map under him; it shrinks and fades as he climbs
     const sc = 1 - lift * 0.25; c.save(); c.translate(e.x, e.y + 3); c.rotate(e.face || 0); c.fillStyle = `rgba(0,0,0,${0.5 - lift * 0.18})`;
@@ -2477,6 +2571,68 @@ function drawEnemy(c, e) {
     if (ck === 'fire') { const fk = clamp(1 - e.ch / (e.cht || CERB.fire.windup), 0, 1); for (const [hx, hy, hs, ha] of heads) { const fx = hx + Math.cos(ha) * hs * 1.9, fy = hy + Math.sin(ha) * hs * 1.9; c.fillStyle = `rgba(255,150,0,${0.35 + 0.4 * fk})`; c.beginPath(); c.arc(fx, fy, hs * (0.35 + 0.6 * fk), 0, 7); c.fill(); c.fillStyle = `rgba(255,238,88,${0.9 * fk})`; c.beginPath(); c.arc(fx, fy, hs * 0.3 * fk, 0, 7); c.fill(); } } // fire gathers in the mouths
     c.lineCap = 'butt';
     c.scale(1 / 2.7, 1 / 2.7);
+  } else if (e.type === 'bat') { // one bat of the Vampire Lord's swarm
+    const f = 0.55 + 0.45 * Math.sin(performance.now() / 55 + e.id * 1.7);
+    miniBat(c, 0, 0, 0, 1.7, f, '#4a2d70', '#b79cf0');
+    c.fillStyle = '#ff5252'; c.beginPath(); c.arc(8.6, -1.8, 1.1, 0, 7); c.arc(8.6, 1.8, 1.1, 0, 7); c.fill();
+  } else if (e.type === 'vampire_lord') { // pale lord in a black spiked coat and a billowing red cape, seen from above: claws reaching out in front
+    const now = performance.now(), tt = now / 1000 + e.x * 0.01, sw = e.swAt ? (now - e.swAt) / 1000 : 9, ck = e.sk || CHARGE_NAMES[e.skc] || '';
+    const flap = Math.sin(tt * 3.2), wrap = ck === 'batform' ? clamp(1 - e.ch / (e.cht || VAMP.bat.windup), 0, 1) : 0, dk = ck === 'drain' ? clamp(1 - e.ch / (e.cht || VAMP.drain.windup), 0, 1) : 0;
+    const swp = sw < 0.3 ? Math.sin(sw / 0.3 * Math.PI) : 0;       // claw strike: both hands sweep across in front of him and back
+    c.scale(2.6, 2.6); c.lineCap = 'round'; c.lineJoin = 'round';
+    if (dk > 0) { c.fillStyle = `rgba(220,20,60,${0.12 + 0.22 * dk})`; c.beginPath(); c.arc(4, 0, 22 + 4 * Math.sin(tt * 30), 0, 7); c.fill(); }
+    // the cape: billows out behind him; as he transforms it wraps in around his body
+    const cw = 1 - 0.65 * wrap, HEM = [[-1, 11], [-12, 21], [-24, 24], [-32, 19], [-38, 13], [-41, 6], [-43, 0]];
+    const cp = (i, sd) => [HEM[i][0] + 7 * wrap - flap * 2.2 * (i / 6) * (1 - wrap), sd * HEM[i][1] * cw + sd * flap * 1.4 * (i / 6)];
+    c.fillStyle = '#a3131b'; c.strokeStyle = '#3a0509'; c.lineWidth = 1.5; c.beginPath(); let q = cp(0, -1); c.moveTo(q[0], q[1]);
+    for (let i = 1; i < 7; i++) { const a = cp(i, -1), b = i < 6 ? cp(i + 1, -1) : [cp(6, 0)[0], 0]; c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+    for (let i = 6; i >= 1; i--) { const a = cp(i, 1), b = i > 1 ? cp(i - 1, 1) : cp(0, 1); c.quadraticCurveTo(a[0], a[1], (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); }
+    c.closePath(); c.fill(); c.stroke();
+    c.strokeStyle = '#5b0a10'; c.lineWidth = 1; for (const i of [1, 2, 3, 4, 5]) for (const sd of [-1, 1]) { const a = cp(i, sd); c.beginPath(); c.moveTo(-3, sd * 7 * cw); c.quadraticCurveTo(a[0] * 0.5, a[1] * 0.55, a[0] * 0.92, a[1] * 0.92); c.stroke(); }  // folds
+    c.strokeStyle = '#d4373f'; c.lineWidth = 0.8; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(-1, sd * 11); c.quadraticCurveTo(-8, sd * 18 * cw, -14, sd * 21.5 * cw); c.stroke(); }                                  // lit edge
+    // coat: a black back with a seam down the middle and gold buttons at the belt
+    c.fillStyle = '#16111c'; c.strokeStyle = '#050307'; c.lineWidth = 1.6; c.beginPath(); c.ellipse(-1, 0, 11, 14.5, 0, 0, 7); c.fill(); c.stroke();
+    c.strokeStyle = '#332b3c'; c.lineWidth = 0.9; c.beginPath(); c.moveTo(-11, 0); c.lineTo(4, 0); c.stroke();
+    c.fillStyle = '#e0a92b'; for (const bx of [-6, -1.5, 3]) { c.beginPath(); c.arc(bx, 0, 0.9, 0, 7); c.fill(); }
+    // spiked, ragged shoulders with gold studs
+    for (const sd of [-1, 1]) {
+      c.fillStyle = '#211a29'; c.strokeStyle = '#050307'; c.lineWidth = 1.2; c.beginPath();
+      c.moveTo(9, sd * 7); c.lineTo(10, sd * 14); c.lineTo(5.5, sd * 13); c.lineTo(6.5, sd * 20); c.lineTo(2, sd * 15); c.lineTo(-0.5, sd * 21); c.lineTo(-3, sd * 13); c.lineTo(-6, sd * 17); c.lineTo(-6.5, sd * 9); c.closePath(); c.fill(); c.stroke();
+      c.strokeStyle = '#5d5568'; c.lineWidth = 0.7; c.beginPath(); c.moveTo(9, sd * 8); c.lineTo(5, sd * 12); c.stroke();
+      c.fillStyle = '#e0a92b'; c.beginPath(); c.arc(4.2, sd * 11, 1.1, 0, 7); c.fill();
+    }
+    // arms reaching forward, pale hands with long claws
+    for (const sd of [-1, 1]) {
+      const hx = 25 + 4 * swp, hy = sd * (6.5 - 13 * swp);
+      c.strokeStyle = '#050307'; c.lineWidth = 7.4; c.beginPath(); c.moveTo(6, sd * 12); c.quadraticCurveTo(15, sd * 11.5, hx - 2, hy); c.stroke();
+      c.strokeStyle = '#1b1522'; c.lineWidth = 5.6; c.beginPath(); c.moveTo(6, sd * 12); c.quadraticCurveTo(15, sd * 11.5, hx - 2, hy); c.stroke();
+      c.strokeStyle = '#e0a92b'; c.lineWidth = 1.3; c.beginPath(); c.moveTo(hx - 4.4, hy - 3); c.lineTo(hx - 4.4, hy + 3); c.stroke();           // gold cuff
+      c.fillStyle = '#d6d8de'; c.strokeStyle = '#5f6370'; c.lineWidth = 1; c.beginPath(); c.arc(hx, hy, 3.3, 0, 7); c.fill(); c.stroke();
+      const cl = 9 + 4 * swp;
+      for (const k of [-1.5, -0.5, 0.5, 1.5]) { // long curved claws
+        c.fillStyle = '#efe6d2'; c.strokeStyle = '#6e1420'; c.lineWidth = 0.6; c.beginPath(); c.moveTo(hx + 2, hy + k * 1.4 - 0.6); c.quadraticCurveTo(hx + cl * 0.6, hy + k * 2.6 - 1, hx + cl, hy + k * 3.4 + sd * 0.8); c.quadraticCurveTo(hx + cl * 0.55, hy + k * 2.4 + 0.9, hx + 2, hy + k * 1.4 + 0.6); c.closePath(); c.fill(); c.stroke();
+      }
+    }
+    // high collar lined with red, then the head
+    c.fillStyle = '#16111c'; c.strokeStyle = '#050307'; c.lineWidth = 1.2; c.beginPath(); c.ellipse(4, 0, 7.8, 10, 0, 0, 7); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(1, -8); c.lineTo(5, -13.5); c.lineTo(8, -8); c.closePath(); c.fill(); c.stroke(); c.beginPath(); c.moveTo(1, 8); c.lineTo(5, 13.5); c.lineTo(8, 8); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#b3141c'; c.beginPath(); c.ellipse(4.5, 0, 5.6, 7.4, 0, 0, 7); c.fill();
+    c.fillStyle = '#9ea4ae'; c.strokeStyle = '#4d525c'; c.lineWidth = 1; c.beginPath(); c.ellipse(4.2, 0, 7.8, 7.4, 0, 0, 7); c.fill(); c.stroke();                      // swept-back grey hair
+    c.strokeStyle = '#d9dde3'; c.lineWidth = 0.7; for (const [x2, y2] of [[-2.5, -5.5], [-3.5, -2.5], [-3.8, 0.5], [-3.2, 3.5], [-2, 6]]) { c.beginPath(); c.moveTo(8.5, y2 * 0.35); c.quadraticCurveTo(3, y2 * 0.9, x2, y2); c.stroke(); }
+    c.strokeStyle = '#6c727c'; c.lineWidth = 0.6; for (const y2 of [-4, -1.5, 1.5, 4]) { c.beginPath(); c.moveTo(7, y2 * 0.4); c.lineTo(-1.5, y2 * 1.2); c.stroke(); }
+    c.fillStyle = '#d3d6dc'; c.strokeStyle = '#5f6370'; c.lineWidth = 0.9; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(7.2, sd * 5.2); c.lineTo(5.4, sd * 9.6); c.lineTo(9.6, sd * 6.4); c.closePath(); c.fill(); c.stroke(); }  // pointed ears
+    c.fillStyle = '#d3d6dc'; c.strokeStyle = '#5f6370'; c.lineWidth = 1; c.beginPath(); c.ellipse(9, 0, 5.6, 5.9, 0, 0, 7); c.fill(); c.stroke();                         // pale face
+    c.strokeStyle = '#2a2d33'; c.lineWidth = 1.2; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(8.4, sd * 1.2); c.lineTo(12.6, sd * 3.8); c.stroke(); }         // angry brows
+    const eg = 0.45 + 0.35 * dk; c.fillStyle = `rgba(80,255,110,${eg})`; c.beginPath(); c.arc(11.4, -3.1, 2.9 + dk, 0, 7); c.arc(11.4, 3.1, 2.9 + dk, 0, 7); c.fill();
+    c.fillStyle = '#8dff6a'; c.beginPath(); c.arc(11.4, -3.1, 1.45, 0, 7); c.arc(11.4, 3.1, 1.45, 0, 7); c.fill();                                                    // glowing green eyes
+    c.fillStyle = '#c0c4cc'; c.beginPath(); c.ellipse(13.4, 0, 1.4, 1.1, 0, 0, 7); c.fill();                                                                           // nose
+    const gape = 0.9 + 0.9 * dk + swp * 0.5; c.fillStyle = '#3a0509'; c.strokeStyle = '#1a0205'; c.lineWidth = 0.6; c.beginPath(); c.ellipse(14.4, 0, 1.9 + dk * 0.5, 2.3 * gape, 0, 0, 7); c.fill(); c.stroke();  // open mouth
+    c.fillStyle = '#fff'; for (const sd of [-1, 1]) { c.beginPath(); c.moveTo(14.4, sd * 0.8); c.lineTo(17.4 + dk, sd * 1.2); c.lineTo(14.6, sd * (1.9 + 0.5 * gape)); c.closePath(); c.fill(); } // fangs
+    if (wrap > 0) { // transforming: a dark violet haze and a few bats flutter out of the cape
+      c.fillStyle = `rgba(106,27,154,${0.38 * wrap})`; c.beginPath(); c.arc(0, 0, 24, 0, 7); c.fill();
+      for (let i = 0; i < 6; i++) { const a = tt * 5 + i * 1.047, rr = 12 + 20 * wrap; miniBat(c, Math.cos(a) * rr, Math.sin(a) * rr, a + 1.57, 0.55 + 0.25 * wrap, 0.5 + 0.5 * Math.sin(tt * 30 + i), '#3a2160', '#b79cf0'); }
+    }
+    c.lineCap = 'butt'; c.scale(1 / 2.6, 1 / 2.6);
   } else {
     c.scale(3, 3);
     const kind = e.sk || CHARGE_NAMES[e.skc] || '', sw = e.swAt ? (performance.now() - e.swAt) / 1000 : 9;
@@ -2517,6 +2673,7 @@ function drawEnemy(c, e) {
   }
   if (e.hurt > 0) { c.fillStyle = 'rgba(255,255,255,.6)'; c.beginPath(); c.arc(0, 0, isBossT(e) ? e.r * 3.1 : e.r + 2, 0, 7); c.fill(); }
   c.restore();
+  if (e.type === 'bat') return;                                  // one hit kills a bat: no health bar
   const big = isBossT(e), bw = big ? 84 : e.r * 2 + 6, by = e.y - lift * LIFT_PX - (big ? e.r * 3.4 : e.r + 8);
   c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(e.x - bw / 2, by, bw, 4);
   c.fillStyle = '#e53935'; c.fillRect(e.x - bw / 2, by, bw * clamp(e.hp / e.maxhp, 0, 1), 4);
@@ -2616,6 +2773,15 @@ function drawWorld(g) {
       ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.fillRect(0, -w, len, w * 2);
       ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.fillRect(0, -w, len * k, w * 2);
       ctx.strokeStyle = 'rgba(255,82,82,.9)'; ctx.lineWidth = 2; ctx.strokeRect(0, -w, len, w * 2);
+    } else if (kind === 'drain') { // Vampire Lord lines up his charge
+      const a = e.face || 0, len = VAMP.drain.range, w = e.r + 10;
+      ctx.translate(e.x, e.y); ctx.rotate(a);
+      ctx.fillStyle = 'rgba(170,20,90,.14)'; ctx.fillRect(0, -w, len, w * 2);
+      ctx.fillStyle = 'rgba(200,20,90,.32)'; ctx.fillRect(0, -w, len * k, w * 2);
+      ctx.strokeStyle = 'rgba(255,64,129,.9)'; ctx.lineWidth = 2; ctx.strokeRect(0, -w, len, w * 2);
+    } else if (kind === 'batform') { // he is about to burst into bats
+      ctx.fillStyle = `rgba(106,27,154,${0.1 + 0.2 * k})`; ctx.beginPath(); ctx.arc(e.x, e.y, 56, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(179,157,219,.9)'; ctx.lineWidth = 3; ctx.setLineDash([8, 6]); ctx.beginPath(); ctx.arc(e.x, e.y, 56 * (1.1 - 0.1 * k), 0, 7); ctx.stroke();
     } else if (kind === 'laser') {
       const a = e.face || 0, len = LASER.range;
       ctx.strokeStyle = `rgba(255,23,68,${0.25 + 0.55 * k})`; ctx.lineWidth = 1 + 3 * k; ctx.setLineDash(k > 0.7 ? [] : [12, 8]);
@@ -2748,8 +2914,28 @@ function drawFx(g) {
         for (let i = 0; i < 8; i++) { const a = i * 0.785 + f.a, r0 = 6 + k * 8, r1 = 14 + k * 16; ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * r0, f.y + Math.sin(a) * r0); ctx.lineTo(f.x + Math.cos(a) * r1, f.y + Math.sin(a) * r1); ctx.stroke(); }
         ctx.fillStyle = '#ffab91'; ctx.beginPath(); ctx.arc(f.x, f.y, 10 * (1 - k * 0.5), 0, 7); ctx.fill(); break; }
       case 'dust': // the Skeleton King's charge kicks up dust behind him
-        ctx.globalAlpha = (1 - k) * 0.55; ctx.fillStyle = '#b0a79b'; ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 22, 0, 7); ctx.fill();
+        ctx.globalAlpha = (1 - k) * 0.55; ctx.fillStyle = f.c || '#b0a79b'; ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 22, 0, 7); ctx.fill();
         ctx.strokeStyle = '#fff'; ctx.globalAlpha = (1 - k) * 0.5; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(f.x - Math.cos(f.a) * 40, f.y - Math.sin(f.a) * 40); ctx.stroke(); break;
+      case 'claw': { // the Vampire Lord's nails: three raking slashes across the victim
+        ctx.translate(f.x, f.y); ctx.rotate(f.a || 0); ctx.lineCap = 'round';
+        const u = Math.min(1, k * 4);
+        for (const i of [-1, 0, 1]) {
+          const y0 = i * 9; ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ff1744'; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(-9, y0 - 16); ctx.lineTo(-9 + 18 * u, y0 - 16 + 32 * u); ctx.stroke();
+          ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-9, y0 - 16); ctx.lineTo(-9 + 18 * u, y0 - 16 + 32 * u); ctx.stroke();
+        } break; }
+      case 'drain': { // red life streams from the victim into the Vampire Lord, with a ring where the fangs went in
+        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ff5252'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(f.x, f.y, 8 + k * 22, 0, 7); ctx.stroke();
+        ctx.fillStyle = '#fff'; for (const sd of [-1, 1]) { ctx.beginPath(); ctx.moveTo(f.x - 2, f.y + sd * 3); ctx.lineTo(f.x + 7, f.y + sd * 1.2); ctx.lineTo(f.x + 2, f.y + sd * 6); ctx.closePath(); ctx.fill(); }
+        for (let i = 0; i < 7; i++) {
+          const u = clamp(k * 1.5 - i * 0.1, 0, 1); if (u <= 0 || u >= 1) continue;
+          const wob = Math.sin(u * 9 + i * 2) * 8 * (1 - u);
+          ctx.globalAlpha = 0.95 * (1 - u * 0.5); ctx.fillStyle = i % 2 ? '#ff1744' : '#d50000';
+          ctx.beginPath(); ctx.arc(f.x + (f.bx - f.x) * u - Math.sin(f.a || 0) * wob, f.y + (f.by - f.y) * u + Math.cos(f.a || 0) * wob, 4 - 2 * u, 0, 7); ctx.fill();
+        } break; }
+      case 'batburst': { // bats scatter out of him (or fly back in when he re-forms)
+        const rr = (f.back ? 1 - k : k) * 64; ctx.globalAlpha = 1 - k * k;
+        for (let i = 0; i < 8; i++) { const a = i * 0.785 + 0.3; miniBat(ctx, f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr, a + (f.back ? Math.PI : 0), 1.1, 0.5 + 0.5 * Math.sin(f.t * 40 + i), '#4a2d70', '#b79cf0'); }
+        break; }
       case 'summon':
         ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#b39ddb'; ctx.lineWidth = 4; ctx.beginPath(); ctx.arc(f.x, f.y, 20 + k * 70, 0, 7); ctx.stroke(); break;
       case 'pillar': { // Sorcerer's pillar of fire: a warning ring until it is its turn, then flames rise
