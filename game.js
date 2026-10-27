@@ -27,7 +27,7 @@ const portrait_ = () => ROWS > COLS;
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 const STEP = 1 / 60;
 const SPECIAL_CD = 15, DROP_CHANCE = 0.03;      // DROP_CHANCE: Character Point (and, separately, Pet Point) chance per kill
-const POTION = { chance: 0.08, heal: 0.2 };       // potion drop chance per kill; heals 20% of max HP when walked over
+const POTION = { chance: 0.08, heal: 0.2, maxUp: 0.1 }; // potion drop chance per kill; heals 20% of max HP when walked over; at FULL health it instead raises max HP by 10% for the rest of the run
 const PET_RESPAWN = 20;                           // seconds until a KO'd pet comes back
 // Enemy senses: they only turn hostile when a player is inside their vision cone (with a clear line of sight),
 // or very close behind them. Otherwise they wander near their home spot.
@@ -41,13 +41,13 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 const CHARS = {
   warrior: { name: 'Warrior', atk: 5, hp: 60, color: '#d9534f', dark: '#8e2420', cd: 0.5, speed: 150, sym: '🌀',
-    desc: 'Spin Attack: AOE around you dealing 1.5× ATK.' },
+    desc: 'Spin Attack: AOE around you dealing 1.5× ATK. You heal for 25% of the total damage it deals to everything it hits, and gain a barrier worth 50% of that heal (lasts 5 s).' },
   mage: { name: 'Mage', atk: 8, hp: 40, color: '#7e57c2', dark: '#4527a0', cd: 0.7, speed: 150, sym: '⚡',
-    desc: 'Chain Lightning: 1.3× ATK, bounces up to 3 times, each hit 20% weaker.' },
+    desc: 'Chain Lightning: 1.3× ATK, then bounces to any enemy close enough (no limit on bounces). Each hit is 20% weaker until the 4th enemy; every enemy after that takes the same damage as the 4th.' },
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.23-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.27-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -258,6 +258,10 @@ const LASER = { range: 640, charge: 0.8, lock: 0.25, width: 14, keep: 220, hold:
 const LOCK = { barrier: 0.5 };
 // Assassin: once it has spotted you it may blink next to you (10 s cooldown); half a second after it lands it strikes once, so you can step out of the red circle.
 const TP = { cd: 10, first: 3, chance: 1, vanish: 0.3, windup: 0.5, r: 46, mult: 2, near: 30, minDist: 80, maxDist: 560 }; // chance = per second once ready
+// Warrior Spin: heals for 25% of the total damage dealt to everything it hit (even if some of it overheals) and grants a barrier of 50% of that amount for `dur` seconds.
+const WARRIOR = { steal: 0.25, barrier: 0.5, dur: 5 };
+// Mage Chain Lightning: first target within `first` px, then it hops to the nearest enemy not yet hit within `hop` px, with no limit; each hit is `drop` x the last until the `floorAt`th enemy, then the damage stays the same.
+const MAGE = { first: 320, hop: 170, mult: 1.3, drop: 0.8, floorAt: 4 };
 const HEAL_RANGE = 200;
 const HEALER = { maxPct: 0.2, curPct: 0.1 };   // the healer's ray only reaches allies this close
 const REVIVE_TIME = 5;   // seconds the reviver must stay put and unhurt
@@ -1358,12 +1362,12 @@ function noteFocus(g, src, e) { // an owner attacking something pulls their idle
   for (const q of g.pets) if (q.owner === src.id && q.alive && !q.combat && !(q.focusT > 0)) { q.focus = e; q.focusT = 3; }
 }
 function hitEnemy(g, e, dmg, src) {
-  if (e.dead || isAir(e)) return;
-  let d = Math.max(1, Math.round(dmg));
+  if (e.dead || isAir(e)) return 0;
+  let d = Math.max(1, Math.round(dmg)); const full = d; // returned: the damage dealt (the number shown), used by the Warrior's lifesteal
   if (e.shield > 0) { // Hellguard's target-lock barrier soaks damage first
     const ab = Math.min(e.shield, d); e.shield -= ab; d -= ab;
     addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 8, s: '🛡' + ab, c: '#ffab91' });
-    if (d <= 0) { e.hurt = 0.12; noteFocus(g, src, e); return; }
+    if (d <= 0) { e.hurt = 0.12; noteFocus(g, src, e); return full; }
   }
   e.hp -= d; e.hurt = 0.12;
   noteFocus(g, src, e);
@@ -1395,6 +1399,7 @@ function hitEnemy(g, e, dmg, src) {
     }
     if (def.boss) for (const o of g.enemies) if (o.summoned && !o.dead) { o.dead = true; addFx(g, { type: 'poof', x: o.x, y: o.y }); } // the King's minions fall with him
   }
+  return full;
 }
 function heal(g, t, v) {
   const n = Math.max(0, Math.min(t.maxhp - t.hp, Math.round(v)));
@@ -1427,21 +1432,32 @@ function doAttack(g, p) {
 }
 function doSpecial(g, p) {
   if (p.char === 'warrior') {
-    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + bodyR(e)) hitEnemy(g, e, 1.5 * p.atk, p);
+    let total = 0;
+    for (const e of g.enemies) if (!e.dead && Math.hypot(e.x - p.x, e.y - p.y) <= 85 + bodyR(e)) total += hitEnemy(g, e, 1.5 * p.atk, p);
     addFx(g, { type: 'spin', x: p.x, y: p.y, r: 85 });
+    if (total > 0) { // lifesteal on the combined damage, plus a barrier worth half of that lifesteal
+      const ls = WARRIOR.steal * total; heal(g, p, ls);
+      const b = Math.round(WARRIOR.barrier * ls);
+      if (b > 0) {
+        if (!(p.shield > 0)) p.shNoHeal = true;            // this barrier does not pay out when it runs out (the Turtle's does)
+        p.shield = (p.shield > 0 ? p.shield : 0) + b; p.shieldT = Math.max(p.shieldT || 0, WARRIOR.dur);
+        addFx(g, { type: 'barrier', x: p.x, y: p.y }); addFx(g, { type: 'txt', x: p.x, y: p.y - 32, s: '🛡+' + b, c: '#80d8ff' });
+      }
+    }
     return true;
   }
   if (p.char === 'mage') {
-    const first = nearestEnemy(g, p.x, p.y, 320);
+    const first = nearestEnemy(g, p.x, p.y, MAGE.first);
     if (!first) return false;
     const hit = new Set([first]);
-    let dmg = 1.3 * p.atk, cur = first;
+    let dmg = MAGE.mult * p.atk, cur = first, n = 1;
     const pts = [[p.x, p.y], [first.x, first.y]];
     hitEnemy(g, first, dmg, p);
-    for (let b = 0; b < 3; b++) {
-      const nx = nearestEnemy(g, cur.x, cur.y, 170, hit);
+    for (;;) { // no cap on bounces: it keeps hopping to the nearest enemy in reach that it has not hit yet (each enemy at most once, so it always ends)
+      const nx = nearestEnemy(g, cur.x, cur.y, MAGE.hop, hit);
       if (!nx) break;
-      dmg *= 0.8; hit.add(nx); pts.push([nx.x, nx.y]); hitEnemy(g, nx, dmg, p); cur = nx;
+      if (n < MAGE.floorAt) dmg *= MAGE.drop;             // weaker with each of the first 4 enemies, then the damage stays put
+      n++; hit.add(nx); pts.push([nx.x, nx.y]); hitEnemy(g, nx, dmg, p); cur = nx;
     }
     addFx(g, { type: 'chain', pts });
     return true;
@@ -1541,7 +1557,7 @@ function hurtPlayer(g, p, dmg) { hurtT(g, p, dmg); }
 function tickShield(g, t, dt) { // barrier timer; what is left when it expires heals 20% of the remainder
   if (!(t.shield > 0)) return;
   t.shieldT -= dt;
-  if (t.shieldT <= 0) { const rem = t.shield; t.shield = 0; t.shieldT = 0; if (t.alive && rem > 0) heal(g, t, TURTLE.heal * rem); }
+  if (t.shieldT <= 0) { const rem = t.shield; t.shield = 0; t.shieldT = 0; if (t.alive && rem > 0 && !t.shNoHeal) heal(g, t, TURTLE.heal * rem); }
 }
 
 function alertAllies(g, e, t) { // nearby enemies get woken up too
@@ -1826,7 +1842,7 @@ function petAbility(g, q, o, foe, fd) {
   } else if (q.type === 'turtle') {
     if (fd > TURTLE.r && Math.hypot(foe.x - o.x, foe.y - o.y) > TURTLE.r) return;
     const amt = Math.max(1, Math.round(TURTLE.mult * q.hp));
-    for (const t of [q, o]) if (t.alive) { t.shield = amt; t.shieldT = TURTLE.dur; addFx(g, { type: 'barrier', x: t.x, y: t.y }); }
+    for (const t of [q, o]) if (t.alive) { t.shield = amt; t.shieldT = TURTLE.dur; t.shNoHeal = false; addFx(g, { type: 'barrier', x: t.x, y: t.y }); }
     q.abCd = TURTLE.cd;
   }
 }
@@ -2014,7 +2030,10 @@ function step(g, dt) {
     for (const p of g.players) {
       if (!p.alive || p.gone || Math.hypot(p.x - k.x, p.y - k.y) >= p.r + 10) continue;
       if (k.kind === 'pot') {
-        if (p.hp >= p.maxhp) continue;
+        if (p.hp >= p.maxhp) { // already at full health: the potion makes the hero tougher for the rest of the run instead (never saved to the profile)
+          const up = Math.max(1, Math.round(POTION.maxUp * p.maxhp)); p.maxhp += up; p.hp = p.maxhp; k.dead = true;
+          addFx(g, { type: 'heal', x: p.x, y: p.y }); addFx(g, { type: 'txt', x: p.x, y: p.y - 18, s: '+' + up + ' max HP', c: '#ffd54f' }); break;
+        }
         heal(g, p, POTION.heal * p.maxhp); k.dead = true; break;
       }
       if (k.kind === 'pp') { g.teamPp++; addFx(g, { type: 'txt', x: k.x, y: k.y - 10, s: '+1 PP', c: '#f48fb1' }); }
@@ -2073,7 +2092,7 @@ const ri = v => Math.round(v), r2 = v => Math.round(v * 100) / 100;
 function snapshot(g) { // kept small on purpose: it goes out 20x a second over a relayed WebRTC link
   const s = {
     k: 's', d: g.door.open ? 1 : 0, kl: g.kills, bk: g.bossKills, t: g.teamCp, gd: g.teamGold, pp: g.teamPp, lt: g.lootBy,
-    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0]),
+    p: g.players.map(p => [r1(p.x), r1(p.y), p.hp, r2(p.face), r1(p.spCd), p.alive ? 1 : 0, p.cp, p.gone ? 1 : 0, r2(p.hurt), Math.round(p.shield || 0), r2(p.revP || 0), p.away ? 1 : 0, p.maxhp]),
     e: g.enemies.map(e => [e.id, e.type, ri(e.x), ri(e.y), e.hp, e.maxhp, r2(e.face), r2(e.hurt), e.alert > 0 ? 1 : 0, e.ch > 0 ? r2(e.ch) : 0, CHARGE_KINDS[e.sk] || 0, e.fear > 0 ? 1 : 0, e.summoned ? 1 : 0, e.sk === 'jumpup' && e.land ? ri(e.land.x) : 0, e.sk === 'jumpup' && e.land ? ri(e.land.y) : 0, Math.round(e.shield || 0), e.bt ? 1 : 0]),
     q: g.pets.map(q => [q.id, q.type, ri(q.x), ri(q.y), q.hp, q.maxhp, r2(q.face), q.alive ? 1 : 0, q.owner, Math.round(q.shield || 0), r2(q.hurt), q.combat ? 1 : 0, q.alive ? 0 : Math.ceil(Math.max(0, q.respT || 0))]),
     j: g.proj.map(j => [j.id, ri(j.x), ri(j.y), j.kind, r2(Math.atan2(j.vy, j.vx))]),
@@ -2103,7 +2122,7 @@ function applySnap(g, s) {
   if (Array.isArray(s.lt) && Array.isArray(s.lt[g.pid]) && s.lt[g.pid].length > g.lootBy[g.pid].length) g.lootBy[g.pid] = s.lt[g.pid].filter(k => EQUIP[k]);
   s.p.forEach((a, i) => {
     const p = g.players[i]; if (!p) return;
-    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0; p.away = !!a[11];
+    p.tx = a[0]; p.ty = a[1]; p.hp = a[2]; p.face = a[3]; p.spCd = a[4]; p.alive = !!a[5]; p.cp = a[6]; p.gone = !!a[7]; p.hurt = a[8]; p.shield = a[9] || 0; p.revP = a[10] || 0; p.away = !!a[11]; if (a[12] > 0) p.maxhp = a[12];
   });
   const oldE = new Map(g.enemies.map(e => [e.id, e]));
   g.enemies = s.e.map(a => {
