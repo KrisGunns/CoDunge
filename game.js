@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.27-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.27-c'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -244,7 +244,7 @@ const SORC = { range: 230, hold: 170, keep: 100, windup: 0.5, gap: 0.45, step: 7
 // Cerberus: Fireballs (one per head, fired one after another, bounce off walls) and a Jump that lands on the target.
 const CERB = {
   fire: { cd: 25, first: 6, windup: 0.5, gap: 0.3, speed: 210, mult: 1.5, life: 10, spread: 0.3, range: 640 },
-  jump: { cd: 15, first: 4, up: 1.3, down: 0.3, lock: 0.45, r: 110, mult: 3, min: 70, max: 450 }, // up = whole flight (he leaps, travels over the floor and lands); the landing spot stops following you for the last `lock` seconds
+  jump: { cd: 15, first: 4, up: 2.0, down: 0.3, lock: 1.3, r: 110, mult: 3, min: 70, max: 450 }, // up = whole flight (he leaps, travels over the floor and lands); the landing spot follows you for the first part, then stays put for the last `lock` seconds. A hero (150 px/s) needs (r + 10) / 150 = 0.8 s to run out of the circle, so `lock` leaves about half a second to notice it has stopped (and for a partner's lag)
 };
 // Vampire Lord. Bat Transform: after a short windup he bursts into a swarm of 1-HP bats that flit around the room on their own (and nip at heroes for a share of his ATK).
 // While he is a swarm he cannot be hit and regenerates 2% of his max HP per second; when the last bat dies he is back. Drain: he charges at a hero and bites for
@@ -576,6 +576,9 @@ function show(id) {
 // Progress gates: these buttons do not exist until the player's best stage reaches the number (best stage N means "reached N-1").
 const UNLOCK = { pets: 2, shop: 2, gear: 5 };
 const unlocked = k => profile.best.stage >= UNLOCK[k];
+// Drops follow what a player has unlocked. A player's best stage is what they started the run with, or the stage the run has reached if that is higher (progress is saved as soon as a stage is reached).
+const hasUnlocked = (g, pl, k) => Math.max(pl.best || 1, g.stage) >= UNLOCK[k];
+const petsDrop = g => g.players.every(pl => pl.gone || hasUnlocked(g, pl, 'pets')); // Pet Points are shared by both players, so they only drop once everyone in the run has pets
 function applyGates() {
   for (const [ids, k] of [[['btnPets', 'lbPets'], 'pets'], [['btnShop', 'lbShop'], 'shop'], [['btnGear', 'lbGear'], 'gear']]) for (const id of ids) $(id).classList.toggle('hidden', !unlocked(k));
   $('tabEquip').classList.toggle('hidden', !unlocked('gear'));
@@ -1140,7 +1143,7 @@ const ctl = { sp: false, rev: false };
 function makePlayer(d, id) {
   return { id, name: d.name, char: d.char, atk: d.atk, maxhp: d.hp, hp: d.hp, x: 0, y: 0, r: 10, face: 0, alive: true,
     atkCd: 0, spCd: 0, cp: 0, speed: CHARS[d.char].speed * (1 + (+d.spd || 0)), hurt: 0, gone: false, pet: PETS[d.pet] ? d.pet : '', shield: 0, shieldT: 0, still: 0,
-    patk: +d.patk || 0, php: +d.php || 0, dr: +d.dr || 0, vamp: +d.vamp || 0 };
+    patk: +d.patk || 0, php: +d.php || 0, dr: +d.dr || 0, vamp: +d.vamp || 0, best: Math.max(1, +d.best || 1) };
 }
 function newGameBase(isHost, pid, multi) {
   return { isHost, pid, multi, stage: 1, level: 1, grid: null, door: null, players: [], enemies: [], proj: [], pickups: [], fx: [], fxq: [],
@@ -1302,7 +1305,14 @@ function spawnEnemies(g, L) {
 }
 function noteProgress(g) {
   const b = profile.best;
-  if (g.stage > b.stage || (g.stage === b.stage && g.level > b.level)) { b.stage = g.stage; b.level = g.level; saveProfile(); }
+  if (g.stage > b.stage || (g.stage === b.stage && g.level > b.level)) {
+    const had = { pets: unlocked('pets'), gear: unlocked('gear') };
+    b.stage = g.stage; b.level = g.level; saveProfile();
+    const now = [];
+    if (!had.pets && unlocked('pets')) now.push('Pets and Shop unlocked!');
+    if (!had.gear && unlocked('gear')) now.push('Equipment unlocked!');
+    if (now.length) { (g.unl = g.unl || []).push(...now); toast('🔓 ' + now.join(' ')); }
+  }
 }
 
 // ---------------- collision ----------------
@@ -1385,16 +1395,17 @@ function hitEnemy(g, e, dmg, src) {
       const gd = goldFor(e.type, g.stage);
       if (gd > 0) { g.teamGold += gd; addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 20, s: '+' + gd, ic: 'gold', c: '#ffd54f' }); }
       if (def.boss) { // bosses: one point (Character OR Pet, never both) and one random piece of equipment
-        const cp = Math.random() < 0.5;
+        const cp = !petsDrop(g) || Math.random() < 0.5; // always a Character Point until pets are unlocked
         if (cp) g.teamCp++; else g.teamPp++;
         addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 34, s: cp ? '+1 CP' : '+1 PP', c: cp ? '#ffd600' : '#f48fb1' });
-        for (const pl of g.players) if (!pl.gone) g.lootBy[pl.id].push(BASE_KEYS[rnd(BASE_KEYS.length)]); // each player rolls their own (regular, Common) piece
-        addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: 'Loot!', ic: 'gear', c: '#ffd54f' });
+        let loot = false;
+        for (const pl of g.players) if (!pl.gone && hasUnlocked(g, pl, 'gear')) { g.lootBy[pl.id].push(BASE_KEYS[rnd(BASE_KEYS.length)]); loot = true; } // each player who has unlocked Equipment rolls their own (regular, Common) piece
+        if (loot) addFx(g, { type: 'txt', x: e.x, y: e.y - e.r - 48, s: 'Loot!', ic: 'gear', c: '#ffd54f' });
       } else {
         // one roll per kill, so an enemy drops at most ONE item: Character Point, Pet Point (once pets are unlocked) or a potion
         const r = Math.random(); let kind = '';
         if (r < DROP_CHANCE) kind = 'cp';
-        else if (r < DROP_CHANCE * 2) kind = unlocked('pets') ? 'pp' : '';
+        else if (r < DROP_CHANCE * 2) kind = petsDrop(g) ? 'pp' : '';
         else if (r < DROP_CHANCE * 2 + POTION.chance) kind = 'pot';
         if (kind) dropAt(g, e.x, e.y, kind);
       }
@@ -2073,17 +2084,17 @@ function creditCp(g, announce) { // points and gold found by either player go to
     const n = g.teamCp - g.seenCp; profile.cp += n; g.seenCp = g.teamCp; saveProfile();
     if (announce) toast(n > 1 ? `+${n} Character Points!` : '+1 Character Point!');
   }
-  if (g.teamPp > g.seenPp) { const n = g.teamPp - g.seenPp; profile.pp += n; g.seenPp = g.teamPp; saveProfile(); if (announce) toast(n > 1 ? `+${n} Pet Points!` : '+1 Pet Point!'); }
+  if (g.teamPp > g.seenPp) { const n = g.teamPp - g.seenPp; g.seenPp = g.teamPp; if (unlocked('pets')) { profile.pp += n; saveProfile(); if (announce) toast(n > 1 ? `+${n} Pet Points!` : '+1 Pet Point!'); } } // nothing is credited before pets are unlocked, whoever hosts
   if (g.teamGold > g.seenGold) { profile.gold += g.teamGold - g.seenGold; g.seenGold = g.teamGold; saveProfile(); }
   const mine = g.lootBy[g.pid] || [];
-  while (g.seenLoot < mine.length) { const k = mine[g.seenLoot++]; if (EQUIP[k]) { addGear(k, 0); if (announce) toast(`Found: ${EQUIP[k].name}!`); } saveProfile(); }
+  while (g.seenLoot < mine.length) { const k = mine[g.seenLoot++]; if (EQUIP[k] && unlocked('gear')) { addGear(k, 0); if (announce) toast(`Found: ${EQUIP[k].name}!`); } saveProfile(); }
 }
 function showOver(g) {
   if (!g.isHost) clearLast();
   const me = g.players[g.pid];
   $('overStage').textContent = `You reached Stage ${g.stage}-${g.level}`;
   creditCp(g);
-  $('overCp').innerHTML = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: ${ic('paw')} ${g.teamPp}  ·  ` : '') + `Gold: ${ic('gold')} ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.multi ? '\n(shared with your partner)' : '');
+  $('overCp').innerHTML = `Character Points: 🟡 ${g.teamCp}  ·  ` + (unlocked('pets') || g.teamPp ? `Pet Points: ${ic('paw')} ${g.teamPp}  ·  ` : '') + `Gold: ${ic('gold')} ${g.teamGold}` + ((g.lootBy[g.pid] || []).length ? `\nEquipment found: ${g.lootBy[g.pid].map(k => EQUIP[k].name).join(', ')}` : '') + (g.unl && g.unl.length ? '\n🔓 ' + g.unl.join(' ') : '') + (g.multi ? '\n(shared with your partner)' : '');
   $('controls').classList.add('hidden'); $('btnQuit').classList.add('hidden'); closePause();
   show('scrOver');
 }
@@ -2828,9 +2839,10 @@ function drawWorld(g) {
       ctx.strokeStyle = `rgba(255,145,0,${0.2 + 0.5 * k})`; ctx.lineWidth = 2; ctx.setLineDash([8, 8]);
       for (let h = -1; h <= 1; h++) { ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x + Math.cos(a + h * CERB.fire.spread) * 230, e.y + Math.sin(a + h * CERB.fire.spread) * 230); ctx.stroke(); }
     } else if (kind === 'jumpup' && e.land) { // flight: the landing zone is marked on the floor where he will come down
-      ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.fill();
-      ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r * k, 0, 7); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,82,82,.95)'; ctx.lineWidth = 3; ctx.setLineDash([10, 7]); ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.stroke();
+      const fixed = e.ch <= CERB.jump.lock, kl = fixed ? clamp(1 - e.ch / CERB.jump.lock, 0, 1) : 0; // dashed and light while it still follows you; solid and filling once it has stopped: run out of it
+      ctx.fillStyle = fixed ? 'rgba(229,57,53,.2)' : 'rgba(229,57,53,.1)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.fill();
+      if (fixed) { ctx.fillStyle = 'rgba(229,57,53,.38)'; ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r * kl, 0, 7); ctx.fill(); }
+      ctx.strokeStyle = fixed ? 'rgba(255,255,255,.95)' : 'rgba(255,82,82,.8)'; ctx.lineWidth = fixed ? 4 : 3; ctx.setLineDash(fixed ? [] : [10, 7]); ctx.beginPath(); ctx.arc(e.land.x, e.land.y, CERB.jump.r, 0, 7); ctx.stroke();
     } else if (kind === 'jumpdn') { // landing zone
       ctx.fillStyle = 'rgba(229,57,53,.14)'; ctx.beginPath(); ctx.arc(e.x, e.y, CERB.jump.r, 0, 7); ctx.fill();
       ctx.fillStyle = 'rgba(229,57,53,.32)'; ctx.beginPath(); ctx.arc(e.x, e.y, CERB.jump.r * k, 0, 7); ctx.fill();
@@ -3021,7 +3033,8 @@ function drawHUD(g, hw, hh, portrait) { // hw/hh: size of the area the HUD is la
   { // points collected so far this run (shared by both players)
     const y = 12 + g.players.length * 34 + 8;
     ctx.font = 'bold 13px system-ui,sans-serif'; ctx.fillStyle = '#ffd54f'; ctx.textAlign = 'left';
-    const parts = [{ t: `🟡 CP ${g.teamCp || 0}   ` }, { ic: 'paw' }, { t: ` PP ${g.teamPp || 0}   ` }, { ic: 'gold' }, { t: ` ${g.teamGold || 0}` }];
+    const parts = [{ t: `🟡 CP ${g.teamCp || 0}   ` }]; if (unlocked('pets') || g.teamPp) parts.push({ ic: 'paw' }, { t: ` PP ${g.teamPp || 0}   ` }); // Pet Points are not shown until pets are unlocked
+    parts.push({ ic: 'gold' }, { t: ` ${g.teamGold || 0}` });
     if (g.lootBy && (g.lootBy[g.pid] || []).length) parts.push({ t: '   ' }, { ic: 'gear' }, { t: ` ${g.lootBy[g.pid].length}` });
     let hx = 12; for (const q of parts) { if (q.ic) { const im = iconImg(q.ic); if (im.complete && im.naturalWidth) ctx.drawImage(im, hx, y - 3, 15, 15); hx += 17; } else { ctx.strokeText(q.t, hx, y + 10); ctx.fillText(q.t, hx, y + 10); hx += ctx.measureText(q.t).width; } }
   }
@@ -3519,7 +3532,7 @@ function pmStats() {
   const g = game; if (!g) return;
   const rows = [['Mobs defeated', g.kills], ['Bosses killed', g.bossKills], ['Character Points earned', '🟡 ' + g.teamCp]];
   if (unlocked('pets') || g.teamPp) rows.push(['Pet Points earned', ic('paw') + ' ' + g.teamPp]);
-  rows.push(['Gold earned', ic('gold') + ' ' + g.teamGold], ['Equipment collected', (g.lootBy[g.pid] || []).length], ['Time in this run', fmtTime(g.runT)]);
+  rows.push(['Gold earned', ic('gold') + ' ' + g.teamGold]); if (unlocked('gear') || (g.lootBy[g.pid] || []).length) rows.push(['Equipment collected', (g.lootBy[g.pid] || []).length]); rows.push(['Time in this run', fmtTime(g.runT)]);
   $('pmStats').innerHTML = rows.map(([a, b]) => `<div><span>${a}</span><b>${b}</b></div>`).join('');
 }
 function openPause() { if (!game) return; pauseOpen = true; $('pauseMenu').classList.remove('hidden'); $('pmNote').classList.toggle('hidden', !game.multi); pmView('pmMain'); clearInterval(pauseTimer); pauseTimer = setInterval(() => { if (!$('pmRunBox').classList.contains('hidden')) pmStats(); }, 500); }
