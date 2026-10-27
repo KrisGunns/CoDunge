@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Doom and Dungeons</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=2026.10.27-b">
 </head>
 <body>
 <canvas id="game"></canvas>
@@ -31,6 +31,7 @@
   <!-- Main menu -->
   <section id="scrMenu" class="screen hidden">
     <h1>Doom and Dungeons</h1>
+    <button id="menuUpd" class="big gold hidden" type="button">⬆ New version available – tap to update</button>
     <p class="sub">Playing as <b id="menuName" class="link"></b></p>
     <p class="sub">🟡 <b id="menuCp">0</b><span id="menuPpBox"> &nbsp;·&nbsp; <i data-ic="paw"></i> <b id="menuPp">0</b></span></p>
     <p class="sub"><i data-ic="gold"></i> <b id="menuGold">0</b></p>
@@ -119,6 +120,8 @@
     <button id="btnSound" class="big alt" type="button">Sound</button>
     <button id="btnPrivacy" class="big alt" type="button">Privacy Policy</button>
     <button id="btnSaveData" class="big alt" type="button">Save Data</button>
+    <button id="btnUpdate" class="big alt" type="button">Update Game (keeps your save)</button>
+    <p id="updMsg" class="status"></p>
     <button id="btnDev" class="big alt" type="button">Developer</button>
     <button class="back" data-go="scrMenu">Back</button>
   </section>
@@ -206,7 +209,8 @@
 <!-- PeerJS (WebRTC) for multiplayer; the second tag only loads if the first CDN is unreachable -->
 <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js"></script>
 <script>window.Peer || document.write('<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"><\/script>')</script>
-<script src="turn-config.js"></script>
-<script src="game.js"></script>
+<!-- keep the ?v= numbers below equal to GAME_VERSION in game.js: a new number makes every browser download the new file instead of reusing its cached copy -->
+<script src="turn-config.js?v=2026.10.27-b"></script>
+<script src="game.js?v=2026.10.27-b"></script>
 </body>
 </html>

@@ -47,7 +47,7 @@ const CHARS = {
   healer: { name: 'Healer', atk: 3, hp: 55, color: '#43a047', dark: '#1b5e20', cd: 0.6, speed: 150, sym: '✚',
     desc: 'Healing Ray: heals everything in range for 20% of your max HP + 10% of your current HP; you and pets get half of that. No ally in range: heals only yourself, in full.' },
 };
-const GAME_VERSION = '2026.10.27-a'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
+const GAME_VERSION = '2026.10.27-b'; // shown on the menu and compared between players, so a stale cached copy is easy to spot
 // ---- icons (drawn as SVG): gold coin, equipment helmet, pet-point paw ----
 const ICON_SVG = {
   gold: "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 64 64\"><defs><linearGradient id=\"g\" x1=\"0\" y1=\"0\" x2=\"1\" y2=\"1\"><stop offset=\"0\" stop-color=\"#fff0a0\"/><stop offset=\".5\" stop-color=\"#f5c21f\"/><stop offset=\"1\" stop-color=\"#c78a00\"/></linearGradient></defs><circle cx=\"32\" cy=\"32\" r=\"30\" fill=\"url(#g)\" stroke=\"#a87400\" stroke-width=\"1.6\"/><circle cx=\"32\" cy=\"32\" r=\"25.5\" fill=\"#f1bd24\" stroke=\"#b78100\" stroke-width=\"1.4\"/><circle cx=\"32\" cy=\"32\" r=\"24\" fill=\"none\" stroke=\"#ffe98a\" stroke-width=\".8\" opacity=\".7\"/><circle cx=\"51.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"50.71\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"48.45\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"44.21\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"38.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"13.00\" cy=\"32.00\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"14.15\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"17.45\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"22.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"28.70\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"35.30\" cy=\"13.29\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"41.50\" cy=\"15.55\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"46.55\" cy=\"19.79\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><circle cx=\"49.85\" cy=\"25.50\" r=\"1.35\" fill=\"#f2c13a\" stroke=\"#a87400\" stroke-width=\".4\"/><polygon points=\"32,32 32.00,17.00 35.76,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 35.76,26.82 46.27,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 46.27,27.36 38.09,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 38.09,33.98 40.82,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 40.82,44.14 32.00,38.40\" fill=\"#ffe88a\"/><polygon points=\"32,32 32.00,38.40 23.18,44.14\" fill=\"#d99a00\"/><polygon points=\"32,32 23.18,44.14 25.91,33.98\" fill=\"#ffe88a\"/><polygon points=\"32,32 25.91,33.98 17.73,27.36\" fill=\"#d99a00\"/><polygon points=\"32,32 17.73,27.36 28.24,26.82\" fill=\"#ffe88a\"/><polygon points=\"32,32 28.24,26.82 32.00,17.00\" fill=\"#d99a00\"/><polygon points=\"32.00,17.00 35.76,26.82 46.27,27.36 38.09,33.98 40.82,44.14 32.00,38.40 23.18,44.14 25.91,33.98 17.73,27.36 28.24,26.82\" fill=\"none\" stroke=\"#a87400\" stroke-width=\".8\" stroke-linejoin=\"round\"/></svg>",
@@ -585,10 +585,12 @@ function applyGates() {
 }
 // A run you left or lost (guest side) can be rejoined for 5 minutes. Until you reconnect or leave it, nothing else in the menus is available,
 // so a run can't be dodged to upgrade heroes and then rejoined.
+let updBusy = false;
 function applyLock() {
   const l = !!lastGame();
   $('rejoinBox').classList.toggle('hidden', !l); $('multiMain').classList.toggle('hidden', l);
   for (const id of ['btnChar', 'btnPets', 'btnGear', 'btnFriends', 'btnShop', 'btnSettings']) $(id).disabled = l;
+  $('menuUpd').disabled = l || updBusy; // reloading the page would drop you out of the run you can still rejoin
 }
 { const lt = setInterval(() => { if (!$('scrMenu').classList.contains('hidden') || !$('scrMulti').classList.contains('hidden')) applyLock(); }, 2000); if (lt && lt.unref) lt.unref(); }
 let toastTimer = 0, pauseOpen = false;
@@ -3357,7 +3359,56 @@ $('tabPets').addEventListener('click', () => { shopTab = 'pets'; renderShop(); }
 const openPets = () => { renderPets(); show('scrPets'); };
 $('btnPets').addEventListener('click', openPets);
 const openShop = () => { renderShop(); show('scrShop'); };
-$('btnSettings').addEventListener('click', () => show('scrSettings'));
+// ---------------- updates: refresh the game files without touching the save ----------------
+// The save lives in localStorage. Nothing below reads, clears or rewrites it: only the browser's cached copies of the game files are replaced.
+const VER_RE = /GAME_VERSION\s*=\s*'([^']+)'/;
+let updChecked = 0;
+async function latestVersion() { // version of the game.js that is on the server right now (never from the cache); '' when it can't be reached
+  try {
+    const r = await fetch(new URL('game.js', location.href).href + '?chk=' + Date.now(), { cache: 'no-store', headers: { Range: 'bytes=0-8191' } }); // the version is in the first few lines, so ask for just the top of the file
+    if (!r.ok) return '';
+    const m = VER_RE.exec(await r.text()); return m ? m[1] : '';
+  } catch (e) { return ''; }
+}
+async function checkForUpdate(force) { // shows the menu banner when the server has a different version; checks at most every 10 minutes unless forced
+  const now = Date.now(); if (!force && now - updChecked < 600000) return '';
+  updChecked = now;
+  const v = await latestVersion();
+  if (v && v !== GAME_VERSION) { $('menuUpd').textContent = `⬆ New version available (v${v}) – tap to update`; $('menuUpd').classList.remove('hidden'); }
+  else if (v) $('menuUpd').classList.add('hidden');
+  return v;
+}
+async function forceUpdate() {
+  if (updBusy) return; updBusy = true;
+  const btns = [$('btnUpdate'), $('menuUpd')], say = (m, t) => { $('updMsg').textContent = m; toast(t || m); }; // long text in the Settings line, a short one in the toast
+  btns.forEach(b => { b.disabled = true; });
+  say('Refreshing the game files. Your save is kept.', 'Updating…');
+  try {
+    saveProfile(); // write the latest progress first (this is the only storage call; nothing is cleared)
+    if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    if (typeof caches !== 'undefined' && caches.keys) for (const k of await caches.keys()) await caches.delete(k);
+    const page = location.origin + location.pathname;
+    const res = await fetch(page, { cache: 'reload' }); // 'reload' = straight from the server, and the cached copy is replaced with the fresh one
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const doc = new DOMParser().parseFromString(await res.text(), 'text/html'), need = new Set();
+    for (const el of doc.querySelectorAll('script[src], link[rel~="stylesheet"][href]')) { try { const u = new URL(el.getAttribute('src') || el.getAttribute('href'), page); if (u.origin === location.origin) need.add(u.href); } catch (e) {} }
+    const fresh = u => fetch(u, { cache: 'reload' });
+    await Promise.all([...need].map(async u => { const r = await fresh(u); if (!r.ok) throw new Error('HTTP ' + r.status); }));
+    await Promise.all(['game.js', 'style.css', 'turn-config.js'].map(f => new URL(f, page).href).filter(u => !need.has(u)).map(u => fresh(u).catch(() => {}))); // plain file names too, in case an older page still uses them
+    say('Updated. Restarting…', 'Restarting…');
+    location.replace(location.pathname + '?u=' + Date.now()); // a new address makes sure the page itself is fetched fresh; the ?u= is removed again on load
+  } catch (e) {
+    updBusy = false; btns.forEach(b => { b.disabled = false; }); applyLock();
+    say("Couldn't reach the server. Check your connection and try again. Your save is untouched.", "Couldn't reach the server");
+  }
+}
+$('btnUpdate').addEventListener('click', forceUpdate);
+$('menuUpd').addEventListener('click', forceUpdate);
+$('btnSettings').addEventListener('click', async () => {
+  show('scrSettings'); $('updMsg').textContent = `You are on v${GAME_VERSION}.`;
+  const v = await checkForUpdate(true);
+  if (v && !updBusy && !$('scrSettings').classList.contains('hidden')) $('updMsg').textContent = v === GAME_VERSION ? `You are on v${GAME_VERSION}, the latest version.` : `A new version (v${v}) is available. Tap Update Game.`;
+});
 $('btnSound').addEventListener('click', () => toast('Sound settings are coming soon'));
 $('btnPrivacy').addEventListener('click', () => toast('Privacy Policy is coming soon'));
 $('btnDev').addEventListener('click', () => { // testing panel, behind a code; remove before release
@@ -3407,6 +3458,7 @@ function submitName() {
   if (isBadName(n)) { err('Please choose a friendly name. That one is not allowed.'); $('nameInput').focus(); return; }
   err(''); profile.name = n; profile.ageOk = true; saveProfile(); updateMenu(); afterName();
 }
+if (new URLSearchParams(location.search).has('u')) { try { const q = new URLSearchParams(location.search); q.delete('u'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } catch (e) {} } // drop the cache-busting ?u= left by Update Game
 let pendingRoom = (new URLSearchParams(location.search).get('room') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5);
 let pendingFriend = (new URLSearchParams(location.search).get('friend') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 function afterName() { // an invite link (?room=CODE) jumps straight into joining; a friend link (?friend=CODE) sends a friend request
@@ -3525,7 +3577,7 @@ function startPresence() {
   });
 }
 function restartPresence() { pres.token++; clearTimeout(pres.timer); const p = pres.p; pres.p = null; pres.state = 'off'; safe(() => p && p.destroy()); startPresence(); }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { startPresence(); if (friendsOpen()) checkFriends(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { startPresence(); if (friendsOpen()) checkFriends(); checkForUpdate(); } });
 window.addEventListener('online', () => startPresence());
 window.addEventListener('beforeunload', () => safe(() => pres.p && pres.p.destroy())); // frees the friend code at once, so a page reload can claim it again
 // Friend messages ride inside the "metadata" of an ordinary PeerJS connection request. The matchmaking service delivers that request to the friend's page
@@ -3687,4 +3739,5 @@ fillIcons();
 resize();
 if (profile.name && profile.ageOk) { updateMenu(); afterName(); } else { $('nameInput').value = profile.name; show('scrName'); }
 requestAnimationFrame(frame);
+{ const ut = setTimeout(() => checkForUpdate(true), 1500); if (ut && ut.unref) ut.unref(); } // look for a newer version a moment after start-up
 })();

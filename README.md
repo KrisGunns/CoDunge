@@ -29,6 +29,14 @@ To test locally: `python3 -m http.server 8000` and open http://localhost:8000.
 Character Points found by either player in a multiplayer run are credited to both players. Name, Character Points (each point = +1 ATK or +5 HP, your choice; spend them with the +1 / +5 / Max buttons or type an amount), upgrades, selected character and best level are stored in each player's browser (localStorage).
 Clearing site data resets progress.
 
+## Updating the game (browser cache)
+
+GitHub Pages lets browsers keep their copy of the files for about 10 minutes, and phones can hold on to them much longer, so a plain reload may still show the old version.
+
+* **Settings → Update Game (keeps your save)** re-downloads the page, `game.js`, `style.css` and `turn-config.js` straight from the server, empties any Cache Storage and then restarts the page. Your save (`localStorage`) is never read, cleared or rewritten, so progress stays. Use this instead of clearing the browser's site data (which *does* delete the save; make a save code under **Settings → Save Data** first if you ever need to do that).
+* The game checks the server for a newer `GAME_VERSION` shortly after start-up, when you open Settings, and when the tab comes back to the foreground (at most every 10 minutes). If it finds one, an orange **New version available** button appears at the top of the menu. It is disabled while you have a run you can still rejoin, since restarting the page would drop it.
+* **For every release:** change `GAME_VERSION` in `game.js` *and* the three `?v=` numbers in `index.html` (`style.css`, `turn-config.js`, `game.js`) to the same value. A new number makes browsers download the file again instead of reusing the cached copy, so after one more manual refresh future updates arrive on their own. If `index.html` is forgotten, the in-game banner and **Update Game** button still fix it.
+
 ## Gold, pets, equipment and shop
 
 * Every kill pays gold: `ROUND(base × (1 + 0.15 × (stage − 1)))` with base Rat 2.5 / Goblin 5 / Skeleton Archer 5 / Voidling 7.5 / Sorcerer 10 / Hellguard 12 / Assassin 12 (bosses and summoned archers pay nothing). Both co-op players get all gold and points.
